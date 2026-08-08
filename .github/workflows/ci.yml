@@ -1,0 +1,56 @@
+name: CI
+
+# Commits landing on main, and every pull request. A PR from a feature branch fires
+# only the pull_request trigger, so nothing is built twice.
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+# A newer push to the same branch or PR supersedes an in-flight run.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build-and-test:
+    name: Build and test
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          # global.json pins the SDK feature band, so CI and local machines resolve the
+          # same analyzer set. With warnings-as-errors on, an SDK drift would otherwise
+          # turn new analyzer rules into build failures that nobody can reproduce.
+          global-json-file: global.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      - name: Restore
+        run: dotnet restore OpenDispatch.sln
+
+      # Warnings are errors via Directory.Build.props, so this step fails on any warning.
+      # The gate is deliberately not repeated here: one source of truth cannot drift.
+      - name: Build
+        run: dotnet build OpenDispatch.sln --configuration Release --no-restore
+
+      # Unit + integration. The integration category starts a PostGIS container through
+      # Testcontainers, which works on ubuntu-latest because Docker is preinstalled.
+      # The build above already produced Release output, so this rebuild is a no-op.
+      - name: Test
+        run: make test CONFIGURATION=Release

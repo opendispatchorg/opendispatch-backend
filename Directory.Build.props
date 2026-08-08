@@ -1,0 +1,48 @@
+<Project>
+
+  <!--
+    Repo-wide build settings. Every project under src/ and tests/ imports this file
+    automatically, so individual .csproj files declare only what is genuinely
+    project-specific (OutputType, IsPackable, package and project references).
+  -->
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <!--
+    Assembly and namespace identity. Directories are unprefixed (src/Domain,
+    tests/Domain.Tests) while the shipped identity stays fully qualified, matching
+    the project names in Document 2 section 2. src/Domain builds OpenDispatch.Domain.dll.
+  -->
+  <PropertyGroup>
+    <RootNamespace>OpenDispatch.$(MSBuildProjectName)</RootNamespace>
+    <AssemblyName>OpenDispatch.$(MSBuildProjectName)</AssemblyName>
+  </PropertyGroup>
+
+  <!--
+    Quality gates, locked before the code exists so they apply to everything that
+    follows. A warning anywhere fails the build.
+  -->
+  <PropertyGroup>
+    <TreatWarningsAsErrors>true</TreatWarningsAsErrors>
+    <EnableNETAnalyzers>true</EnableNETAnalyzers>
+    <AnalysisLevel>latest</AnalysisLevel>
+    <AnalysisMode>Recommended</AnalysisMode>
+    <EnforceCodeStyleInBuild>true</EnforceCodeStyleInBuild>
+  </PropertyGroup>
+
+  <!--
+    IDE0005 (unnecessary using directive) is only reported during a command-line
+    build when the documentation file is generated. Generating it also turns on
+    CS1591 (missing XML comment on a public member), which is not a gate we want.
+  -->
+  <PropertyGroup>
+    <GenerateDocumentationFile>true</GenerateDocumentationFile>
+    <NoWarn>$(NoWarn);CS1591</NoWarn>
+  </PropertyGroup>
+
+</Project>
