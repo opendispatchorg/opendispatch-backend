@@ -1,20 +1,22 @@
 using System.Net;
 using System.Net.Http.Json;
-using Microsoft.AspNetCore.Mvc.Testing;
 using OpenDispatch.Api.Health;
+using OpenDispatch.Api.IntegrationTests.Fixtures;
+using OpenDispatch.TestSupport;
 
 namespace OpenDispatch.Api.IntegrationTests;
 
 /// <summary>
-/// Boots the real host through <see cref="WebApplicationFactory{TEntryPoint}"/>, so this
-/// exercises configuration binding, startup validation and routing end to end rather than
-/// calling the endpoint delegate directly.
+/// Boots the real host through <see cref="ApiFactory"/>, so this exercises configuration
+/// binding, startup validation and routing end to end rather than calling the endpoint
+/// delegate directly.
 /// </summary>
-public sealed class HealthEndpointTests : IClassFixture<WebApplicationFactory<Program>>
+[Trait(TestCategories.Name, TestCategories.Integration)]
+public sealed class HealthEndpointTests : IClassFixture<ApiFactory>
 {
-    private readonly WebApplicationFactory<Program> _factory;
+    private readonly ApiFactory _factory;
 
-    public HealthEndpointTests(WebApplicationFactory<Program> factory) => _factory = factory;
+    public HealthEndpointTests(ApiFactory factory) => _factory = factory;
 
     [Fact]
     public async Task HealthReturnsOk()

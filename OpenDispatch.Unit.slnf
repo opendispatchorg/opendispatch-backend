@@ -1,0 +1,10 @@
+{
+  "solution": {
+    "path": "OpenDispatch.sln",
+    "projects": [
+      "tests\\Application.Tests\\Application.Tests.csproj",
+      "tests\\Domain.Tests\\Domain.Tests.csproj",
+      "tests\\Scheduling.Tests\\Scheduling.Tests.csproj"
+    ]
+  }
+}

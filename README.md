@@ -50,9 +50,13 @@ depend only on Application abstractions. See [Document 2 §2](claude%20docs/Open
 ## Building
 
 ```bash
-dotnet build OpenDispatch.sln
-dotnet test  OpenDispatch.sln
+make up          # start Postgres/PostGIS
+make run         # serve the Api on http://localhost:5141
+make test-fast   # the Unit category only - pure, no I/O
+make test        # everything, including container-backed integration tests
 ```
+
+Testing conventions and the shared harness are described in [TESTING.md](TESTING.md).
 
 Docker Compose, the `Makefile` targets (`make up`, `make run`, `make test`, …), and EF
 migrations come online as the build plan progresses — check the repo root for what currently
