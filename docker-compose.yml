@@ -1,0 +1,30 @@
+name: opendispatch
+
+services:
+  postgres:
+    # imresamu/postgis rather than postgis/postgis: the latter publishes amd64 only, so it
+    # requires emulation on Apple Silicon. This one is the multi-arch build (amd64 +
+    # arm64) from a PostGIS Docker maintainer, so local dev and amd64 CI share one image.
+    image: imresamu/postgis:17-3.6
+    container_name: opendispatch-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: opendispatch
+      POSTGRES_USER: opendispatch
+      POSTGRES_PASSWORD: opendispatch
+    ports:
+      # Host port 5433, not 5432: a developer machine commonly already runs a local
+      # Postgres on the default port, and binding it would fail `make up`.
+      - "5433:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U opendispatch -d opendispatch"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pgdata:
+    name: opendispatch-pgdata
