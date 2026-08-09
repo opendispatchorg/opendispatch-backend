@@ -66,6 +66,18 @@ internal sealed class TravelMatrix
     public double FromHomeBase(TechnicianId technician, JobId job) =>
         _minutes[_homeBases[technician]][_sites[job]];
 
+    /// <summary>
+    /// Minutes from a job back to a technician's home base — the last drive of their day.
+    /// </summary>
+    /// <remarks>
+    /// Looked up in its own direction rather than reusing <see cref="FromHomeBase"/>. A
+    /// straight line is the same both ways; a road network, with its one-way systems and its
+    /// rush hour running one direction, is not, and the interface promises nothing about
+    /// symmetry.
+    /// </remarks>
+    public double ToHomeBase(JobId job, TechnicianId technician) =>
+        _minutes[_sites[job]][_homeBases[technician]];
+
     /// <summary>Minutes between two jobs.</summary>
     public double BetweenJobs(JobId leaving, JobId arrivingAt) =>
         _minutes[_sites[leaving]][_sites[arrivingAt]];

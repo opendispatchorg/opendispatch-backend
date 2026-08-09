@@ -163,35 +163,38 @@ public sealed class GreedySchedulerTests
     [Fact]
     public void SlotsAJobIntoTheMiddleOfARouteWhenThatIsCheaper()
     {
-        // The "position" half of cheapest insertion. The near job is booked second, and
-        // appending it would mean driving out to the far one and all the way back — so it has
-        // to go in front of the job already there.
+        // The "position" half of cheapest insertion. Two jobs are booked first — one due east
+        // of the depot, one due north — and the third sits between them. Hanging it on either
+        // end of the run means driving out past it and back; dropping it into the middle
+        // costs barely a detour.
         var day = new TimeWindow(SmallCity.At(8), SmallCity.At(18));
         var depot = new GeoPoint(51.5000d, -0.1000d);
 
-        var far = SchedJobBuilder.Any()
-            .WithPriority(JobPriority.High)
-            .At(new GeoPoint(51.5900d, -0.1000d))
-            .InWindow(day)
-            .Lasting(TimeSpan.FromMinutes(30))
-            .Build();
-        var near = SchedJobBuilder.Any()
-            .WithPriority(JobPriority.Normal)
-            .At(new GeoPoint(51.5100d, -0.1000d))
-            .InWindow(day)
-            .Lasting(TimeSpan.FromMinutes(30))
-            .Build();
+        var east = Somewhere(new GeoPoint(51.5000d, -0.0400d), JobPriority.High, day);
+        var north = Somewhere(new GeoPoint(51.5600d, -0.1000d), JobPriority.High, day);
+        var between = Somewhere(new GeoPoint(51.5300d, -0.0550d), JobPriority.Normal, day);
 
         var problem = SchedulingProblemBuilder.Any()
             .Over(day)
             .Staffed(TechPlanBuilder.Any().BasedAt(depot).Working(day).Build())
-            .Booked(far, near)
+            .Booked(east, north, between)
             .Build();
 
-        var solution = Scheduler.Solve(problem);
+        var run = Scheduler.Solve(problem).Routes.Values.Single().Select(stop => stop.JobId).ToList();
 
-        Assert.Equal([near.Id, far.Id], solution.Routes.Values.Single().Select(stop => stop.JobId));
+        // Which way round the other two end up is a coin toss the scan order settles: a round
+        // trip costs the same driven either way. Where the third one goes is not.
+        Assert.Equal(3, run.Count);
+        Assert.Equal(between.Id, run[1]);
     }
+
+    private static SchedJob Somewhere(GeoPoint where, JobPriority priority, TimeWindow window) =>
+        SchedJobBuilder.Any()
+            .At(where)
+            .WithPriority(priority)
+            .InWindow(window)
+            .Lasting(TimeSpan.FromMinutes(30))
+            .Build();
 
     [Fact]
     public void WaitsRatherThanStartingBeforeTheWindowOpens()

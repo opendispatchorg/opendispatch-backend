@@ -17,22 +17,15 @@ namespace OpenDispatch.Scheduling;
 /// obviously-correct starting point is what lets the search be judged.
 /// </para>
 /// <para>
-/// The hard constraints are the ones the architecture names, and each is enforced by
-/// construction rather than checked afterwards:
+/// It chooses by driving alone, not by the full objective. A constructor that weighed lateness
+/// and overtime at every candidate position would be doing the search's work with none of its
+/// ability to change its mind, and the one thing this has to be is quick and predictable.
+/// What it reports at the end is the real cost of what it built.
 /// </para>
-/// <list type="bullet">
-///   <item>a technician is only offered work they hold the skill for;</item>
-///   <item>every stop starts and finishes inside their shift, or the placement is refused;</item>
-///   <item>a stop cannot begin until the technician has driven there from the last one, so a
-///     route can never overlap itself.</item>
-/// </list>
 /// <para>
-/// The promised window is not a constraint here, with one exception: a technician who arrives
-/// before the window opens waits, because turning up early is not the same as being allowed
-/// to start early. The far end of the window is soft — running past it is legal and costs
-/// something, which is the whole reason a job is almost never unschedulable for want of time.
-/// A job comes back unassigned because no one holds the skill, or because no shift can
-/// contain it.
+/// Which placements are allowed at all is <see cref="RouteTimer"/>'s to say — skill, shift and
+/// the drive between consecutive stops. A job comes back unassigned because no technician
+/// holds the skill, or because no shift can contain it.
 /// </para>
 /// <para>
 /// Deterministic without needing the problem's seed: there is no randomness to seed. The same
@@ -58,13 +51,13 @@ public sealed class GreedyScheduler : IScheduler
         ArgumentNullException.ThrowIfNull(problem);
 
         var distances = TravelMatrix.For(problem, _travel);
-        var sequences = problem.Technicians.ToDictionary(technician => technician.Id, _ => new List<SchedJob>());
-        var plans = problem.Technicians.ToDictionary(technician => technician.Id, _ => RoutePlan.Empty);
+        var runs = problem.Technicians.ToDictionary(technician => technician.Id, _ => new List<SchedJob>());
+        var routes = problem.Technicians.ToDictionary(technician => technician.Id, _ => ImmutableArray<Stop>.Empty);
         var unassigned = new List<JobId>();
 
         foreach (var job in InInsertionOrder(problem))
         {
-            var placement = CheapestPlacement(job, problem, sequences, plans, distances);
+            var placement = CheapestPlacement(job, problem, runs, routes, distances);
 
             if (placement is null)
             {
@@ -72,23 +65,13 @@ public sealed class GreedyScheduler : IScheduler
                 continue;
             }
 
-            sequences[placement.Technician].Insert(placement.Position, job);
-            plans[placement.Technician] = placement.Plan;
+            runs[placement.Technician].Insert(placement.Position, job);
+            routes[placement.Technician] = placement.Stops;
         }
 
-        // Summed over the technicians in the problem's own order rather than over the
-        // dictionary: adding doubles is not associative, so an iteration order the runtime
-        // chooses would be an iteration order that could change the answer.
-        var travelled = problem.Technicians.Sum(technician => plans[technician.Id].TravelMinutes);
+        var cost = new ObjectiveEvaluator(problem, distances).Evaluate(routes, unassigned);
 
-        return new Solution(
-            problem.Technicians.ToDictionary(technician => technician.Id, technician => plans[technician.Id].Stops),
-            unassigned,
-
-            // TEMPORARY: removed in step 16. The greedy can only price the driving it can
-            // see; lateness, overtime and the cost of a dropped job arrive with the objective
-            // evaluator, and Solve reports that number instead.
-            problem.Weights.Travel * travelled);
+        return new Solution(routes, unassigned, cost.Total);
     }
 
     /// <summary>
@@ -108,14 +91,14 @@ public sealed class GreedyScheduler : IScheduler
             .ThenBy(job => job.Window.Start);
 
     /// <summary>
-    /// The technician and position that add the least driving, or nothing if no technician can
-    /// take the job at all.
+    /// The technician and position that add the least driving, or nothing if nobody can take
+    /// the job at all.
     /// </summary>
     private static Placement? CheapestPlacement(
         SchedJob job,
         SchedulingProblem problem,
-        Dictionary<TechnicianId, List<SchedJob>> sequences,
-        Dictionary<TechnicianId, RoutePlan> plans,
+        Dictionary<TechnicianId, List<SchedJob>> runs,
+        Dictionary<TechnicianId, ImmutableArray<Stop>> routes,
         TravelMatrix distances)
     {
         Placement? cheapest = null;
@@ -123,32 +106,26 @@ public sealed class GreedyScheduler : IScheduler
 
         foreach (var technician in problem.Technicians)
         {
-            if (!technician.HasSkill(job.RequiredSkill))
-            {
-                continue;
-            }
+            var run = runs[technician.Id];
+            var drivenSoFar = RouteTimer.TravelMinutes(technician, routes[technician.Id], distances);
 
-            var sequence = sequences[technician.Id];
-            var travelledSoFar = plans[technician.Id].TravelMinutes;
-
-            for (var position = 0; position <= sequence.Count; position++)
+            for (var position = 0; position <= run.Count; position++)
             {
-                var candidate = new List<SchedJob>(sequence);
+                var candidate = new List<SchedJob>(run);
                 candidate.Insert(position, job);
 
-                var plan = Plan(technician, candidate, distances);
-                if (plan is null)
+                if (RouteTimer.Time(technician, candidate, distances) is not { } stops)
                 {
                     continue;
                 }
 
                 // Strictly less, so the first technician and the earliest position to reach a
                 // given cost keep it. That is what makes a tie deterministic.
-                var extraMinutes = plan.TravelMinutes - travelledSoFar;
+                var extraMinutes = RouteTimer.TravelMinutes(technician, stops, distances) - drivenSoFar;
                 if (extraMinutes < lowestExtraMinutes)
                 {
                     lowestExtraMinutes = extraMinutes;
-                    cheapest = new Placement(technician.Id, position, plan);
+                    cheapest = new Placement(technician.Id, position, stops);
                 }
             }
         }
@@ -156,50 +133,6 @@ public sealed class GreedyScheduler : IScheduler
         return cheapest;
     }
 
-    /// <summary>
-    /// Drives the route in order and works out when the technician is where, or refuses it if
-    /// the day does not fit inside the shift.
-    /// </summary>
-    private static RoutePlan? Plan(TechPlan technician, List<SchedJob> sequence, TravelMatrix distances)
-    {
-        var stops = ImmutableArray.CreateBuilder<Stop>(sequence.Count);
-        var clock = technician.Shift.Start;
-        var travelMinutes = 0d;
-        SchedJob? previous = null;
-
-        foreach (var job in sequence)
-        {
-            var leg = previous is null
-                ? distances.FromHomeBase(technician.Id, job.Id)
-                : distances.BetweenJobs(previous.Id, job.Id);
-
-            var arrival = clock + TimeSpan.FromMinutes(leg);
-
-            // Early is not the same as allowed. The window's opening is the one part of the
-            // customer's promise the schedule treats as binding; its closing is not.
-            var start = arrival > job.Window.Start ? arrival : job.Window.Start;
-            var end = start + job.Duration;
-
-            if (end > technician.Shift.End)
-            {
-                return null;
-            }
-
-            stops.Add(new Stop(job.Id, arrival, start, end, leg));
-            travelMinutes += leg;
-            clock = end;
-            previous = job;
-        }
-
-        return new RoutePlan(stops.DrainToImmutable(), travelMinutes);
-    }
-
-    /// <summary>A technician's route, timed, with the driving it costs.</summary>
-    private sealed record RoutePlan(ImmutableArray<Stop> Stops, double TravelMinutes)
-    {
-        public static RoutePlan Empty { get; } = new([], 0d);
-    }
-
-    /// <summary>Where a job would go, and the route that results.</summary>
-    private sealed record Placement(TechnicianId Technician, int Position, RoutePlan Plan);
+    /// <summary>Where a job would go, and the day that results.</summary>
+    private sealed record Placement(TechnicianId Technician, int Position, ImmutableArray<Stop> Stops);
 }
