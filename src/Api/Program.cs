@@ -22,9 +22,33 @@ try
 
     builder.Services.AddDatabaseOptions(builder.Configuration);
 
+    // The REST half of the API contract (Document 2 §11). The same registration serves the
+    // document at /openapi/v1.json for a running host and feeds the build-time export that
+    // `make gen-contracts` turns into TypeScript.
+    builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document, _, _) =>
+    {
+        // The default title is the assembly name, which reads like an implementation detail
+        // in a document three repositories generate their clients from.
+        document.Info.Title = "OpenDispatch";
+        document.Info.Description =
+            "The REST half of the OpenDispatch API contract. SignalR board events and the "
+            + "offline-sync payloads are not describable here; they live in @opendispatch/contracts.";
+
+        return Task.CompletedTask;
+    }));
+
     var app = builder.Build();
 
     app.UseSerilogRequestLogging();
+
+    // Served for a developer poking at a running host. The document the clients are generated
+    // from is the one exported at build time, so there is nothing to gain from enumerating the
+    // API surface to anonymous callers in production.
+    if (app.Environment.IsDevelopment())
+    {
+        app.MapOpenApi();
+    }
+
     app.MapHealthEndpoint();
 
     app.Run();

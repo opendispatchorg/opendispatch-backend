@@ -1,6 +1,33 @@
 <Project Sdk="Microsoft.NET.Sdk.Web">
 
+  <!--
+    OpenAPI document generation at build time rather than from a running host, so the REST
+    half of the contract can be exported without booting a server or picking a port. Off by
+    default: `make gen-contracts` turns it on, which keeps the export an explicit act and the
+    ordinary build (and the test loop) free of it.
+
+    The document lands in obj/ under a name the tooling derives from the project. Nothing but
+    `make gen-contracts` reads it, and it is that target which copies it into contracts/ as
+    openapi.json — so everything in the published package is put there deliberately.
+  -->
+  <PropertyGroup>
+    <OpenApiGenerateDocuments>false</OpenApiGenerateDocuments>
+    <OpenApiDocumentsDirectory>$(MSBuildThisFileDirectory)obj\openapi</OpenApiDocumentsDirectory>
+  </PropertyGroup>
+
   <ItemGroup>
+    <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <!--
+      Microsoft.AspNetCore.OpenApi 10.0.10 resolves Microsoft.OpenApi 2.0.0 transitively, and
+      that version carries GHSA-v5pm-xwqc-g5wc. NuGet audit reports it, warnings are errors,
+      and the build stops — which is the gate working. 2.7.5 is the first release without the
+      advisory. Drop this line once the framework package resolves a patched version itself.
+    -->
+    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
+    <PackageReference Include="Microsoft.Extensions.ApiDescription.Server" Version="10.0.10">
+      <PrivateAssets>all</PrivateAssets>
+      <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+    </PackageReference>
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
   </ItemGroup>
 

@@ -46,7 +46,7 @@ public sealed class Job : AggregateRoot
     /// rule for judging what a stale phone is allowed to do to a job.
     /// </para>
     /// </remarks>
-    private static readonly FrozenDictionary<JobStatus, JobStatus[]> Allowed =
+    private static readonly FrozenDictionary<JobStatus, IReadOnlySet<JobStatus>> Allowed =
         new Dictionary<JobStatus, JobStatus[]>
         {
             [JobStatus.Unscheduled] = [JobStatus.Scheduled, JobStatus.Cancelled],
@@ -58,7 +58,27 @@ public sealed class Job : AggregateRoot
             [JobStatus.Invoiced] = [JobStatus.Paid],
             [JobStatus.Paid] = [],
             [JobStatus.Cancelled] = [],
-        }.ToFrozenDictionary();
+        }.ToFrozenDictionary(row => row.Key, IReadOnlySet<JobStatus> (row) => row.Value.ToFrozenSet());
+
+    /// <summary>
+    /// What may follow what, readable but not changeable: every status, and the statuses a job
+    /// in it may move to.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The rule is enforced here and consulted elsewhere. Publishing it does not weaken
+    /// anything — <see cref="Transition"/> is still the only way a status changes, and nothing
+    /// outside this class can reach an illegal state — but it does let the contract generator
+    /// export the table so the technician app can decide offline which buttons to offer
+    /// (Document 6 §5) without a second, hand-copied opinion of the lifecycle.
+    /// </para>
+    /// <para>
+    /// It is the whole table, terminal states and the rows past <see cref="JobStatus.Completed"/>
+    /// included. Those rows are legal; they are simply not client-initiated. A table that hid
+    /// them would be lying about the domain in order to keep a client honest.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlyDictionary<JobStatus, IReadOnlySet<JobStatus>> AllowedTransitions => Allowed;
 
     private Job(
         JobId id,
