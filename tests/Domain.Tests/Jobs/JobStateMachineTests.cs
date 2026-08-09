@@ -1,5 +1,6 @@
 using OpenDispatch.Domain.Common;
 using OpenDispatch.Domain.Events;
+using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.TestSupport;
 using OpenDispatch.TestSupport.Builders;
@@ -45,6 +46,7 @@ public sealed class JobStateMachineTests
         Assert.Equal(to, job.Status);
         var raised = Assert.Single(job.DomainEvents);
         Assert.IsType(EventRaisedOnReaching(to), raised);
+        Assert.Equal(job.Id, JobNamedBy(raised));
     }
 
     [Theory]
@@ -125,6 +127,21 @@ public sealed class JobStateMachineTests
                     nameof(target), target, "No intent method moves a job to this status yet.");
         }
     }
+
+    // Which job the event is about, dug out per type because the catalog is a flat list of
+    // records with no shared "job event" interface. Worth asserting: an event of the right
+    // type carrying the wrong id sends every handler after the wrong job.
+    private static JobId JobNamedBy(IDomainEvent raised) => raised switch
+    {
+        JobScheduled scheduled => scheduled.JobId,
+        JobDispatched dispatched => dispatched.JobId,
+        JobEnRoute enRoute => enRoute.JobId,
+        JobInProgress inProgress => inProgress.JobId,
+        JobCompleted completed => completed.JobId,
+        JobCancelled cancelled => cancelled.JobId,
+        _ => throw new ArgumentOutOfRangeException(
+            nameof(raised), raised, "Not an event a job raises."),
+    };
 
     private static Type EventRaisedOnReaching(JobStatus status) => status switch
     {
