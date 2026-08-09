@@ -1,0 +1,55 @@
+{
+  "openapi": "3.1.1",
+  "info": {
+    "title": "OpenDispatch",
+    "description": "The REST half of the OpenDispatch API contract. SignalR board events and the offline-sync payloads are not describable here; they live in @opendispatch/contracts.",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/health": {
+      "get": {
+        "tags": [
+          "OpenDispatch.Api"
+        ],
+        "operationId": "Health",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "required": [
+          "status",
+          "service"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          }
+        },
+        "description": "The payload returned by `GET /health`."
+      }
+    }
+  },
+  "tags": [
+    {
+      "name": "OpenDispatch.Api"
+    }
+  ]
+}

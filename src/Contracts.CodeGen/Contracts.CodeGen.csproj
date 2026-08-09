@@ -4,8 +4,15 @@
     <OutputType>Exe</OutputType>
   </PropertyGroup>
 
+  <!--
+    Domain as well as Contracts, and this tool is the only thing that references both. The job
+    transition table is domain data and Contracts depends on nothing, so somewhere has to read
+    the rule and write it into the package the clients compile against — a build-time tool that
+    ships nowhere is the honest place for that, and step 22b says so explicitly.
+  -->
   <ItemGroup>
     <ProjectReference Include="..\Contracts\Contracts.csproj" />
+    <ProjectReference Include="..\Domain\Domain.csproj" />
   </ItemGroup>
 
 </Project>
