@@ -18,6 +18,14 @@ namespace OpenDispatch.Scheduling;
 /// since fifty thousand iterations of this cooling leave the temperature at about a
 /// thousandth of a minute.
 /// </para>
+/// <para>
+/// What the measurement did not show is any benefit from the cooling itself. Holding
+/// <see cref="Iterations"/> constant, a search that never accepts a worse day scores within a
+/// few percent of this one in both directions, so <see cref="StartTemperature"/> and
+/// <see cref="Cooling"/> are the two knobs here least worth turning —
+/// <see cref="AnnealingScheduler"/> carries the numbers and the one lead left untried.
+/// <see cref="Iterations"/> is the one that does move the answer.
+/// </para>
 /// </remarks>
 public sealed record AnnealingOptions
 {

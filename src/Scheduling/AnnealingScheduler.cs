@@ -41,6 +41,23 @@ namespace OpenDispatch.Scheduling;
 /// whatever the constructor could not place stays unplaced however much room the search frees
 /// up elsewhere.
 /// </para>
+/// <para>
+/// The cooling, measured, does not earn its place. Against the same search configured never to
+/// accept a worse day, this one wins on four fixtures, loses on three and ties on one, every
+/// gap inside ±4%: the local search is doing the work and the temperature is along for the
+/// ride. Three angles were tried and none changed that — recalibrating the temperature from the
+/// measured distribution of uphill moves, starting the search from a better day, and improving
+/// the proposals it draws. So retuning is not the answer, and nobody should turn these knobs
+/// expecting gains. It stays because Document 2 §4 names simulated annealing, and because what
+/// it produces is feasible, reproducible and far cheaper than the constructor's day either way.
+/// </para>
+/// <para>
+/// The one lead left untried, for whoever picks this up: on a densely booked day most proposals
+/// are refused because the day is already full of driving and waiting rather than because the
+/// work itself does not fit. Pre-empting those would need the route timed, which is the
+/// expensive thing the check exists to avoid, so a cheaper approximation would narrow the
+/// neighbourhood in ways that are hard to reason about. Worth doing carefully or not at all.
+/// </para>
 /// </remarks>
 public sealed class AnnealingScheduler : IScheduler
 {
