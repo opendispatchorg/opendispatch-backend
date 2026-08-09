@@ -82,6 +82,16 @@ It has two halves and both land in `contracts/`:
 Change a `Contracts` type or an endpoint → `make gen-contracts` → commit. Nothing under
 `contracts/` is edited by hand; the whole directory is output.
 
+CI enforces that loop: a `Contract drift` job regenerates the package and fails if the result
+differs from what is committed. Reproduce it in one command:
+
+```bash
+make check-contracts   # regenerate, type-check, and diff against the checkout
+```
+
+Clients depend on `contracts/` by path until publishing is configured (step 52); the generated
+[contracts/README.md](contracts/README.md) says how.
+
 Docker Compose, the `Makefile` targets (`make up`, `make run`, `make test`, …), and EF
 migrations come online as the build plan progresses — check the repo root for what currently
 exists.

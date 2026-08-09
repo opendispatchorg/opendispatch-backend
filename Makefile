@@ -10,7 +10,7 @@ CONTRACTS := contracts
 # the generation targets do not let us set — hence the copy rather than a direct write.
 OPENAPI_EXPORT := src/Api/obj/openapi/Api.json
 
-.PHONY: up run test test-fast test-watch gen-contracts
+.PHONY: up run test test-fast test-watch gen-contracts check-contracts
 
 ## up: start Postgres/PostGIS via docker compose
 up:
@@ -47,3 +47,23 @@ gen-contracts:
 	tools/node_modules/.bin/tsc --noEmit --strict --target es2022 --module preserve \
 		--moduleResolution bundler $(CONTRACTS)/src/index.ts $(CONTRACTS)/src/rest.ts
 	@echo "gen-contracts: $(CONTRACTS)/ regenerated and type-checks - commit it if it changed"
+
+## check-contracts: fail if the committed contracts/ is not what the sources generate
+##
+## Regenerate-and-diff. What CI runs, and what a developer runs to reproduce a red build:
+## a drift check nobody can reproduce locally is one people learn to click past. The
+## comparison is against what is staged, so regenerating and staging before committing is
+## not reported as drift, while a stale commit and a generated file nobody added both are.
+check-contracts: gen-contracts
+	@drifted="$$(git diff --name-only -- $(CONTRACTS); \
+		git ls-files --others --exclude-standard -- $(CONTRACTS))"; \
+	if [ -n "$$drifted" ]; then \
+		echo "" >&2; \
+		echo "Contract drift. $(CONTRACTS)/ is not what the current C# and endpoints generate:" >&2; \
+		echo "$$drifted" | sed 's/^/  /' >&2; \
+		echo "" >&2; \
+		git --no-pager diff -- $(CONTRACTS) >&2; \
+		echo "Run 'make gen-contracts' and commit the result." >&2; \
+		exit 1; \
+	fi
+	@echo "check-contracts: $(CONTRACTS)/ matches the sources it is generated from"

@@ -24,9 +24,11 @@ public static class PackageManifest
 
     /// <summary><c>package.json</c>, as JSON text.</summary>
     /// <remarks>
-    /// <c>private</c> until step 52 configures publishing; until then the clients consume this
-    /// by path or git reference, which needs no version and must not be published by accident.
+    /// <c>private</c> and version <c>0.0.0</c> because there is no registry release: the
+    /// clients depend on this directory by path, which needs no version and must not be
+    /// published by accident.
     /// </remarks>
+    // TEMPORARY: replaced by published package in step 52.
     public static string Json =>
         """
         {
@@ -60,7 +62,8 @@ public static class PackageManifest
         **Generated. Do not edit.** Everything in this directory is produced by
         `make gen-contracts` in the backend repository. Change the C# or an endpoint, regenerate,
         and commit — that is what turns a backend change into a client compile error rather than a
-        runtime surprise.
+        runtime surprise. The backend's CI regenerates and diffs on every push, so a stale copy
+        fails a build there before it reaches anyone here.
 
         | Import | Generated from | What it holds |
         | --- | --- | --- |
@@ -73,10 +76,34 @@ public static class PackageManifest
         rather generate its own client.
 
         ```ts
-        import { BoardEvents, type JobUpdated } from '@opendispatch/contracts';
+        import { BoardEvents, canTransition, type JobUpdated } from '@opendispatch/contracts';
 
         connection.on(BoardEvents.JobUpdated, (event: JobUpdated) => board.apply(event));
+
+        // The job state machine, exported from the same table the server enforces — so an
+        // offline device offers the actions the server will actually accept.
+        canTransition(job.status, 'InProgress');
         ```
+
+        ## Depending on it
+
+        There is no registry release yet. With the backend checked out beside the client repo:
+
+        ```json
+        {
+          "dependencies": {
+            "@opendispatch/contracts": "file:../opendispatch-backend/contracts"
+          }
+        }
+        ```
+
+        npm cannot install a subdirectory of a git repository, so a client that does not sit
+        beside the backend wants a submodule or a CI checkout pointing at this same path.
+
+        The package ships TypeScript source rather than compiled output, which most of it being
+        types makes reasonable — but `BoardEvents`, `jobTransitions` and `canTransition` are real
+        values, so a bundler that does not transform linked dependencies needs telling
+        (`transpilePackages` in Next, `optimizeDeps` in Vite).
 
         """.ReplaceLineEndings("\n");
 }
