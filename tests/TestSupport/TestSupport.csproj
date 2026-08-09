@@ -5,8 +5,14 @@
     <IsTestProject>false</IsTestProject>
   </PropertyGroup>
 
+  <!--
+    Scheduling as well as Domain: TESTING.md puts the object-mother builders here, and the
+    scheduling model needs them from step 14 on. Scheduling references only Domain, so this
+    pulls nothing outward into the pure test projects.
+  -->
   <ItemGroup>
     <ProjectReference Include="..\..\src\Domain\Domain.csproj" />
+    <ProjectReference Include="..\..\src\Scheduling\Scheduling.csproj" />
   </ItemGroup>
 
 </Project>
