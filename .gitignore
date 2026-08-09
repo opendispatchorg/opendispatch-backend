@@ -428,6 +428,9 @@ FodyWeavers.xsd
 *.msm
 *.msp
 
+# Local working notes - never committed
+*.local.md
+
 # claude file
 claude.md
 opendispatch-01-overview.md
