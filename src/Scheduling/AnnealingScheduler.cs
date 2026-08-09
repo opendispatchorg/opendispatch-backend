@@ -1,3 +1,4 @@
+using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Scheduling.Model;
 using OpenDispatch.Scheduling.Search;
 using OpenDispatch.Scheduling.Travel;
@@ -90,6 +91,20 @@ public sealed class AnnealingScheduler : IScheduler
         }
 
         return best;
+    }
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// There is nothing to anneal about slotting in one job. Searching would mean rearranging
+    /// the day, which is exactly what this is not allowed to do, so it does the same exhaustive
+    /// thing the constructor does.
+    /// </remarks>
+    public Solution Insert(Solution current, SchedulingProblem problem, JobId job)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(problem);
+
+        return Insertion.Into(current, problem, job, TravelMatrix.For(problem, _travel));
     }
 
     /// <summary>

@@ -53,6 +53,19 @@ public sealed class GreedyScheduler : IScheduler
         return Solve(problem, TravelMatrix.For(problem, _travel));
     }
 
+    /// <inheritdoc />
+    /// <remarks>
+    /// Nothing greedy about this one. A single insertion that may not disturb anything else
+    /// has one right answer, so both schedulers do the same exhaustive thing.
+    /// </remarks>
+    public Solution Insert(Solution current, SchedulingProblem problem, JobId job)
+    {
+        ArgumentNullException.ThrowIfNull(current);
+        ArgumentNullException.ThrowIfNull(problem);
+
+        return Insertion.Into(current, problem, job, TravelMatrix.For(problem, _travel));
+    }
+
     /// <summary>
     /// Builds the day against drives somebody has already worked out — for a search that goes
     /// on to improve it and would otherwise ask the provider for the same matrix twice. With a
