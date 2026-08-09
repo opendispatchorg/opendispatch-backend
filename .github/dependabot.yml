@@ -1,0 +1,33 @@
+version: 2
+
+# NuGet only, and for one concrete reason: src/Api/Api.csproj pins Microsoft.OpenApi because
+# the framework package resolves a version with a security advisory transitively. That pin has
+# no other owner — nothing in the build plan will ever prompt its removal — so this is the
+# thing that says when a patched version has arrived.
+#
+# npm (tools/) and the workflow actions are deliberately not here. A bot bump of
+# openapi-typescript would change contracts/src/rest.ts, and the contract-drift job would then
+# fail on the bot's own pull request until a human ran `make gen-contracts`. That is the check
+# working correctly, and it is still friction nobody asked for. Those two are updated by hand.
+updates:
+  - package-ecosystem: nuget
+    # NuGet discovery walks down from here, so this covers every project under src/ and tests/.
+    directory: "/"
+    schedule:
+      interval: weekly
+    open-pull-requests-limit: 5
+    groups:
+      # The framework packages move together on a servicing release. Separate pull requests for
+      # each would be three ways to end up on mismatched versions of one thing.
+      dotnet:
+        patterns:
+          - "Microsoft.AspNetCore.*"
+          - "Microsoft.Extensions.*"
+          - "Microsoft.OpenApi"
+      # Likewise the test stack: xunit and the VSTest adapter are a matched pair.
+      testing:
+        patterns:
+          - "xunit*"
+          - "Microsoft.NET.Test.Sdk"
+          - "coverlet.*"
+          - "Testcontainers*"
