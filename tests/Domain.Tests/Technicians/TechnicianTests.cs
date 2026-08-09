@@ -25,6 +25,18 @@ public sealed class TechnicianTests
     }
 
     [Fact]
+    public void TheExposedSkillSetLooksUpWithoutRegardToCaseToo()
+    {
+        // The scheduler copies this set straight into its own model rather than calling
+        // HasSkill per job. HasSkill reads the private field, so it would keep passing even
+        // if this property started handing back a set that had lost the comparer — and the
+        // only symptom would be a job nobody can be assigned to.
+        var technician = TechnicianBuilder.Any().Skilled("hvac").Build();
+
+        Assert.True(technician.Skills.Contains("HVAC"));
+    }
+
+    [Fact]
     public void HasSkillIsFalseForWorkTheyAreNotQualifiedFor()
     {
         var technician = TechnicianBuilder.Any().Skilled("hvac").Build();

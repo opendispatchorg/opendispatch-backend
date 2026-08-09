@@ -38,6 +38,13 @@ public sealed class Job : AggregateRoot
     /// whether the key is there. The step from <see cref="JobStatus.Completed"/> onward has
     /// no intent method yet; it arrives with the invoicing slice.
     /// </para>
+    /// <para>
+    /// Stages cannot be skipped, and that is a decision rather than an oversight. A
+    /// technician already standing on the doorstep still moves through
+    /// <see cref="JobStatus.EnRoute"/>, which costs one tap in an app that presents the
+    /// buttons in order anyway, and buys the offline-sync endpoint the tightest possible
+    /// rule for judging what a stale phone is allowed to do to a job.
+    /// </para>
     /// </remarks>
     private static readonly FrozenDictionary<JobStatus, JobStatus[]> Allowed =
         new Dictionary<JobStatus, JobStatus[]>
