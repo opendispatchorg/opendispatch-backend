@@ -4,4 +4,14 @@
     <ProjectReference Include="..\Domain\Domain.csproj" />
   </ItemGroup>
 
+  <!--
+    The search's moves and working state are internal: the engine's contract is IScheduler,
+    the model, the travel seam and the objective, not the shape of its neighbourhood. The
+    build plan asks for each move to be tested individually, which needs this rather than a
+    wider public surface nothing outside the project would ever call.
+  -->
+  <ItemGroup>
+    <InternalsVisibleTo Include="OpenDispatch.Scheduling.Tests" />
+  </ItemGroup>
+
 </Project>
