@@ -50,7 +50,16 @@ public sealed class GreedyScheduler : IScheduler
     {
         ArgumentNullException.ThrowIfNull(problem);
 
-        var distances = TravelMatrix.For(problem, _travel);
+        return Solve(problem, TravelMatrix.For(problem, _travel));
+    }
+
+    /// <summary>
+    /// Builds the day against drives somebody has already worked out — for a search that goes
+    /// on to improve it and would otherwise ask the provider for the same matrix twice. With a
+    /// road-network provider that is a second batched request for an answer already in hand.
+    /// </summary>
+    internal static Solution Solve(SchedulingProblem problem, TravelMatrix distances)
+    {
         var runs = problem.Technicians.ToDictionary(technician => technician.Id, _ => new List<SchedJob>());
         var routes = problem.Technicians.ToDictionary(technician => technician.Id, _ => ImmutableArray<Stop>.Empty);
         var unassigned = new List<JobId>();
