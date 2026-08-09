@@ -222,6 +222,50 @@ public sealed class MoveTests
     }
 
     [Fact]
+    public void NeverProposesHandingWorkToSomebodyUnqualifiedForIt()
+    {
+        // Redrawing instead of proposing the impossible is only ever an efficiency, so nothing
+        // else in this file would notice if it stopped happening — the search would simply do
+        // a fraction of the work its iteration count suggests. On a shop with specialised
+        // technicians it was 38% of every proposal.
+        var problem = SmallCity.Problem().Build();
+        var state = SearchState.From(
+            problem,
+            TravelMatrix.For(problem, Travel),
+            new GreedyScheduler(Travel).Solve(problem));
+        var generator = new MoveGenerator(problem, new Random(problem.Seed));
+        var technicians = problem.Technicians.ToDictionary(technician => technician.Id);
+
+        var proposed = 0;
+
+        for (var draw = 0; draw < 2_000; draw++)
+        {
+            if (generator.Propose(state) is not { } move)
+            {
+                continue;
+            }
+
+            proposed++;
+
+            var candidates = move.Touches.ToDictionary(
+                technician => technician,
+                technician => new List<SchedJob>(state.RunOf(technician)));
+            move.RewriteIn(candidates);
+
+            foreach (var (technician, run) in candidates)
+            {
+                Assert.All(
+                    run,
+                    job => Assert.True(
+                        technicians[technician].HasSkill(job.RequiredSkill),
+                        $"{technician.Value} was offered '{job.RequiredSkill}' work they cannot do"));
+            }
+        }
+
+        Assert.True(proposed > 100, $"only {proposed} moves were proposed, so little was checked");
+    }
+
+    [Fact]
     public void RefusesAReversalThatWouldNotRearrangeAnything()
     {
         Assert.Throws<ArgumentOutOfRangeException>(() => new TwoOpt(SmallCity.Sam.Id, 1, 1));

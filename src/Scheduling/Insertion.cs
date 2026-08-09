@@ -17,10 +17,11 @@ namespace OpenDispatch.Scheduling;
 /// job inserted at eleven pushes the rest of that technician's afternoon along.
 /// </para>
 /// <para>
-/// Every position on every technician is tried and priced with the full objective, not by
-/// driving alone the way the constructor picks. It can afford to: this is one job, considered
-/// once, and the answer matters — the cheapest drive is often the end of somebody's day, which
-/// for an emergency with a two-hour window is the wrong answer expensively.
+/// Every position on every technician is tried and priced with the full objective — the same
+/// standard <see cref="GreedyScheduler"/> uses, so the day a dispatcher gets from re-optimising
+/// and the slot they get from dropping in one emergency are chosen the same way. Mileage alone
+/// would put an emergency at the end of somebody's day, because the technician passes the door
+/// on the way home, which for a two-hour window is the wrong answer expensively.
 /// </para>
 /// <para>
 /// Shared by both schedulers because there is nothing to anneal about it. A single insertion

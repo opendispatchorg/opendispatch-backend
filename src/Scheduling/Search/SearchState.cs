@@ -101,6 +101,13 @@ internal sealed class SearchState
     /// <summary>The order <paramref name="technician"/> is currently doing their day in.</summary>
     public IReadOnlyList<SchedJob> RunOf(TechnicianId technician) => _runs[technician];
 
+    /// <summary>Whether <paramref name="technician"/> is qualified for this kind of work.</summary>
+    /// <remarks>
+    /// Exposed for the move generator, which uses it to avoid proposing rearrangements that
+    /// were never going to be allowed.
+    /// </remarks>
+    public bool HasSkill(TechnicianId technician, string skill) => _technicians[technician].HasSkill(skill);
+
     /// <summary>
     /// Works out what the schedule would cost if <paramref name="move"/> were taken, without
     /// taking it.

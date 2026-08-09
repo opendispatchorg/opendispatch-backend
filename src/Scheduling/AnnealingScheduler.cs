@@ -24,6 +24,14 @@ namespace OpenDispatch.Scheduling;
 /// random is made in the problem's own order. The same problem gives the same day.
 /// </para>
 /// <para>
+/// On the same machine, that is. <c>Random(seed)</c> is stable across platforms and .NET
+/// versions, but deciding whether to accept a worse day goes through <see cref="Math.Exp"/>,
+/// which is not guaranteed bit-identical everywhere — so two different machines could in
+/// principle part company. Nothing depends on them not doing so today; if something ever
+/// needs to, the fix is a rational approximation to the acceptance rule rather than a
+/// cross-platform maths library.
+/// </para>
+/// <para>
 /// What it returns is the best schedule it saw, not the one it happened to be holding when the
 /// iterations ran out — those are not the same thing, and the difference is the whole point of
 /// being willing to accept a worse day in the middle.

@@ -41,19 +41,39 @@ public sealed class AnnealingSchedulerTests
 
     [Theory]
     [MemberData(nameof(Fixtures))]
-    public void BeatsTheDayTheConstructorHandedIt(string fixture)
+    public void NeverReturnsSomethingWorseThanTheConstructorsDay(string fixture)
     {
-        // Measured with the default settings, across both fixtures and three layout seeds:
+        // Measured with the default settings, over both fixtures and three layout seeds:
         //
-        //   small city    3 techs,   8 jobs      383 ->    50     87% cheaper    ~36 ms
-        //   busy day      5 techs,  30 jobs    7,258 ->   224     97% cheaper    ~27 ms
-        //   bigger day    8 techs,  60 jobs   12,229 -> 4,357     64% cheaper    ~30 ms
+        //   fixture              constructor   annealed   ms
+        //   small city  3 x  8            52         50   43
+        //   busy day    5 x 30           644        179   37
+        //   busy day    5 x 30 (s7)      714        713   35
+        //   busy day    5 x 30 (s99)     312        231   33
+        //   bigger day  8 x 60         3,424      2,365   32
+        //   bigger day  8 x 60 (s7)    1,655      1,349   28
+        //   bigger day  8 x 60 (s99)   4,002      3,804   26
         //
-        // Almost all of it is lateness. The constructor picks by driving alone and produces a
-        // day that is workable but hours late; the search trades a little more driving for
-        // keeping the promises. A quarter is asserted rather than the measured figure, so this
-        // reports a regression in the engine rather than a rounding change in a fixture.
+        // Never worse is the floor, and it is the claim worth making on every fixture: the
+        // constructor now prices candidates with the same objective, so on a small day it
+        // often lands somewhere the search cannot improve on at all.
         var problem = Problem(fixture);
+
+        var constructed = new GreedyScheduler(Travel).Solve(problem);
+        var annealed = new AnnealingScheduler(Travel).Solve(problem);
+
+        Assert.True(
+            annealed.Cost <= constructed.Cost,
+            $"annealing came back with {annealed.Cost:F1}, worse than the {constructed.Cost:F1} it was handed");
+    }
+
+    [Fact]
+    public void FindsAMeaningfulImprovementWhereThereIsRoomForOne()
+    {
+        // The busy day is where the constructor leaves something on the table — it commits to
+        // each placement in turn and never reconsiders, so thirty jobs across five technicians
+        // end up with a day that is workable and 72% more expensive than it needs to be.
+        var problem = BusyDay.Problem().Build();
 
         var constructed = new GreedyScheduler(Travel).Solve(problem);
         var annealed = new AnnealingScheduler(Travel).Solve(problem);
@@ -105,19 +125,37 @@ public sealed class AnnealingSchedulerTests
     }
 
     [Fact]
-    public void TradesDrivingForKeepingPromises()
+    public void TheSearchClearsWhateverLatenessTheConstructorLeaves()
     {
-        // What the improvement actually consists of, stated outright — the objective says a
-        // late minute is worth five driving ones, and this is the engine acting on it.
-        var problem = SmallCity.Problem().Build();
+        // The objective says a late minute is worth five driving ones, and this is the engine
+        // acting on it. On the busy day the constructor leaves 388 of lateness behind — it
+        // commits to each job in turn and cannot go back — and the search removes all of it
+        // while cutting the driving too, so it is not even a trade.
+        var problem = BusyDay.Problem().Build();
         var objective = new ObjectiveEvaluator(problem, Travel);
 
         var constructed = objective.Evaluate(new GreedyScheduler(Travel).Solve(problem));
         var annealed = objective.Evaluate(new AnnealingScheduler(Travel).Solve(problem));
 
         Assert.True(constructed.Lateness > 0d, "the constructor's day was already on time, so there was nothing to fix");
-        Assert.True(annealed.Lateness < constructed.Lateness);
-        Assert.True(annealed.Total < constructed.Total);
+        Assert.Equal(0d, annealed.Lateness);
+        Assert.True(annealed.Travel < constructed.Travel);
+    }
+
+    [Fact]
+    public void TheConstructorKeepsThePromisesItCan()
+    {
+        // What pricing candidates with the whole objective bought. Scoring by mileage alone
+        // put this day 66 minutes late — 332 of the 383 it cost — because nothing in the
+        // criterion knew what a promised window was worth. Now the constructor gets there on
+        // its own and the search has nothing to fix.
+        var problem = SmallCity.Problem().Build();
+
+        var constructed = new ObjectiveEvaluator(problem, Travel)
+            .Evaluate(new GreedyScheduler(Travel).Solve(problem));
+
+        Assert.Equal(0d, constructed.Lateness);
+        Assert.Equal(0d, constructed.Overtime);
     }
 
     [Theory]

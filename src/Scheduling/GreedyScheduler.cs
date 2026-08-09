@@ -7,20 +7,27 @@ namespace OpenDispatch.Scheduling;
 
 /// <summary>
 /// Builds a workable day by cheapest insertion: take the jobs in turn, most urgent first, and
-/// slot each one wherever it adds the least driving.
+/// slot each one wherever it adds least to the cost of the day.
 /// </summary>
 /// <remarks>
 /// <para>
 /// This is the constructor, not the optimiser. It never reconsiders a placement — once a job
-/// is on someone's route it stays there — so what comes out is a feasible day rather than a
-/// good one. Improving it is the local search's job, and having a fast, deterministic,
+/// is on someone's route it stays there — so what comes out is a workable day rather than the
+/// best one. Improving it is the local search's job, and having a fast, deterministic,
 /// obviously-correct starting point is what lets the search be judged.
 /// </para>
 /// <para>
-/// It chooses by driving alone, not by the full objective. A constructor that weighed lateness
-/// and overtime at every candidate position would be doing the search's work with none of its
-/// ability to change its mind, and the one thing this has to be is quick and predictable.
-/// What it reports at the end is the real cost of what it built.
+/// Candidates are priced with the whole objective, not by driving alone. Mileage is the
+/// cheaper thing to measure and the obvious thing for a constructor to use, and it was what
+/// this did first — but it produces a day that is short on driving and hours late, because
+/// nothing in the criterion knows what a promised window is worth. Pricing the whole objective
+/// costs nothing measurable: the expensive part of considering a position is timing the route,
+/// which has to happen either way.
+/// </para>
+/// <para>
+/// It is also the same rule <see cref="Insertion"/> uses, so the day a dispatcher gets from
+/// re-optimising and the slot they get from dropping in one emergency are chosen by the same
+/// standard.
 /// </para>
 /// <para>
 /// Which placements are allowed at all is <see cref="RouteTimer"/>'s to say — skill, shift and
@@ -73,13 +80,14 @@ public sealed class GreedyScheduler : IScheduler
     /// </summary>
     internal static Solution Solve(SchedulingProblem problem, TravelMatrix distances)
     {
+        var objective = new ObjectiveEvaluator(problem, distances);
         var runs = problem.Technicians.ToDictionary(technician => technician.Id, _ => new List<SchedJob>());
         var routes = problem.Technicians.ToDictionary(technician => technician.Id, _ => ImmutableArray<Stop>.Empty);
         var unassigned = new List<JobId>();
 
         foreach (var job in InInsertionOrder(problem))
         {
-            var placement = CheapestPlacement(job, problem, runs, routes, distances);
+            var placement = CheapestPlacement(job, problem, runs, routes, objective, distances);
 
             if (placement is null)
             {
@@ -91,9 +99,7 @@ public sealed class GreedyScheduler : IScheduler
             routes[placement.Technician] = placement.Stops;
         }
 
-        var cost = new ObjectiveEvaluator(problem, distances).Evaluate(routes, unassigned);
-
-        return new Solution(routes, unassigned, cost.Total);
+        return new Solution(routes, unassigned, objective.Evaluate(routes, unassigned).Total);
     }
 
     /// <summary>
@@ -113,23 +119,29 @@ public sealed class GreedyScheduler : IScheduler
             .ThenBy(job => job.Window.Start);
 
     /// <summary>
-    /// The technician and position that add the least driving, or nothing if nobody can take
-    /// the job at all.
+    /// The technician and position that add least to the cost of the day, or nothing if nobody
+    /// can take the job at all.
     /// </summary>
+    /// <remarks>
+    /// Compared as the difference one route makes, which orders candidates the same way as
+    /// comparing whole schedules would: every other route is untouched, and the penalty for
+    /// leaving the job undone is the same figure whichever placement wins.
+    /// </remarks>
     private static Placement? CheapestPlacement(
         SchedJob job,
         SchedulingProblem problem,
         Dictionary<TechnicianId, List<SchedJob>> runs,
         Dictionary<TechnicianId, ImmutableArray<Stop>> routes,
+        ObjectiveEvaluator objective,
         TravelMatrix distances)
     {
         Placement? cheapest = null;
-        var lowestExtraMinutes = double.PositiveInfinity;
+        var lowestExtra = double.PositiveInfinity;
 
         foreach (var technician in problem.Technicians)
         {
             var run = runs[technician.Id];
-            var drivenSoFar = RouteTimer.TravelMinutes(technician, routes[technician.Id], distances);
+            var today = objective.EvaluateRoute(technician, routes[technician.Id]).Total;
 
             for (var position = 0; position <= run.Count; position++)
             {
@@ -143,10 +155,10 @@ public sealed class GreedyScheduler : IScheduler
 
                 // Strictly less, so the first technician and the earliest position to reach a
                 // given cost keep it. That is what makes a tie deterministic.
-                var extraMinutes = RouteTimer.TravelMinutes(technician, stops, distances) - drivenSoFar;
-                if (extraMinutes < lowestExtraMinutes)
+                var extra = objective.EvaluateRoute(technician, stops).Total - today;
+                if (extra < lowestExtra)
                 {
-                    lowestExtraMinutes = extraMinutes;
+                    lowestExtra = extra;
                     cheapest = new Placement(technician.Id, position, stops);
                 }
             }
