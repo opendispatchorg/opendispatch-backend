@@ -21,6 +21,15 @@ public sealed class MoneyTests
         { 1_234.56m, 123_456L },
     };
 
+    public static TheoryData<decimal, decimal, long> Quantities => new()
+    {
+        { 19.99m, 3m, 5_997L },        // three parts at a normal price
+        { 85m, 2.5m, 21_250L },        // two and a half hours of labour
+        { 90m, 0.333m, 2_997L },       // a third of an hour, rounded to the cent
+        { 10m, 0.005m, 5L },           // a half-cent rounds away from zero
+        { -20m, 1m, -2_000L },         // a discount line
+    };
+
     public static TheoryData<decimal, long> SubCentAmounts => new()
     {
         { 0.004m, 0L },
@@ -78,6 +87,29 @@ public sealed class MoneyTests
         var min = new Money(long.MinValue);
 
         Assert.Throws<OverflowException>(() => min.Add(new Money(-1)));
+    }
+
+    [Theory]
+    [MemberData(nameof(Quantities))]
+    public void MultiplyScalesTheAmountAndRoundsToTheCent(decimal unitDollars, decimal quantity, long expectedCents)
+    {
+        var line = Money.FromDollars(unitDollars).Multiply(quantity);
+
+        Assert.Equal(expectedCents, line.Cents);
+    }
+
+    [Fact]
+    public void MultiplyingByNothingCostsNothing()
+    {
+        Assert.Equal(Money.Zero, Money.FromDollars(85m).Multiply(0m));
+    }
+
+    [Fact]
+    public void MultiplyThrowsRatherThanWrappingPastTheLargestAmount()
+    {
+        var max = new Money(long.MaxValue);
+
+        Assert.Throws<OverflowException>(() => max.Multiply(2m));
     }
 
     [Fact]

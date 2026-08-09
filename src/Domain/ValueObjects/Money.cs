@@ -24,6 +24,9 @@ public readonly record struct Money(long Cents)
 {
     private const decimal CentsPerDollar = 100m;
 
+    /// <summary>No money at all — the starting point for a running total.</summary>
+    public static readonly Money Zero = new(0L);
+
     /// <summary>
     /// Converts a dollar amount to cents, rounding to the nearest cent (halves away from
     /// zero, the ordinary currency convention).
@@ -42,4 +45,17 @@ public readonly record struct Money(long Cents)
     /// <summary>Adds another amount to this one.</summary>
     /// <exception cref="OverflowException">The sum does not fit in <see cref="long"/> cents.</exception>
     public Money Add(Money other) => new(checked(Cents + other.Cents));
+
+    /// <summary>
+    /// Scales the amount — a unit price by a quantity. Rounds to the nearest whole cent,
+    /// halves away from zero, exactly as <see cref="FromDollars"/> does.
+    /// </summary>
+    /// <remarks>
+    /// Quantities are not always whole: a third of an hour of labour at $90 is $29.97, and
+    /// the third of a cent has to go somewhere the moment the line is billed rather than
+    /// accumulating invisibly in a total.
+    /// </remarks>
+    /// <exception cref="OverflowException">The result does not fit in <see cref="long"/> cents.</exception>
+    public Money Multiply(decimal quantity) =>
+        new(checked((long)decimal.Round(Cents * quantity, 0, MidpointRounding.AwayFromZero)));
 }
