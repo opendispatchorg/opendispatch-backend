@@ -23,7 +23,7 @@
       and the build stops — which is the gate working. 2.7.5 is the first release without the
       advisory. Drop this line once the framework package resolves a patched version itself.
     -->
-    <PackageReference Include="Microsoft.OpenApi" Version="2.7.5" />
+    <PackageReference Include="Microsoft.OpenApi" Version="3.9.0" />
     <PackageReference Include="Microsoft.Extensions.ApiDescription.Server" Version="10.0.10">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
