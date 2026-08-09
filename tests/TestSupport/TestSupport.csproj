@@ -5,4 +5,8 @@
     <IsTestProject>false</IsTestProject>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\Domain\Domain.csproj" />
+  </ItemGroup>
+
 </Project>
