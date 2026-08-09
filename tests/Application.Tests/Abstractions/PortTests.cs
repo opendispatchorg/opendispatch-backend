@@ -7,39 +7,47 @@ namespace OpenDispatch.Application.Tests.Abstractions;
 
 /// <summary>
 /// The ports have no behaviour to test — they are declarations. What they do have is a
-/// shape, and the shape carries three decisions that are cheap to lose and expensive to
-/// notice: repositories cover aggregate roots and nothing smaller, identifiers are
-/// strongly typed, and tenant scope is ambient rather than a parameter every caller has to
-/// remember to pass correctly.
+/// shape, and the shape carries decisions that are cheap to lose and expensive to notice:
+/// repositories cover aggregate roots and nothing smaller, the board is a projection rather
+/// than a view onto aggregates, identifiers are strongly typed, and tenant scope is ambient
+/// rather than a parameter every caller has to remember to pass correctly.
 /// </summary>
 /// <remarks>
 /// Each of these fails the day somebody adds a plausible-looking method — an
-/// <c>IServiceLocationRepository</c>, a <c>GetAsync(Guid, OrgId, ...)</c> — which is exactly
-/// when the decision needs restating. They are not a substitute for the tests that arrive
-/// with the implementations in step 28.
+/// <c>IServiceLocationRepository</c>, a <c>GetAsync(Guid, OrgId, ...)</c>, a <c>Job</c> on
+/// the board — which is exactly when the decision needs restating. They are not a substitute
+/// for the tests that arrive with the implementations in steps 28 and 39.
 /// </remarks>
 [Trait(TestCategories.Name, TestCategories.Unit)]
-public sealed class PersistencePortTests
+public sealed class PortTests
 {
-    private static readonly Type[] Ports = typeof(IUnitOfWork).Assembly
+    private static readonly Type[] Abstractions = typeof(IUnitOfWork).Assembly
         .GetTypes()
         .Where(type => type.Namespace == typeof(IUnitOfWork).Namespace)
         .ToArray();
+
+    private static readonly Type[] Ports = Abstractions.Where(type => type.IsInterface).ToArray();
 
     private static readonly Type[] Repositories = Ports
         .Where(type => type.Name.EndsWith("Repository", StringComparison.Ordinal))
         .ToArray();
 
     [Fact]
-    public void TheAbstractionsFolderHoldsPortsAndNoImplementations()
+    public void NothingBesideAPortImplementsIt()
     {
         Assert.NotEmpty(Ports);
 
-        var concrete = Ports.Where(port => !port.IsInterface).Select(port => port.Name).ToArray();
+        // The types that are not interfaces are the payloads the ports traffic in — a board
+        // snapshot, a payment result. An adapter is a different thing and belongs in
+        // Infrastructure, where it can depend on the world.
+        var implementations = Abstractions
+            .Where(type => !type.IsInterface && Array.Exists(Ports, port => type.IsAssignableTo(port)))
+            .Select(type => type.Name)
+            .ToArray();
 
         Assert.True(
-            concrete.Length == 0,
-            $"An implementation belongs in Infrastructure, not beside the port: {string.Join(", ", concrete)}.");
+            implementations.Length == 0,
+            $"An implementation belongs in Infrastructure, not beside the port: {string.Join(", ", implementations)}.");
     }
 
     [Fact]
@@ -87,11 +95,28 @@ public sealed class PersistencePortTests
     }
 
     [Fact]
+    public void OnlyRepositoriesTrafficInAggregates()
+    {
+        // The board reads a projection. An aggregate on it would be a second way to reach
+        // data that the repositories exist to guard — and, since the caller of a read model
+        // has no unit of work, one that cannot save what it changes.
+        var offenders = Abstractions
+            .Except(Repositories)
+            .Where(type => SignatureTypes(type).Any(used => used.IsAssignableTo(typeof(AggregateRoot))))
+            .Select(type => type.Name)
+            .ToArray();
+
+        Assert.True(
+            offenders.Length == 0,
+            $"Everything but a repository speaks in projections and value objects: {string.Join(", ", offenders)}.");
+    }
+
+    [Fact]
     public void PortsSpeakInStronglyTypedIdsAndNeverAskWhoseDataItIs()
     {
-        var loose = Ports
-            .Where(port => SignatureTypes(port).Any(type => type == typeof(Guid) || type == typeof(OrgId)))
-            .Select(port => port.Name)
+        var loose = Abstractions
+            .Where(type => SignatureTypes(type).Any(used => used == typeof(Guid) || used == typeof(OrgId)))
+            .Select(type => type.Name)
             .ToArray();
 
         Assert.True(
@@ -107,7 +132,8 @@ public sealed class PersistencePortTests
 
     /// <summary>
     /// Every type a port's methods traffic in, with wrappers peeled off — so
-    /// <c>Task&lt;IReadOnlyList&lt;Job&gt;&gt;</c> is reported as <c>Job</c>.
+    /// <c>Task&lt;IReadOnlyList&lt;Job&gt;&gt;</c> is reported as <c>Job</c>. Over a payload
+    /// rather than a port, the property getters make this the fields it carries.
     /// </summary>
     private static IEnumerable<Type> SignatureTypes(Type port) =>
         port.GetMethods()
