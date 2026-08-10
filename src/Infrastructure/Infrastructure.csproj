@@ -1,6 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <!--
+      The NetTopologySuite plugin rather than the base provider alone: GeoPoint is mapped to
+      geography(Point) in step 25, and the plugin is what teaches Npgsql to read and write NTS
+      geometries. It brings Npgsql.EntityFrameworkCore.PostgreSQL with it, but the base package
+      is named explicitly so the provider version is visible rather than transitive.
+    -->
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
+    <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="10.0.3" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Application\Application.csproj" />
     <ProjectReference Include="..\Domain\Domain.csproj" />
     <ProjectReference Include="..\Scheduling\Scheduling.csproj" />

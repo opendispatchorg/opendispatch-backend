@@ -31,7 +31,7 @@ public sealed class PostgresFixture : IAsyncLifetime
         await command.ExecuteNonQueryAsync();
 
         // Seam: EF Core migrations get applied here, once at suite start, when they exist
-        // (step 17). Until then a test that needs a schema creates it itself.
+        // (step 27). Until then a test that needs a schema creates it itself.
     }
 
     /// <summary>Opens a connection to the shared container's database.</summary>

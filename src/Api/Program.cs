@@ -1,6 +1,8 @@
 using System.Globalization;
+using Microsoft.Extensions.Options;
 using OpenDispatch.Api.Configuration;
 using OpenDispatch.Api.Health;
+using OpenDispatch.Infrastructure.Persistence;
 using Serilog;
 
 // Bootstrap logger, replaced by the configured pipeline once the host is built. It exists
@@ -21,6 +23,11 @@ try
         .Enrich.FromLogContext());
 
     builder.Services.AddDatabaseOptions(builder.Configuration);
+
+    // The one place Api reaches into Infrastructure: registration, at startup, with the
+    // connection string it owns. Everything above this line stays ignorant of EF Core.
+    builder.Services.AddPersistence(provider =>
+        provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.ConnectionString);
 
     // The REST half of the API contract (Document 2 §11). The same registration serves the
     // document at /openapi/v1.json for a running host and feeds the build-time export that
