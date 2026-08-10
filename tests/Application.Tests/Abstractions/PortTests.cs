@@ -115,6 +115,7 @@ public sealed class PortTests
     public void PortsSpeakInStronglyTypedIdsAndNeverAskWhoseDataItIs()
     {
         var loose = Abstractions
+            .Where(type => type != typeof(ITenantContext))
             .Where(type => SignatureTypes(type).Any(used => used == typeof(Guid) || used == typeof(OrgId)))
             .Select(type => type.Name)
             .ToArray();
@@ -123,6 +124,26 @@ public sealed class PortTests
             loose.Length == 0,
             "A raw Guid loses which aggregate it identifies, and an OrgId parameter makes tenant "
                 + $"scope something each caller can get wrong: {string.Join(", ", loose)}.");
+    }
+
+    /// <summary>
+    /// The exemption above, stated as its own rule so it cannot quietly widen.
+    /// </summary>
+    /// <remarks>
+    /// <see cref="ITenantContext"/> is the one port that may mention an <see cref="OrgId"/>,
+    /// because supplying it is the whole of what it does — it is what makes tenant scope ambient
+    /// for everything else. A second port mentioning one would mean scope had become a parameter
+    /// again somewhere, which is the thing that rule exists to prevent; and if this one ever stops
+    /// mentioning one, the ambient scope has no source.
+    /// </remarks>
+    [Fact]
+    public void ExactlyOnePortSaysWhoseDataItIs()
+    {
+        var suppliers = Abstractions
+            .Where(type => SignatureTypes(type).Any(used => used == typeof(OrgId)))
+            .ToArray();
+
+        Assert.Equal([typeof(ITenantContext)], suppliers);
     }
 
     private static IEnumerable<Type> AggregateRoots() =>

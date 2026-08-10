@@ -15,6 +15,13 @@ namespace OpenDispatch.Domain.Customers;
 /// </remarks>
 public sealed class ServiceLocation
 {
+    // Materialisation constructor — see the note on Job.
+    private ServiceLocation()
+    {
+        Label = string.Empty;
+        Address = string.Empty;
+    }
+
     private ServiceLocation(ServiceLocationId id, string label, string address, GeoPoint point)
     {
         Id = id;

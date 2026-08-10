@@ -23,6 +23,11 @@ public sealed class Invoice : AggregateRoot
 {
     private readonly List<LineItem> _lines = [];
 
+    // Materialisation constructor — see the note on Job.
+    private Invoice()
+    {
+    }
+
     private Invoice(InvoiceId id, OrgId orgId, JobId jobId, DateTimeOffset issued)
     {
         Id = id;

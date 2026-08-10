@@ -24,6 +24,12 @@ namespace OpenDispatch.Domain.Assignments;
 /// </remarks>
 public sealed class Assignment : AggregateRoot
 {
+    // Materialisation constructor — see the note on Job. Every member here is a value type, so
+    // there is nothing to placeholder.
+    private Assignment()
+    {
+    }
+
     private Assignment(
         AssignmentId id,
         OrgId orgId,

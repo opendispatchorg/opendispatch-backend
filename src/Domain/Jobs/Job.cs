@@ -80,6 +80,42 @@ public sealed class Job : AggregateRoot
     /// </remarks>
     public static IReadOnlyDictionary<JobStatus, IReadOnlySet<JobStatus>> AllowedTransitions => Allowed;
 
+    /// <summary>
+    /// The statuses a job can still be planned from — everything that is not finished,
+    /// abandoned, or already under way.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Which work the optimiser is allowed to move is a business question, and it is asked in
+    /// three places that must not answer it differently: the optimiser building a day, the
+    /// emergency-insert path rebuilding one, and eventually the board deciding what a dispatcher
+    /// may drag. So it is stated once, here, rather than as a status list in a query.
+    /// </para>
+    /// <para>
+    /// <see cref="JobStatus.Dispatched"/> is in and it is the row worth arguing about: the job is
+    /// on a technician's phone but nobody has set off, so re-planning it costs a push rather than
+    /// a wasted drive. From <see cref="JobStatus.EnRoute"/> onward the technician has committed,
+    /// and the day belongs to them.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlySet<JobStatus> SchedulableStatuses { get; } = new[]
+    {
+        JobStatus.Unscheduled,
+        JobStatus.Scheduled,
+        JobStatus.Dispatched,
+    }.ToFrozenSet();
+
+    // Materialisation constructor. Loading is not construction: the persistence layer builds the
+    // instance through this and then sets every mapped member from the row, so a constructor
+    // that establishes a starting state — an Unscheduled job, a Draft invoice — never runs
+    // against data that is long past it.
+    //
+    // Job, Technician and Customer cannot be loaded without one; the rest have it anyway, so the
+    // rule holds everywhere rather than in three places a reader would have to work out.
+    // The placeholder is overwritten before anything can observe it, and exists only so a
+    // non-nullable member is not left null.
+    private Job() => RequiredSkill = string.Empty;
+
     private Job(
         JobId id,
         OrgId orgId,

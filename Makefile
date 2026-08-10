@@ -10,7 +10,11 @@ CONTRACTS := contracts
 # the generation targets do not let us set — hence the copy rather than a direct write.
 OPENAPI_EXPORT := src/Api/obj/openapi/Api.json
 
-.PHONY: up run test test-fast test-watch gen-contracts check-contracts
+# EF Core's design-time tools read the model from Infrastructure and the connection string from
+# the Api host's configuration, so every `dotnet ef` command needs both projects.
+EF := dotnet ef --project src/Infrastructure --startup-project src/Api
+
+.PHONY: up run migrate migration test test-fast test-watch gen-contracts check-contracts
 
 ## up: start Postgres/PostGIS via docker compose
 up:
@@ -19,6 +23,21 @@ up:
 ## run: run the Api host
 run:
 	dotnet run --project src/Api
+
+## migrate: apply EF migrations to the compose database (needs `make up` first)
+migrate:
+	dotnet tool restore
+	$(EF) database update
+
+## migration: scaffold a new migration - `make migration NAME=AddSomething`
+##
+## The composite index on jobs(org_id, status, window_start) is hand-written in the initial
+## migration because EF cannot declare an index over a complex type's member. Regenerating that
+## migration from scratch would drop it; adding a new one on top will not.
+migration:
+	@test -n "$(NAME)" || { echo "usage: make migration NAME=AddSomething" >&2; exit 1; }
+	dotnet tool restore
+	$(EF) migrations add $(NAME) --output-dir Persistence/Migrations
 
 ## test: everything - unit + integration (integration needs Docker running)
 test:
