@@ -44,8 +44,16 @@ public interface IUnitOfWork
     /// when the handler decides the request failed after all.
     /// </para>
     /// <para>
-    /// One at a time: opening a second while one is still open throws. Nothing in the system
-    /// sends a command from inside another, and the pipeline opens exactly one per command.
+    /// One at a time: opening a second <em>while one is still open</em> throws. The pipeline
+    /// opens exactly one per command and nothing sends a command from inside another, so that
+    /// is not a case the system reaches.
+    /// </para>
+    /// <para>
+    /// A domain-event handler is not such a case, and the difference matters: events are
+    /// published after the commit, so a command sent from a handler gets a transaction of its
+    /// own rather than an error — and keeps its work whatever becomes of the request that
+    /// triggered it. A reaction is its own unit of work, which is the same thing the absence of
+    /// an outbox already says.
     /// </para>
     /// </remarks>
     Task<IUnitOfWorkTransaction> BeginTransactionAsync(CancellationToken ct);
