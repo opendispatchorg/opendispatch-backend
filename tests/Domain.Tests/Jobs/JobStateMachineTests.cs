@@ -69,6 +69,73 @@ public sealed class JobStateMachineTests
         Assert.Empty(job.DomainEvents);
     }
 
+    /// <summary>
+    /// Every status a job can be in, against every status an intent method can move it to.
+    /// </summary>
+    public static TheoryData<JobStatus, JobStatus> EveryMoveThatCouldBeAsked()
+    {
+        JobStatus[] from =
+        [
+            JobStatus.Unscheduled,
+            JobStatus.Scheduled,
+            JobStatus.Dispatched,
+            JobStatus.EnRoute,
+            JobStatus.InProgress,
+            JobStatus.Completed,
+            JobStatus.Cancelled,
+        ];
+
+        JobStatus[] to =
+        [
+            JobStatus.Scheduled,
+            JobStatus.Dispatched,
+            JobStatus.EnRoute,
+            JobStatus.InProgress,
+            JobStatus.Completed,
+            JobStatus.Cancelled,
+        ];
+
+        var pairs = new TheoryData<JobStatus, JobStatus>();
+
+        foreach (var start in from)
+        {
+            foreach (var target in to)
+            {
+                pairs.Add(start, target);
+            }
+        }
+
+        return pairs;
+    }
+
+    /// <summary>
+    /// Asking is the same as trying, for every pair. This is the claim anything that reports an
+    /// illegal move rather than crashing on one depends on — step 35's handler returns a failure
+    /// <c>Result</c> by asking first, and would be lying if the answer could differ from what
+    /// calling the intent method actually does.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryMoveThatCouldBeAsked))]
+    public void AskingWhetherAMoveIsLegalGivesTheSameAnswerAsMakingIt(JobStatus from, JobStatus to)
+    {
+        var job = JobBuilder.Any().InStatus(from).Build();
+
+        var permitted = job.CanTransition(to);
+
+        var moved = true;
+        try
+        {
+            MoveTo(job, to);
+        }
+        catch (DomainException)
+        {
+            moved = false;
+        }
+
+        Assert.Equal(permitted, moved);
+        Assert.Equal(permitted ? to : from, job.Status);
+    }
+
     [Fact]
     public void CompletionRecordsWhenTheWorkFinishedNotWhenItWasReported()
     {

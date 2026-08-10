@@ -49,3 +49,16 @@ internal sealed class FixedTenant(OrgId orgId) : ITenantContext
 {
     public OrgId OrgId { get; } = orgId;
 }
+
+/// <summary>
+/// A clock stopped at an instant a test can state, and move.
+/// </summary>
+/// <remarks>
+/// The reason <c>IClock</c> is a port at all: a handler that stamps "now" onto a completed job is
+/// only testable if the present is something the test decides.
+/// </remarks>
+internal sealed class FixedClock : IClock
+{
+    /// <summary>The instant this clock reports. Settable, for a test that needs time to pass.</summary>
+    public DateTimeOffset UtcNow { get; set; } = new(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
+}

@@ -222,6 +222,31 @@ public sealed class Job : AggregateRoot
             estimatedDuration);
     }
 
+    /// <summary>
+    /// Whether the job may move to <paramref name="next"/> from where it is now.
+    /// </summary>
+    /// <param name="next">The status being considered.</param>
+    /// <remarks>
+    /// <para>
+    /// The question <see cref="Transition"/> answers by throwing, asked without throwing. It
+    /// exists so a caller that must report an illegal move rather than crash on one — a handler
+    /// returning a <c>Result</c>, a sync push deciding a stale phone's op is a conflict — can ask
+    /// the domain instead of catching an exception and hoping it was about the state machine.
+    /// </para>
+    /// <para>
+    /// It is the same table the technician app already reads: step 22b exports
+    /// <see cref="AllowedTransitions"/> as <c>canTransition</c> so a phone can decide offline
+    /// which buttons to offer. This is that function, on this side of the wire, so the two answers
+    /// cannot come from two opinions of the lifecycle.
+    /// </para>
+    /// <para>
+    /// Asking does not weaken enforcement: every intent method still goes through
+    /// <see cref="Transition"/>, so a caller that skips the question still cannot reach an illegal
+    /// state.
+    /// </para>
+    /// </remarks>
+    public bool CanTransition(JobStatus next) => Allowed[Status].Contains(next);
+
     /// <summary>Plans the job into someone's day.</summary>
     public void Schedule()
     {

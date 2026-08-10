@@ -37,6 +37,8 @@ internal sealed class SliceHost : IAsyncDisposable
         var services = new ServiceCollection()
             .AddLogging()
             .AddSingleton<ITenantContext>(new FixedTenant(Tenant))
+            .AddSingleton(Clock)
+            .AddSingleton<IClock>(Clock)
             .AddScoped<IUnitOfWork, FakeUnitOfWork>();
 
         ports(services);
@@ -46,6 +48,9 @@ internal sealed class SliceHost : IAsyncDisposable
 
     /// <summary>The organization every request in this test acts as.</summary>
     public OrgId Tenant { get; } = OrgId.New();
+
+    /// <summary>What the handlers think the time is. A test may move it.</summary>
+    public FixedClock Clock { get; } = new();
 
     /// <summary>The Customers slice over a fake customer repository.</summary>
     public static SliceHost Customers() => new(services => services
