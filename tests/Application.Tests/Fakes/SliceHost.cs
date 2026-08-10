@@ -4,10 +4,12 @@ using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Tests.Customers;
 using OpenDispatch.Application.Tests.Jobs;
 using OpenDispatch.Application.Tests.Technicians;
+using OpenDispatch.Domain.Assignments;
 using OpenDispatch.Domain.Customers;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.Technicians;
+using OpenDispatch.Scheduling.Travel;
 
 namespace OpenDispatch.Application.Tests.Fakes;
 
@@ -71,6 +73,27 @@ internal sealed class SliceHost : IAsyncDisposable
         .AddScoped<IJobRepository, FakeJobRepository>()
         .AddStore<Customer>(customer => customer.OrgId)
         .AddScoped<ICustomerRepository, FakeCustomerRepository>());
+
+    /// <summary>
+    /// The manual dispatch path: jobs and their customers, the crew, the plan, and a real
+    /// travel-time provider.
+    /// </summary>
+    /// <remarks>
+    /// The travel provider is the engine's own haversine rather than a stub returning a constant.
+    /// What the assign path has to get right is <em>which two points</em> it measures between —
+    /// the home base for a first stop, the stop before it otherwise — and a provider that answers
+    /// the same number for every pair would agree with any of them.
+    /// </remarks>
+    public static SliceHost Dispatching() => new(services => services
+        .AddStore<Job>(job => job.OrgId)
+        .AddScoped<IJobRepository, FakeJobRepository>()
+        .AddStore<Customer>(customer => customer.OrgId)
+        .AddScoped<ICustomerRepository, FakeCustomerRepository>()
+        .AddStore<Technician>(technician => technician.OrgId)
+        .AddScoped<ITechnicianRepository, FakeTechnicianRepository>()
+        .AddStore<Assignment>(assignment => assignment.OrgId)
+        .AddScoped<IAssignmentRepository, FakeAssignmentRepository>()
+        .AddSingleton<ITravelTimeProvider, HaversineTravelTimeProvider>());
 
     /// <summary>What the fake database holds for one aggregate.</summary>
     /// <typeparam name="TAggregate">The aggregate root being stored.</typeparam>

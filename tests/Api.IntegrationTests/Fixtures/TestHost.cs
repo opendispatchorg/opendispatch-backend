@@ -2,8 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Application;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Domain.Identifiers;
-using OpenDispatch.Infrastructure.Persistence;
-using OpenDispatch.Infrastructure.Time;
+using OpenDispatch.Infrastructure;
 
 namespace OpenDispatch.Api.IntegrationTests.Fixtures;
 
@@ -30,8 +29,7 @@ internal static class TestHost
         new ServiceCollection()
             .AddLogging()
             .AddApplication()
-            .AddPersistence(_ => postgres.ConnectionString)
-            .AddSystemClock()
+            .AddInfrastructure(_ => postgres.ConnectionString)
             // Last, so it replaces the real tenant context: nothing resolves one from a
             // principal until step 45.
             .AddScoped<TestTenantContext>()

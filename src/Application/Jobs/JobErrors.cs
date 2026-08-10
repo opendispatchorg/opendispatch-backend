@@ -27,10 +27,29 @@ public static class JobErrors
     /// </remarks>
     public const string IllegalTransitionCode = "job.illegalTransition";
 
+    /// <summary>The code every refused attempt to plan a job carries.</summary>
+    /// <remarks>
+    /// Distinct from an illegal transition, because it is a different question: not "may the job
+    /// move from here to there" but "may this job be planned at all". A job somebody is already
+    /// driving to cannot be dragged onto another technician's afternoon, and neither can one that
+    /// was finished or called off.
+    /// </remarks>
+    public const string NotSchedulableCode = "job.notSchedulable";
+
     /// <summary>Names a job this tenant does not have.</summary>
     /// <param name="id">The job that was asked for.</param>
     public static Error NotFound(JobId id) =>
         Error.NotFound(NotFoundCode, $"There is no job {id.Value}.");
+
+    /// <summary>Reports a job that can no longer be planned into anybody's day.</summary>
+    /// <param name="status">Where the job actually is.</param>
+    /// <remarks>
+    /// Which statuses those are is <c>Job.SchedulableStatuses</c>' answer, not this slice's — the
+    /// optimiser, the emergency insert and this path all have to agree on which work may be moved,
+    /// so the question is asked of the domain and only reported here.
+    /// </remarks>
+    public static Error NotSchedulable(JobStatus status) =>
+        Error.Conflict(NotSchedulableCode, $"A job that is {status} can no longer be planned.");
 
     /// <summary>Reports a move the state machine does not allow.</summary>
     /// <param name="from">Where the job actually is.</param>
