@@ -116,6 +116,35 @@ public sealed class Technician : AggregateRoot
     /// <exception cref="DomainException">The skill is blank.</exception>
     public void RemoveSkill(string skill) => _skills.Remove(NormalizeSkill(skill));
 
+    /// <summary>
+    /// Replaces what they are qualified to work on, wholesale. Passing nothing makes them a
+    /// trainee again.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The set-shaped counterpart to <see cref="AddSkill"/> and <see cref="RemoveSkill"/>, and it
+    /// exists so nothing outside this aggregate has to work out the difference between the skills
+    /// they have and the skills they should have. That difference is not arithmetic: two skills
+    /// are the same skill when they differ only in case or surrounding whitespace, and a caller
+    /// computing it with the wrong comparer would churn "HVAC" over "hvac" — or, worse, decide
+    /// they are two skills. The rule about what makes two skills one lives here, with the set
+    /// that enforces it.
+    /// </para>
+    /// <para>
+    /// All or nothing: every skill is normalised before any of them is applied, so a blank one
+    /// halfway down a list leaves the technician exactly as they were rather than holding half of
+    /// an update.
+    /// </para>
+    /// </remarks>
+    /// <exception cref="DomainException">A skill is blank.</exception>
+    public void SetSkills(IEnumerable<string> skills)
+    {
+        var replacement = skills.Select(NormalizeSkill).ToList();
+
+        _skills.Clear();
+        _skills.UnionWith(replacement);
+    }
+
     /// <summary>Replaces the hours they are available over the planning horizon.</summary>
     public void SetShift(TimeWindow shift) => Shift = shift;
 

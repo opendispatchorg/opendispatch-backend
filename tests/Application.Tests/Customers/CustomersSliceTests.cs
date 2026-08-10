@@ -4,6 +4,8 @@ using OpenDispatch.Application.Customers.CreateCustomer;
 using OpenDispatch.Application.Customers.GetCustomer;
 using OpenDispatch.Application.Customers.ListCustomers;
 using OpenDispatch.Application.Results;
+using OpenDispatch.Application.Tests.Fakes;
+using OpenDispatch.Domain.Customers;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.TestSupport;
 
@@ -25,7 +27,7 @@ public sealed class CustomersSliceTests
     [Fact]
     public async Task TakesOnACustomerGivesThemALocationAndReadsBothBack()
     {
-        await using var slice = new CustomerSlice();
+        await using var slice = SliceHost.Customers();
 
         var created = await slice.Send(
             new CreateCustomerCommand("Vance Refrigeration", "hello@vance.example", "+44 20 7946 0000"));
@@ -58,7 +60,7 @@ public sealed class CustomersSliceTests
     [Fact]
     public async Task ListsEveryCustomerOnTheBooks()
     {
-        await using var slice = new CustomerSlice();
+        await using var slice = SliceHost.Customers();
 
         await slice.Send(new CreateCustomerCommand("Ivy Fabrication", null, null));
         await slice.Send(new CreateCustomerCommand("Vance Refrigeration", "hello@vance.example", null));
@@ -89,11 +91,11 @@ public sealed class CustomersSliceTests
     [Fact]
     public async Task FilesTheCustomerUnderTheTenantThatAskedForThem()
     {
-        await using var slice = new CustomerSlice();
+        await using var slice = SliceHost.Customers();
 
         var created = await slice.Send(new CreateCustomerCommand("Vance Refrigeration", null, null));
 
-        var stored = Assert.Single(slice.Store.Saved);
+        var stored = Assert.Single(slice.Store<Customer>().Saved);
         Assert.Equal(slice.Tenant, stored.OrgId);
         Assert.Equal(created.Value, stored.Id);
     }
@@ -101,7 +103,7 @@ public sealed class CustomersSliceTests
     [Fact]
     public async Task AddingALocationToACustomerThisTenantDoesNotHaveIsAMiss()
     {
-        await using var slice = new CustomerSlice();
+        await using var slice = SliceHost.Customers();
         var stranger = CustomerId.New();
 
         var added = await slice.Send(
@@ -115,7 +117,7 @@ public sealed class CustomersSliceTests
     [Fact]
     public async Task FetchingACustomerThisTenantDoesNotHaveIsAMiss()
     {
-        await using var slice = new CustomerSlice();
+        await using var slice = SliceHost.Customers();
 
         var fetched = await slice.Send(new GetCustomerQuery(CustomerId.New()));
 
@@ -129,7 +131,7 @@ public sealed class CustomersSliceTests
     [InlineData("   ", "A customer must have a name.")]
     public async Task RefusesACustomerWithoutAName(string name, string expected)
     {
-        await using var slice = new CustomerSlice();
+        await using var slice = SliceHost.Customers();
 
         var created = await slice.Send(new CreateCustomerCommand(name, null, null));
 
@@ -137,7 +139,7 @@ public sealed class CustomersSliceTests
         Assert.Equal(expected, Assert.Single(failure.Failures[nameof(CreateCustomerCommand.Name)]));
 
         // Refused before the handler, so nothing was staged for a save that will never come.
-        Assert.Empty(slice.Store.Saved);
+        Assert.Empty(slice.Store<Customer>().Saved);
     }
 
     /// <summary>
@@ -147,7 +149,7 @@ public sealed class CustomersSliceTests
     [Fact]
     public async Task RefusesAContactDetailThatCannotBeReached()
     {
-        await using var slice = new CustomerSlice();
+        await using var slice = SliceHost.Customers();
 
         var created = await slice.Send(
             new CreateCustomerCommand("Vance Refrigeration", "hello-at-vance", null));
@@ -159,7 +161,7 @@ public sealed class CustomersSliceTests
     [Fact]
     public async Task AcceptsACustomerWithNoContactDetailsAtAll()
     {
-        await using var slice = new CustomerSlice();
+        await using var slice = SliceHost.Customers();
 
         var created = await slice.Send(new CreateCustomerCommand("Vance Refrigeration", null, string.Empty));
 
@@ -175,7 +177,7 @@ public sealed class CustomersSliceTests
     [Fact]
     public async Task RefusesALocationWithNothingToDriveTo()
     {
-        await using var slice = new CustomerSlice();
+        await using var slice = SliceHost.Customers();
         var created = await slice.Send(new CreateCustomerCommand("Vance Refrigeration", null, null));
 
         var added = await slice.Send(
@@ -200,7 +202,7 @@ public sealed class CustomersSliceTests
     [InlineData(0d, double.PositiveInfinity, nameof(AddServiceLocationCommand.Longitude))]
     public async Task RefusesACoordinateThatIsNotAPlace(double latitude, double longitude, string field)
     {
-        await using var slice = new CustomerSlice();
+        await using var slice = SliceHost.Customers();
         var created = await slice.Send(new CreateCustomerCommand("Vance Refrigeration", null, null));
 
         var added = await slice.Send(new AddServiceLocationCommand(

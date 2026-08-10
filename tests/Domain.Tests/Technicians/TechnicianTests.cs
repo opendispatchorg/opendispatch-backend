@@ -116,6 +116,54 @@ public sealed class TechnicianTests
         Assert.Single(technician.Skills);
     }
 
+    [Fact]
+    public void SettingTheSkillsReplacesEveryOneOfThem()
+    {
+        var technician = TechnicianBuilder.Any().Skilled("hvac", "electrical").Build();
+
+        technician.SetSkills(["plumbing", "gas"]);
+
+        Assert.Equal(["gas", "plumbing"], technician.Skills.Order(StringComparer.Ordinal));
+    }
+
+    [Fact]
+    public void SettingTheSameSkillsInDifferentCaseLeavesOneOfEach()
+    {
+        var technician = TechnicianBuilder.Any().Skilled("hvac").Build();
+
+        // The reason this method is on the aggregate: a caller diffing "what they have" against
+        // "what they should have" with an ordinary comparer would see two skills here.
+        technician.SetSkills(["HVAC", "hvac", " Hvac "]);
+
+        Assert.Single(technician.Skills);
+        Assert.True(technician.HasSkill("hvac"));
+    }
+
+    [Fact]
+    public void SettingNoSkillsMakesThemATraineeAgain()
+    {
+        var technician = TechnicianBuilder.Any().Skilled("hvac", "electrical").Build();
+
+        technician.SetSkills([]);
+
+        Assert.Empty(technician.Skills);
+    }
+
+    /// <summary>
+    /// All or nothing. A half-applied update would leave a technician qualified for some of what
+    /// was asked and not the rest, with nothing to say which — and the scheduler would place work
+    /// on that.
+    /// </summary>
+    [Fact]
+    public void ABlankSkillPartWayDownTheListLeavesThemUntouched()
+    {
+        var technician = TechnicianBuilder.Any().Skilled("hvac").Build();
+
+        Assert.Throws<DomainException>(() => technician.SetSkills(["plumbing", "  ", "gas"]));
+
+        Assert.Equal(["hvac"], technician.Skills);
+    }
+
     [Theory]
     [InlineData("")]
     [InlineData("   ")]
