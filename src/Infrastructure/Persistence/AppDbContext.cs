@@ -90,6 +90,10 @@ public sealed class AppDbContext : DbContext
     /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
+        // Declared on the model so the migration creates it, rather than left as something a
+        // database has to have had done to it beforehand. Every geography column depends on it.
+        modelBuilder.HasPostgresExtension("postgis");
+
         // Configuration lives one class per aggregate rather than in a single growing method
         // here, and is discovered rather than listed: a new aggregate arrives with its own
         // IEntityTypeConfiguration and this file does not change.

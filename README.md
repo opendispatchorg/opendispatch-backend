@@ -57,11 +57,17 @@ depend only on Application abstractions. See [Document 2 §2](claude%20docs/Open
 
 ```bash
 make up             # start Postgres/PostGIS
+make migrate        # apply EF migrations to it
 make run            # serve the Api on http://localhost:5141
 make test-fast      # the Unit category only - pure, no I/O
 make test           # everything, including container-backed integration tests
 make gen-contracts  # rebuild contracts/ - the @opendispatch/contracts package
 ```
+
+The schema lives in `src/Infrastructure/Persistence/Migrations` and is generated with
+`make migration NAME=AddSomething`. Integration tests apply the same migrations to a throwaway
+container, so a migration that will not apply from scratch fails the suite rather than a
+deployment.
 
 Testing conventions and the shared harness are described in [TESTING.md](TESTING.md).
 

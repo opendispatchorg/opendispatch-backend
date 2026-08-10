@@ -61,7 +61,10 @@ try
     app.Run();
     return 0;
 }
-catch (Exception ex)
+// HostAbortedException is not a failure: it is how the EF Core design-time tools stop the host
+// once they have the service provider they came for. Catching it would turn every
+// `dotnet ef` command into "terminated unexpectedly" and a non-zero exit.
+catch (Exception ex) when (ex is not HostAbortedException)
 {
     Log.Fatal(ex, "OpenDispatch API terminated unexpectedly.");
     return 1;

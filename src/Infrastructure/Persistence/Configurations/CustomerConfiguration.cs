@@ -31,6 +31,7 @@ internal sealed class CustomerConfiguration : IEntityTypeConfiguration<Customer>
             // has to survive the row moving around in the collection.
             locations.HasKey(location => location.Id);
             locations.WithOwner().HasForeignKey("CustomerId");
+            locations.HasIndex(location => location.Point).HasMethod("gist");
         });
 
         builder.HasIndex(customer => customer.OrgId);

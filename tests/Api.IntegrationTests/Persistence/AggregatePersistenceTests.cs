@@ -1,5 +1,4 @@
 using Microsoft.EntityFrameworkCore;
-using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using OpenDispatch.Api.IntegrationTests.Fixtures;
 using OpenDispatch.Domain.Identifiers;
@@ -23,28 +22,11 @@ namespace OpenDispatch.Api.IntegrationTests.Persistence;
 /// </remarks>
 [Collection(PostgresCollectionDefinition.Name)]
 [Trait(TestCategories.Name, TestCategories.Integration)]
-public sealed class AggregatePersistenceTests : IAsyncLifetime
+public sealed class AggregatePersistenceTests
 {
     private readonly PostgresFixture _postgres;
-    private readonly ServiceProvider _services;
-    private readonly IServiceScope _scope;
-    private readonly DbContextOptions<AppDbContext> _options;
 
-    public AggregatePersistenceTests(PostgresFixture postgres)
-    {
-        _postgres = postgres;
-        _services = new ServiceCollection()
-            .AddPersistence(_ => postgres.ConnectionString)
-            .BuildServiceProvider();
-        _scope = _services.CreateScope();
-        _options = _scope.ServiceProvider.GetRequiredService<DbContextOptions<AppDbContext>>();
-    }
-
-    public async Task InitializeAsync()
-    {
-        await using var context = NewContext();
-        await Schema.RecreateAsync(context);
-    }
+    public AggregatePersistenceTests(PostgresFixture postgres) => _postgres = postgres;
 
     [Fact]
     public async Task RoundTripsAJob()
@@ -152,7 +134,7 @@ public sealed class AggregatePersistenceTests : IAsyncLifetime
         var afterRemoval = await read.Customers.SingleAsync(c => c.Id == customer.Id);
 
         Assert.Equal("Depot", Assert.Single(afterRemoval.Locations).Label);
-        Assert.Equal(1, await CountRowsAsync("service_locations"));
+        Assert.Equal(1, await CountRowsAsync("service_locations", "customer_id", customer.Id.Value));
     }
 
     [Fact]
@@ -179,8 +161,8 @@ public sealed class AggregatePersistenceTests : IAsyncLifetime
             await reload.SaveChangesAsync();
         }
 
-        Assert.Equal(0, await CountRowsAsync("invoices"));
-        Assert.Equal(0, await CountRowsAsync("line_items"));
+        Assert.Equal(0, await CountRowsAsync("invoices", "id", invoice.Id.Value));
+        Assert.Equal(0, await CountRowsAsync("line_items", "invoice_id", invoice.Id.Value));
     }
 
     [Fact]
@@ -261,13 +243,7 @@ public sealed class AggregatePersistenceTests : IAsyncLifetime
         Assert.IsType<PostgresException>(failure.InnerException);
     }
 
-    public async Task DisposeAsync()
-    {
-        _scope.Dispose();
-        await _services.DisposeAsync();
-    }
-
-    private AppDbContext NewContext() => new(_options);
+    private AppDbContext NewContext() => _postgres.NewContext();
 
     private async Task SaveAsync(Action<AppDbContext> arrange)
     {
@@ -276,10 +252,18 @@ public sealed class AggregatePersistenceTests : IAsyncLifetime
         await context.SaveChangesAsync();
     }
 
-    private async Task<int> CountRowsAsync(string table)
+    /// <summary>
+    /// Counts rows belonging to one root. Scoped rather than a count of the whole table because
+    /// the container is shared for the run — a global count would depend on which other tests
+    /// had happened to insert anything.
+    /// </summary>
+    private async Task<int> CountRowsAsync(string table, string column, Guid value)
     {
         await using var connection = await _postgres.OpenConnectionAsync();
-        await using var command = new NpgsqlCommand($"SELECT count(*) FROM \"{table}\";", connection);
+        await using var command = new NpgsqlCommand(
+            $"SELECT count(*) FROM \"{table}\" WHERE \"{column}\" = @value;",
+            connection);
+        command.Parameters.AddWithValue("value", value);
 
         return (int)(long)(await command.ExecuteScalarAsync())!;
     }

@@ -25,5 +25,6 @@ internal sealed class TechnicianConfiguration : IEntityTypeConfiguration<Technic
             .UsePropertyAccessMode(PropertyAccessMode.Field);
 
         builder.HasIndex(technician => technician.OrgId);
+        builder.HasIndex(technician => technician.HomeBase).HasMethod("gist");
     }
 }

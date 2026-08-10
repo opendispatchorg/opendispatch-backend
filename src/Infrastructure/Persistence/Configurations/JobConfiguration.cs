@@ -28,5 +28,13 @@ internal sealed class JobConfiguration : IEntityTypeConfiguration<Job>
         // Every query that is not by primary key is scoped to an organisation, because step 29's
         // global filter puts it there whether the query asked or not.
         builder.HasIndex(job => job.OrgId);
+
+        // GiST, because a geography column answers "near", "within" and "along" rather than
+        // "equals", and a B-tree cannot help with any of them.
+        builder.HasIndex(job => job.Location).HasMethod("gist");
+
+        // The dispatch board's index — jobs(org_id, status, window_start) — is not here. EF
+        // cannot express an index over a complex type's member, so it is written by hand in the
+        // initial migration; see the comment there.
     }
 }
