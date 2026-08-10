@@ -46,11 +46,9 @@ public sealed class SchemaTests
                 .BuildServiceProvider();
             using var scope = services.CreateScope();
 
-            await using (var context = new AppDbContext(
-                scope.ServiceProvider.GetRequiredService<DbContextOptions<AppDbContext>>()))
-            {
-                await context.Database.MigrateAsync();
-            }
+            // No tenant is resolved, and none is needed: migrating queries no entity, so no
+            // query filter is ever evaluated.
+            await scope.ServiceProvider.GetRequiredService<AppDbContext>().Database.MigrateAsync();
 
             var extensions = await QueryAsync(
                 connectionString,

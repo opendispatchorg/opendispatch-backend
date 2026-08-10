@@ -1,6 +1,8 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
+using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
 
@@ -42,32 +44,58 @@ public sealed class PostgresFixture : IAsyncLifetime
         // ones the host runs with.
         _services = new ServiceCollection()
             .AddPersistence(_ => ConnectionString)
+            // Registered after AddPersistence, so it replaces the real tenant context: the last
+            // registration of a service type is the one resolved. Tests say which organization
+            // they are acting as; nothing here resolves one from a principal yet.
+            .AddScoped<TestTenantContext>()
+            .AddScoped<ITenantContext>(provider => provider.GetRequiredService<TestTenantContext>())
             .BuildServiceProvider();
         _scope = _services.CreateScope();
         _options = _scope.ServiceProvider.GetRequiredService<DbContextOptions<AppDbContext>>();
 
         // Enables the PostGIS extension too — that is part of the migration, not a favour the
-        // test harness does for it.
-        await using var context = NewContext();
-        await context.Database.MigrateAsync();
+        // test harness does for it. No tenant: migrating queries no entity, so no filter runs.
+        using var scope = _services.CreateScope();
+        await scope.ServiceProvider.GetRequiredService<AppDbContext>()
+            .Database.MigrateAsync();
     }
 
-    /// <summary>A context over the migrated database. The caller disposes it.</summary>
-    public AppDbContext NewContext() =>
-        new(_options ?? throw new InvalidOperationException("The fixture has not been initialised."));
-
     /// <summary>
-    /// A service scope over the same registration the host uses, for tests that go through the
-    /// persistence ports rather than the context.
+    /// A service scope acting as one organization, over the same registration the host uses.
     /// </summary>
     /// <remarks>
-    /// One scope is one unit of work: every repository resolved from it shares a context, which
-    /// is exactly the arrangement a handler gets and the reason a save can commit two aggregates
-    /// together. Resolving from separate scopes would test something the application never does.
+    /// One scope is one unit of work and one tenant: every repository resolved from it shares a
+    /// context, which is the arrangement a handler gets and the reason a save can commit two
+    /// aggregates together. Resolving from separate scopes would test something the application
+    /// never does.
     /// </remarks>
-    public IServiceScope CreateScope() =>
-        (_services ?? throw new InvalidOperationException("The fixture has not been initialised."))
+    public IServiceScope ActingAs(OrgId tenant)
+    {
+        var scope = (_services ?? throw new InvalidOperationException("The fixture has not been initialised."))
             .CreateScope();
+
+        scope.ServiceProvider.GetRequiredService<TestTenantContext>().ActAs(tenant);
+
+        return scope;
+    }
+
+    /// <summary>A context scoped to one organization. The caller disposes it.</summary>
+    public AppDbContext NewContext(OrgId tenant)
+    {
+        var context = new AppDbContext(
+            _options ?? throw new InvalidOperationException("The fixture has not been initialised."),
+            Acting(tenant));
+
+        return context;
+    }
+
+    private static TestTenantContext Acting(OrgId tenant)
+    {
+        var acting = new TestTenantContext();
+        acting.ActAs(tenant);
+
+        return acting;
+    }
 
     /// <summary>Opens a connection to the shared container's database.</summary>
     public async Task<NpgsqlConnection> OpenConnectionAsync()

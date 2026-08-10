@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Infrastructure.Persistence.Repositories;
+using OpenDispatch.Infrastructure.Tenancy;
 
 namespace OpenDispatch.Infrastructure.Persistence;
 
@@ -38,6 +39,13 @@ public static class PersistenceRegistration
             // Tables and columns are snake_case. This runs over whatever names the model ends
             // up with, so a configuration names a table once, in the words the database uses.
             .UseSnakeCaseNamingConvention());
+
+        // The context now depends on knowing whose request it is serving, so the tenant is
+        // registered here rather than left to the host: a DbContext registered without one would
+        // build a model whose filters cannot be evaluated. Step 45's middleware resolves it;
+        // until then reading it throws, which is the point.
+        services.AddScoped<TenantContext>();
+        services.AddScoped<ITenantContext>(provider => provider.GetRequiredService<TenantContext>());
 
         // Scoped, the same lifetime as the context they share. That sharing is the point: a
         // handler that loads a job through one repository and adds an assignment through another

@@ -24,6 +24,9 @@ namespace OpenDispatch.Api.IntegrationTests.Persistence;
 [Trait(TestCategories.Name, TestCategories.Integration)]
 public sealed class AggregatePersistenceTests
 {
+    // Its own organization per test. The query filters then make that into isolation for free,
+    // which is why nothing here has to care what else the shared container is holding.
+    private readonly OrgId _tenant = OrgId.New();
     private readonly PostgresFixture _postgres;
 
     public AggregatePersistenceTests(PostgresFixture postgres) => _postgres = postgres;
@@ -34,7 +37,7 @@ public sealed class AggregatePersistenceTests
         var window = new TimeWindow(
             new DateTimeOffset(2026, 8, 10, 8, 0, 0, TimeSpan.Zero),
             new DateTimeOffset(2026, 8, 10, 12, 30, 0, TimeSpan.Zero));
-        var job = JobBuilder.Any()
+        var job = JobBuilder.Any().ForOrg(_tenant)
             .WithSkill("Boiler service")
             .WithPriority(JobPriority.Emergency)
             .At(new GeoPoint(51.5080, -0.1281))
@@ -69,7 +72,7 @@ public sealed class AggregatePersistenceTests
     public async Task RoundTripsAnAssignment()
     {
         var start = new DateTimeOffset(2026, 8, 10, 9, 15, 0, TimeSpan.Zero);
-        var assignment = AssignmentBuilder.Any().AtSequence(3).StartingAt(start).AfterTravel(12.5).Build();
+        var assignment = AssignmentBuilder.Any().ForOrg(_tenant).AtSequence(3).StartingAt(start).AfterTravel(12.5).Build();
 
         await SaveAsync(context => context.Assignments.Add(assignment));
 
@@ -92,7 +95,7 @@ public sealed class AggregatePersistenceTests
     [Fact]
     public async Task RoundTripsATechnicianAndKeepsSkillMatchingCaseInsensitive()
     {
-        var technician = TechnicianBuilder.Any().Named("Ada").Skilled("HVAC", "Gas Safe").Build();
+        var technician = TechnicianBuilder.Any().ForOrg(_tenant).Named("Ada").Skilled("HVAC", "Gas Safe").Build();
 
         await SaveAsync(context => context.Technicians.Add(technician));
 
@@ -111,7 +114,7 @@ public sealed class AggregatePersistenceTests
     [Fact]
     public async Task SavesServiceLocationsWithTheirCustomerAndRemovesThemWithIt()
     {
-        var customer = CustomerBuilder.Any().Named("Riverside Ltd").Build();
+        var customer = CustomerBuilder.Any().ForOrg(_tenant).Named("Riverside Ltd").Build();
         var home = customer.AddLocation("Home", "1 Riverside", new GeoPoint(51.5080, -0.1281));
         customer.AddLocation("Depot", "2 Riverside", new GeoPoint(51.5194, -0.1270));
 
@@ -140,7 +143,7 @@ public sealed class AggregatePersistenceTests
     [Fact]
     public async Task SavesLineItemsWithTheirInvoiceAndDeletesThemWithIt()
     {
-        var invoice = InvoiceBuilder.Any().Build();
+        var invoice = InvoiceBuilder.Any().ForOrg(_tenant).Build();
         invoice.AddLineItem(LineItemKind.Labor, "Two hours on site", 2m, Money.FromDollars(90m));
         invoice.AddLineItem(LineItemKind.Part, "Expansion vessel", 1m, Money.FromDollars(64.50m));
 
@@ -165,6 +168,10 @@ public sealed class AggregatePersistenceTests
         Assert.Equal(0, await CountRowsAsync("line_items", "invoice_id", invoice.Id.Value));
     }
 
+    /// <summary>
+    /// The one aggregate whose tenant is itself, so it is read as itself: an organization is
+    /// scoped by its own id, and the context that saved it belongs to a different tenant.
+    /// </summary>
     [Fact]
     public async Task RoundTripsAnOrganization()
     {
@@ -172,7 +179,7 @@ public sealed class AggregatePersistenceTests
 
         await SaveAsync(context => context.Organizations.Add(organization));
 
-        await using var read = NewContext();
+        await using var read = _postgres.NewContext(organization.Id);
         var loaded = await read.Organizations.SingleAsync(o => o.Id == organization.Id);
 
         Assert.Equal("Riverside Heating", loaded.Name);
@@ -196,7 +203,7 @@ public sealed class AggregatePersistenceTests
     [Fact]
     public async Task AdvancesTheVersionOnSaveAndRefusesAStaleWrite()
     {
-        var job = JobBuilder.Any().Build();
+        var job = JobBuilder.Any().ForOrg(_tenant).Build();
 
         await SaveAsync(context => context.Jobs.Add(job));
 
@@ -243,7 +250,7 @@ public sealed class AggregatePersistenceTests
         Assert.IsType<PostgresException>(failure.InnerException);
     }
 
-    private AppDbContext NewContext() => _postgres.NewContext();
+    private AppDbContext NewContext() => _postgres.NewContext(_tenant);
 
     private async Task SaveAsync(Action<AppDbContext> arrange)
     {

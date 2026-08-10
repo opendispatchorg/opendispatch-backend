@@ -27,6 +27,10 @@ public sealed class RepositoryTests
     private static readonly DateTimeOffset Morning = new(2027, 3, 1, 8, 0, 0, TimeSpan.Zero);
     private static readonly TimeWindow Day = new(Morning, Morning.AddHours(10));
 
+    // Its own organization per test, which the query filters then make into isolation for free:
+    // no test can see another's rows, so nothing has to filter results by hand or care what order
+    // the class runs in.
+    private readonly OrgId _tenant = OrgId.New();
     private readonly PostgresFixture _postgres;
 
     public RepositoryTests(PostgresFixture postgres) => _postgres = postgres;
@@ -38,15 +42,15 @@ public sealed class RepositoryTests
     [Fact]
     public async Task RoundTripsEveryAggregateThroughItsRepository()
     {
-        var customer = CustomerBuilder.Any().Named("Ivy Fabrication").Build();
+        var customer = CustomerBuilder.Any().ForOrg(_tenant).Named("Ivy Fabrication").Build();
         var location = customer.AddLocation("Works", "9 Foundry Lane", new GeoPoint(51.5080, -0.1281));
-        var job = JobBuilder.Any().ForCustomer(customer.Id).Build();
-        var technician = TechnicianBuilder.Any().Named("Ada").Skilled("HVAC").Build();
-        var assignment = AssignmentBuilder.Any().ForJob(job.Id).ForTechnician(technician.Id).Build();
-        var invoice = InvoiceBuilder.Any().ForJob(job.Id).Build();
+        var job = JobBuilder.Any().ForOrg(_tenant).ForCustomer(customer.Id).Build();
+        var technician = TechnicianBuilder.Any().ForOrg(_tenant).Named("Ada").Skilled("HVAC").Build();
+        var assignment = AssignmentBuilder.Any().ForOrg(_tenant).ForJob(job.Id).ForTechnician(technician.Id).Build();
+        var invoice = InvoiceBuilder.Any().ForOrg(_tenant).ForJob(job.Id).Build();
         invoice.AddLineItem(LineItemKind.Labor, "Two hours on site", 2m, Money.FromDollars(90m));
 
-        using (var scope = _postgres.CreateScope())
+        using (var scope = _postgres.ActingAs(_tenant))
         {
             scope.ServiceProvider.GetRequiredService<ICustomerRepository>().Add(customer);
             scope.ServiceProvider.GetRequiredService<IJobRepository>().Add(job);
@@ -61,7 +65,7 @@ public sealed class RepositoryTests
             Assert.True(written > 0);
         }
 
-        using var read = _postgres.CreateScope();
+        using var read = _postgres.ActingAs(_tenant);
 
         var loadedCustomer = await read.ServiceProvider
             .GetRequiredService<ICustomerRepository>()
@@ -95,58 +99,52 @@ public sealed class RepositoryTests
     [Fact]
     public async Task ListsOnlySchedulableJobsWhoseWindowMeetsTheHorizon()
     {
-        var org = OrgId.New();
-        var inside = Booked(org, Day.Start.AddHours(1), Day.Start.AddHours(3));
-        var alsoInside = Booked(org, Day.Start.AddHours(2), Day.Start.AddHours(4));
+        var inside = Booked( Day.Start.AddHours(1), Day.Start.AddHours(3));
+        var alsoInside = Booked( Day.Start.AddHours(2), Day.Start.AddHours(4));
         alsoInside.Schedule();
         alsoInside.Dispatch();
-        var underWay = Booked(org, Day.Start.AddHours(1), Day.Start.AddHours(3));
+        var underWay = Booked( Day.Start.AddHours(1), Day.Start.AddHours(3));
         underWay.Schedule();
         underWay.Dispatch();
         underWay.MarkEnRoute();
-        var cancelled = Booked(org, Day.Start.AddHours(1), Day.Start.AddHours(3));
+        var cancelled = Booked( Day.Start.AddHours(1), Day.Start.AddHours(3));
         cancelled.Cancel();
-        var touchingTheOpening = Booked(org, Day.Start.AddHours(-2), Day.Start);
-        var afterTheClose = Booked(org, Day.End, Day.End.AddHours(2));
+        var touchingTheOpening = Booked( Day.Start.AddHours(-2), Day.Start);
+        var afterTheClose = Booked( Day.End, Day.End.AddHours(2));
 
-        await using (var write = _postgres.NewContext())
+        await using (var write = _postgres.NewContext(_tenant))
         {
             write.Jobs.AddRange(inside, alsoInside, underWay, cancelled, touchingTheOpening, afterTheClose);
             await write.SaveChangesAsync();
         }
 
-        using var scope = _postgres.CreateScope();
+        using var scope = _postgres.ActingAs(_tenant);
         var schedulable = await scope.ServiceProvider
             .GetRequiredService<IJobRepository>()
             .ListSchedulableAsync(Day, CancellationToken.None);
 
-        var mine = schedulable.Where(job => job.OrgId == org).Select(job => job.Id).ToList();
-
-        Assert.Equal([inside.Id, alsoInside.Id], mine);
+        Assert.Equal([inside.Id, alsoInside.Id], schedulable.Select(job => job.Id));
     }
 
     [Fact]
     public async Task ListsThePlanInTheHorizonInTheOrderItIsDriven()
     {
-        var org = OrgId.New();
-        var second = Planned(org, Day.Start.AddHours(4));
-        var first = Planned(org, Day.Start.AddHours(1));
-        var tomorrow = Planned(org, Day.End.AddHours(2));
+        var second = Planned( Day.Start.AddHours(4));
+        var first = Planned( Day.Start.AddHours(1));
+        var tomorrow = Planned( Day.End.AddHours(2));
 
-        await using (var write = _postgres.NewContext())
+        await using (var write = _postgres.NewContext(_tenant))
         {
             write.Assignments.AddRange(second, first, tomorrow);
             await write.SaveChangesAsync();
         }
 
-        using var scope = _postgres.CreateScope();
+        using var scope = _postgres.ActingAs(_tenant);
         var plan = await scope.ServiceProvider
             .GetRequiredService<IAssignmentRepository>()
             .ListInHorizonAsync(Day, CancellationToken.None);
 
-        var mine = plan.Where(assignment => assignment.OrgId == org).Select(assignment => assignment.Id).ToList();
-
-        Assert.Equal([first.Id, second.Id], mine);
+        Assert.Equal([first.Id, second.Id], plan.Select(assignment => assignment.Id));
     }
 
     /// <summary>
@@ -156,15 +154,15 @@ public sealed class RepositoryTests
     [Fact]
     public async Task FindsTheStopPlannedForAJobAndNothingForAnUnplannedOne()
     {
-        var planned = Planned(OrgId.New(), Day.Start.AddHours(2));
+        var planned = Planned(Day.Start.AddHours(2));
 
-        await using (var write = _postgres.NewContext())
+        await using (var write = _postgres.NewContext(_tenant))
         {
             write.Assignments.Add(planned);
             await write.SaveChangesAsync();
         }
 
-        using var scope = _postgres.CreateScope();
+        using var scope = _postgres.ActingAs(_tenant);
         var assignments = scope.ServiceProvider.GetRequiredService<IAssignmentRepository>();
 
         Assert.Equal(
@@ -180,15 +178,15 @@ public sealed class RepositoryTests
     [Fact]
     public async Task RemovesAStopFromThePlan()
     {
-        var planned = Planned(OrgId.New(), Day.Start.AddHours(3));
+        var planned = Planned(Day.Start.AddHours(3));
 
-        await using (var write = _postgres.NewContext())
+        await using (var write = _postgres.NewContext(_tenant))
         {
             write.Assignments.Add(planned);
             await write.SaveChangesAsync();
         }
 
-        using (var scope = _postgres.CreateScope())
+        using (var scope = _postgres.ActingAs(_tenant))
         {
             var assignments = scope.ServiceProvider.GetRequiredService<IAssignmentRepository>();
             var stop = await assignments.GetAsync(planned.Id, CancellationToken.None);
@@ -199,7 +197,7 @@ public sealed class RepositoryTests
                 .SaveChangesAsync(CancellationToken.None);
         }
 
-        using var read = _postgres.CreateScope();
+        using var read = _postgres.ActingAs(_tenant);
 
         Assert.Null(await read.ServiceProvider
             .GetRequiredService<IAssignmentRepository>()
@@ -214,18 +212,18 @@ public sealed class RepositoryTests
     [Fact]
     public async Task RollsBackEveryAggregateWhenOneOfThemFails()
     {
-        var planned = Planned(OrgId.New(), Day.Start.AddHours(5));
+        var planned = Planned(Day.Start.AddHours(5));
 
-        await using (var write = _postgres.NewContext())
+        await using (var write = _postgres.NewContext(_tenant))
         {
             write.Assignments.Add(planned);
             await write.SaveChangesAsync();
         }
 
-        var job = JobBuilder.Any().Build();
-        var duplicate = AssignmentBuilder.Any().ForJob(planned.JobId).Build();
+        var job = JobBuilder.Any().ForOrg(_tenant).Build();
+        var duplicate = AssignmentBuilder.Any().ForOrg(_tenant).ForJob(planned.JobId).Build();
 
-        using (var scope = _postgres.CreateScope())
+        using (var scope = _postgres.ActingAs(_tenant))
         {
             scope.ServiceProvider.GetRequiredService<IJobRepository>().Add(job);
             scope.ServiceProvider.GetRequiredService<IAssignmentRepository>().Add(duplicate);
@@ -235,16 +233,16 @@ public sealed class RepositoryTests
                 .SaveChangesAsync(CancellationToken.None));
         }
 
-        using var read = _postgres.CreateScope();
+        using var read = _postgres.ActingAs(_tenant);
 
         Assert.Null(await read.ServiceProvider
             .GetRequiredService<IJobRepository>()
             .GetAsync(job.Id, CancellationToken.None));
     }
 
-    private static Job Booked(OrgId org, DateTimeOffset opens, DateTimeOffset closes) =>
-        JobBuilder.Any().ForOrg(org).InWindow(new TimeWindow(opens, closes)).Build();
+    private Job Booked(DateTimeOffset opens, DateTimeOffset closes) =>
+        JobBuilder.Any().ForOrg(_tenant).InWindow(new TimeWindow(opens, closes)).Build();
 
-    private static Domain.Assignments.Assignment Planned(OrgId org, DateTimeOffset start) =>
-        AssignmentBuilder.Any().ForOrg(org).ForJob(JobId.New()).StartingAt(start).Build();
+    private Domain.Assignments.Assignment Planned(DateTimeOffset start) =>
+        AssignmentBuilder.Any().ForOrg(_tenant).ForJob(JobId.New()).StartingAt(start).Build();
 }

@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Domain.Assignments;
 using OpenDispatch.Domain.Common;
 using OpenDispatch.Domain.Customers;
@@ -32,12 +33,24 @@ namespace OpenDispatch.Infrastructure.Persistence;
 /// </remarks>
 public sealed class AppDbContext : DbContext
 {
+    private readonly ITenantContext _tenant;
+
     /// <summary>Creates the context. Options carry the provider, connection string and interceptors.</summary>
     /// <param name="options">Provider and behaviour configuration, supplied by the composition root.</param>
-    public AppDbContext(DbContextOptions<AppDbContext> options)
-        : base(options)
-    {
-    }
+    /// <param name="tenant">Whose data this context may see.</param>
+    public AppDbContext(DbContextOptions<AppDbContext> options, ITenantContext tenant)
+        : base(options) => _tenant = tenant;
+
+    /// <summary>
+    /// The organization every query through this context is scoped to.
+    /// </summary>
+    /// <remarks>
+    /// Public because the tenant filters are expressions built against it, and an expression EF
+    /// compiles cannot reach a private member. Reading it before anything has resolved a tenant
+    /// throws, which is why <c>CanConnect</c> and the migration path — neither of which queries an
+    /// entity — work without one.
+    /// </remarks>
+    public OrgId CurrentOrgId => _tenant.OrgId;
 
     /// <summary>The demand: what customers need doing.</summary>
     public DbSet<Job> Jobs => Set<Job>();
@@ -99,8 +112,10 @@ public sealed class AppDbContext : DbContext
         // IEntityTypeConfiguration and this file does not change.
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
-        // Last, so it reaches every root in the model however it got there.
+        // Last, so they reach every type in the model however it got there — including the ones
+        // whose configurations have not been written yet.
         AggregateRootConventions.Apply(modelBuilder);
+        TenantQueryFilters.Apply(modelBuilder, this);
     }
 
     /// <inheritdoc />
