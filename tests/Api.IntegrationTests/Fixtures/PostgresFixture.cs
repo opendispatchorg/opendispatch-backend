@@ -56,6 +56,19 @@ public sealed class PostgresFixture : IAsyncLifetime
     public AppDbContext NewContext() =>
         new(_options ?? throw new InvalidOperationException("The fixture has not been initialised."));
 
+    /// <summary>
+    /// A service scope over the same registration the host uses, for tests that go through the
+    /// persistence ports rather than the context.
+    /// </summary>
+    /// <remarks>
+    /// One scope is one unit of work: every repository resolved from it shares a context, which
+    /// is exactly the arrangement a handler gets and the reason a save can commit two aggregates
+    /// together. Resolving from separate scopes would test something the application never does.
+    /// </remarks>
+    public IServiceScope CreateScope() =>
+        (_services ?? throw new InvalidOperationException("The fixture has not been initialised."))
+            .CreateScope();
+
     /// <summary>Opens a connection to the shared container's database.</summary>
     public async Task<NpgsqlConnection> OpenConnectionAsync()
     {
