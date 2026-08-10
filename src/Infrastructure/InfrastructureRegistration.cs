@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Infrastructure.Persistence;
 using OpenDispatch.Infrastructure.Time;
+using OpenDispatch.Scheduling;
 using OpenDispatch.Scheduling.Travel;
 
 namespace OpenDispatch.Infrastructure;
@@ -41,5 +42,10 @@ public static class InfrastructureRegistration
             //
             // A singleton because implementations must be safe to call from several threads and
             // must give the same answer for the same pair every time; the haversine holds nothing.
-            .AddSingleton<ITravelTimeProvider, HaversineTravelTimeProvider>();
+            .AddSingleton<ITravelTimeProvider, HaversineTravelTimeProvider>()
+
+            // The engine. A singleton for the same reason: it holds the travel provider and its
+            // search settings and nothing else — everything that varies between runs arrives in
+            // the problem, including the seed that makes a plan reproducible.
+            .AddSingleton<IScheduler, AnnealingScheduler>();
 }

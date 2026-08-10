@@ -64,9 +64,16 @@ public sealed class Assignment : AggregateRoot
     public int Sequence { get; private set; }
 
     /// <summary>
-    /// When the technician is planned to arrive. May fall outside the job's promised window
+    /// When the technician is planned to start work. May fall outside the job's promised window
     /// — lateness is a soft constraint the scheduler pays a penalty for, not a bar.
     /// </summary>
+    /// <remarks>
+    /// Work starting, not the technician arriving, and the two differ only when somebody reaches a
+    /// site before the customer's window opens and waits. This is the instant a dispatcher enters
+    /// by hand, the one the customer was promised, and the one lateness is measured at — so the
+    /// manual and optimised paths write the same meaning here. How long anybody waited is the
+    /// engine's business and does not survive into the plan.
+    /// </remarks>
     public DateTimeOffset ScheduledStart { get; private set; }
 
     /// <summary>Minutes of driving to reach this stop from the previous one.</summary>

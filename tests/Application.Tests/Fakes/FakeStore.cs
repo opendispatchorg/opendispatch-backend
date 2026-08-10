@@ -35,6 +35,7 @@ internal sealed class FakeStore<TAggregate>(Func<TAggregate, OrgId> tenantOf) : 
 {
     private readonly List<TAggregate> _written = [];
     private readonly List<TAggregate> _staged = [];
+    private readonly List<TAggregate> _removals = [];
 
     /// <summary>Everything written, whichever tenant it belongs to.</summary>
     public IReadOnlyList<TAggregate> Saved => _written;
@@ -42,13 +43,33 @@ internal sealed class FakeStore<TAggregate>(Func<TAggregate, OrgId> tenantOf) : 
     /// <summary>Stages an aggregate, unwritten until something saves.</summary>
     public void Stage(TAggregate aggregate) => _staged.Add(aggregate);
 
+    /// <summary>
+    /// Stages a removal, which takes effect when something saves.
+    /// </summary>
+    /// <remarks>
+    /// Staged rather than immediate, like every other write: a command that drops a stop and then
+    /// fails must leave it exactly where it was.
+    /// </remarks>
+    public void StageRemoval(TAggregate aggregate) => _removals.Add(aggregate);
+
     public void Write()
     {
         _written.AddRange(_staged);
         _staged.Clear();
+
+        foreach (var removed in _removals)
+        {
+            _written.Remove(removed);
+        }
+
+        _removals.Clear();
     }
 
-    public void Discard() => _staged.Clear();
+    public void Discard()
+    {
+        _staged.Clear();
+        _removals.Clear();
+    }
 
     /// <summary>What one tenant can see — the fake's version of the global query filter.</summary>
     public IEnumerable<TAggregate> Owned(OrgId tenant) =>

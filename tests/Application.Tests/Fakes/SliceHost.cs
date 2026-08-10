@@ -9,6 +9,7 @@ using OpenDispatch.Domain.Customers;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.Technicians;
+using OpenDispatch.Scheduling;
 using OpenDispatch.Scheduling.Travel;
 
 namespace OpenDispatch.Application.Tests.Fakes;
@@ -75,8 +76,8 @@ internal sealed class SliceHost : IAsyncDisposable
         .AddScoped<ICustomerRepository, FakeCustomerRepository>());
 
     /// <summary>
-    /// The manual dispatch path: jobs and their customers, the crew, the plan, and a real
-    /// travel-time provider.
+    /// The dispatch paths — manual and optimised: jobs and their customers, the crew, the plan, a
+    /// real travel-time provider and the real engine.
     /// </summary>
     /// <remarks>
     /// The travel provider is the engine's own haversine rather than a stub returning a constant.
@@ -93,7 +94,12 @@ internal sealed class SliceHost : IAsyncDisposable
         .AddScoped<ITechnicianRepository, FakeTechnicianRepository>()
         .AddStore<Assignment>(assignment => assignment.OrgId)
         .AddScoped<IAssignmentRepository, FakeAssignmentRepository>()
-        .AddSingleton<ITravelTimeProvider, HaversineTravelTimeProvider>());
+        .AddSingleton<ITravelTimeProvider, HaversineTravelTimeProvider>()
+
+        // The real engine, not a stub. What step 37 has to get right is the translation either
+        // side of it — a problem built from rows, a plan written back as stops — and a scheduler
+        // that returned a canned answer would agree with a translation that made no sense.
+        .AddSingleton<IScheduler, AnnealingScheduler>());
 
     /// <summary>What the fake database holds for one aggregate.</summary>
     /// <typeparam name="TAggregate">The aggregate root being stored.</typeparam>

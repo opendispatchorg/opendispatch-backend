@@ -24,17 +24,11 @@ internal sealed class FakeAssignmentRepository(FakeStore<Assignment> store, ITen
 
     public void Add(Assignment assignment) => store.Stage(assignment);
 
-    /// <summary>
-    /// Not implemented, deliberately.
-    /// </summary>
     /// <remarks>
-    /// Nothing drops a stop before step 37: assigning a job moves its stop, and only re-optimising
-    /// a day that can no longer fit the work deletes one. A removal modelled now would have to
-    /// guess whether it stages or takes effect at once, with nothing exercising the answer.
+    /// The only deletion in the system, and it arrived with the slice that needed it: re-optimising
+    /// a day that can no longer fit a job must leave no stop behind for it.
     /// </remarks>
-    public void Remove(Assignment assignment) =>
-        throw new NotSupportedException(
-            "Nothing removes a stop before step 37; write this fake with the slice that needs it.");
+    public void Remove(Assignment assignment) => store.StageRemoval(assignment);
 
     public Task<Assignment?> GetByJobAsync(JobId jobId, CancellationToken ct) =>
         Task.FromResult(Mine().SingleOrDefault(assignment => assignment.JobId == jobId));

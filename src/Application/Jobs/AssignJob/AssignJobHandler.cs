@@ -23,10 +23,9 @@ namespace OpenDispatch.Application.Jobs.AssignJob;
 /// separate aggregates.
 /// </para>
 /// <para>
-/// <strong>A job has at most one stop.</strong> That is the rule this handler exists to keep:
-/// <c>GetByJobAsync</c> is asked first, so a second assignment for the same job is not something
-/// the code can produce — moving one is <c>Reassign</c> then <c>Reschedule</c>, never an add. A
-/// unique index backs it in the database rather than trusting this to remember.
+/// <strong>A job has at most one stop</strong>, which is <see cref="StopPlacement"/>'s rule rather
+/// than this handler's — the optimiser keeps the same one. What is this handler's is deciding
+/// where the stop goes: a dispatcher is telling the system, so it is told.
 /// </para>
 /// <para>
 /// <strong>What it does not do is re-time the rest of the day.</strong> A stop dropped into the
@@ -78,40 +77,16 @@ internal sealed class AssignJobHandler(
         var run = await DayOfAsync(technician, job.Id, cancellationToken).ConfigureAwait(false);
         var placement = await PlaceAsync(technician, job, run, start, cancellationToken).ConfigureAwait(false);
 
-        var assignment = await assignments.GetByJobAsync(job.Id, cancellationToken).ConfigureAwait(false);
-
-        if (assignment is null)
-        {
-            assignment = Assignment.Create(
-                tenant.OrgId,
-                job.Id,
-                technician.Id,
-                placement.Sequence,
-                start,
-                placement.TravelMin);
-
-            assignments.Add(assignment);
-        }
-        else
-        {
-            // Two events for one drag when the technician changes, which is what step 8 chose:
-            // each method announces itself, and the board is told both that the stop moved hands
-            // and that it moved in time.
-            if (assignment.TechnicianId != technician.Id)
-            {
-                assignment.Reassign(technician.Id);
-            }
-
-            assignment.Reschedule(start, placement.Sequence, placement.TravelMin);
-        }
-
-        // Planned work that was only demand until now. A job already Scheduled or Dispatched is
-        // being moved rather than planned, and moving it must not push it round the state machine
-        // — Dispatched in particular would go backwards.
-        if (job.Status is JobStatus.Unscheduled)
-        {
-            job.Schedule();
-        }
+        // The one-stop-per-job rule is kept in one place, because the optimiser keeps it too.
+        var assignment = await StopPlacement.PlaceAsync(
+            assignments,
+            tenant.OrgId,
+            job,
+            technician.Id,
+            placement.Sequence,
+            start,
+            placement.TravelMin,
+            cancellationToken).ConfigureAwait(false);
 
         return Result.Success(assignment.Id);
     }

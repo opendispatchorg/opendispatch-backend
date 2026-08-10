@@ -17,16 +17,24 @@ internal sealed class FakeJobRepository(FakeStore<Job> store, ITenantContext ten
 
     public void Add(Job job) => store.Stage(job);
 
-    /// <summary>
-    /// Not implemented, deliberately.
-    /// </summary>
     /// <remarks>
-    /// Nothing in this slice plans a day — step 37 is the first thing to read the schedulable
-    /// work, and it will want a fake that answers the way the real query does, over a horizon it
-    /// controls. Guessing at that now would be an implementation nothing exercises and everything
-    /// would then trust.
+    /// <para>
+    /// Both halves of the real query, restated in memory: the domain's own
+    /// <c>SchedulableStatuses</c> rather than a status list of its own, and the same half-open
+    /// overlap against the horizon — a job whose window closes exactly as the horizon opens is out.
+    /// </para>
+    /// <para>
+    /// Ordered like the real one, because the optimiser consumes it in the order it arrives and
+    /// Document 2 §4 requires the same problem to produce the same plan.
+    /// </para>
     /// </remarks>
     public Task<IReadOnlyList<Job>> ListSchedulableAsync(TimeWindow horizon, CancellationToken ct) =>
-        throw new NotSupportedException(
-            "No request before step 37 reads the schedulable work; write this fake with the slice that needs it.");
+        Task.FromResult<IReadOnlyList<Job>>(
+        [
+            .. store.Owned(tenant.OrgId)
+                .Where(job => Job.SchedulableStatuses.Contains(job.Status))
+                .Where(job => job.Window.Start < horizon.End && horizon.Start < job.Window.End)
+                .OrderBy(job => job.Window.Start)
+                .ThenBy(job => job.Id.Value),
+        ]);
 }
