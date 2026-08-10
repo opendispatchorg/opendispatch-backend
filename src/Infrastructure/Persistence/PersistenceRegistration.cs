@@ -27,12 +27,15 @@ public static class PersistenceRegistration
         this IServiceCollection services,
         Func<IServiceProvider, string> connectionString)
     {
-        services.AddDbContext<AppDbContext>((provider, options) =>
-            options.UseNpgsql(
+        services.AddDbContext<AppDbContext>((provider, options) => options
+            .UseNpgsql(
                 connectionString(provider),
                 // Turns on the NTS type handlers, so a GeoPoint can be stored as
-                // geography(Point) and queried with PostGIS operators from step 25 onwards.
-                npgsql => npgsql.UseNetTopologySuite()));
+                // geography(Point) and queried with PostGIS operators.
+                npgsql => npgsql.UseNetTopologySuite())
+            // Tables and columns are snake_case. This runs over whatever names the model ends
+            // up with, so a configuration names a table once, in the words the database uses.
+            .UseSnakeCaseNamingConvention());
 
         return services;
     }

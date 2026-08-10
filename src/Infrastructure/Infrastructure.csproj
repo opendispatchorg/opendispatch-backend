@@ -9,6 +9,13 @@
     -->
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL" Version="10.0.3" />
     <PackageReference Include="Npgsql.EntityFrameworkCore.PostgreSQL.NetTopologySuite" Version="10.0.3" />
+    <!--
+      snake_case names, so the schema reads like Postgres rather than like C# in quotation
+      marks. Applied as a convention rather than a HasColumnName on every property: the build
+      plan's own index in step 27 is jobs(org_id, status, window_start), and three hundred
+      hand-written column names is three hundred chances to disagree with it.
+    -->
+    <PackageReference Include="EFCore.NamingConventions" Version="10.0.1" />
   </ItemGroup>
 
   <ItemGroup>

@@ -21,6 +21,9 @@ namespace OpenDispatch.Domain.Organizations;
 /// </remarks>
 public sealed class Organization : AggregateRoot
 {
+    // Materialisation constructor — see the note on Job.
+    private Organization() => Name = string.Empty;
+
     private Organization(OrgId id, string name)
     {
         Id = id;

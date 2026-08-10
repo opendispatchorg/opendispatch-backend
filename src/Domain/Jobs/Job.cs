@@ -80,6 +80,17 @@ public sealed class Job : AggregateRoot
     /// </remarks>
     public static IReadOnlyDictionary<JobStatus, IReadOnlySet<JobStatus>> AllowedTransitions => Allowed;
 
+    // Materialisation constructor. Loading is not construction: the persistence layer builds the
+    // instance through this and then sets every mapped member from the row, so a constructor
+    // that establishes a starting state — an Unscheduled job, a Draft invoice — never runs
+    // against data that is long past it.
+    //
+    // Job, Technician and Customer cannot be loaded without one; the rest have it anyway, so the
+    // rule holds everywhere rather than in three places a reader would have to work out.
+    // The placeholder is overwritten before anything can observe it, and exists only so a
+    // non-nullable member is not left null.
+    private Job() => RequiredSkill = string.Empty;
+
     private Job(
         JobId id,
         OrgId orgId,

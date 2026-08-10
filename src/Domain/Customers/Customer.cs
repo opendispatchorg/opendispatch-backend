@@ -16,6 +16,9 @@ public sealed class Customer : AggregateRoot
 {
     private readonly List<ServiceLocation> _locations = [];
 
+    // Materialisation constructor — see the note on Job.
+    private Customer() => Name = string.Empty;
+
     private Customer(CustomerId id, OrgId orgId, string name, ContactInfo contact)
     {
         Id = id;

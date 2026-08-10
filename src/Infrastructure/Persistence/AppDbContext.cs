@@ -29,15 +29,8 @@ namespace OpenDispatch.Infrastructure.Persistence;
 /// aggregates reference each other by id, so a set for them would be an invitation to load one
 /// outside the boundary that keeps it consistent.
 /// </para>
-/// <para>
-/// Not sealed, which is the one thing here that is not obvious. EF only accepts a
-/// <see cref="DbContextOptions{TContext}"/> by a context assignable to its context type, so a
-/// context that wants these conventions has to extend this one; the alternative is a second copy
-/// of the provider registration and the model rules that can quietly disagree with these. The
-/// step-25 conversion tests extend it for exactly that reason.
-/// </para>
 /// </remarks>
-public class AppDbContext : DbContext
+public sealed class AppDbContext : DbContext
 {
     /// <summary>Creates the context. Options carry the provider, connection string and interceptors.</summary>
     /// <param name="options">Provider and behaviour configuration, supplied by the composition root.</param>
@@ -101,8 +94,6 @@ public class AppDbContext : DbContext
         // here, and is discovered rather than listed: a new aggregate arrives with its own
         // IEntityTypeConfiguration and this file does not change.
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
-
-        UnconfiguredAggregates.ExcludeUntilConfigured(modelBuilder);
 
         // Last, so it reaches every root in the model however it got there.
         AggregateRootConventions.Apply(modelBuilder);

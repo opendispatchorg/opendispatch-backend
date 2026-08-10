@@ -31,6 +31,15 @@ public sealed class Technician : AggregateRoot
 
     private readonly HashSet<string> _skills;
 
+    // Materialisation constructor — see the note on Job. The set is built with the comparer here
+    // as well as in the mapping, so a technician cannot hold one that matches case-sensitively
+    // even for the instant before the row is read into it.
+    private Technician()
+    {
+        Name = string.Empty;
+        _skills = new HashSet<string>(SkillComparer);
+    }
+
     private Technician(
         TechnicianId id,
         OrgId orgId,

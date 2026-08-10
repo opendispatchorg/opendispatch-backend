@@ -14,6 +14,9 @@ namespace OpenDispatch.Domain.Invoices;
 /// </remarks>
 public sealed class LineItem
 {
+    // Materialisation constructor — see the note on Job.
+    private LineItem() => Description = string.Empty;
+
     private LineItem(
         LineItemId id,
         LineItemKind kind,
