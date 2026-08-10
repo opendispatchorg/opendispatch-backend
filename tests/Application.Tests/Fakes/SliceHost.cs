@@ -2,9 +2,11 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Tests.Customers;
+using OpenDispatch.Application.Tests.Jobs;
 using OpenDispatch.Application.Tests.Technicians;
 using OpenDispatch.Domain.Customers;
 using OpenDispatch.Domain.Identifiers;
+using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.Technicians;
 
 namespace OpenDispatch.Application.Tests.Fakes;
@@ -54,6 +56,16 @@ internal sealed class SliceHost : IAsyncDisposable
     public static SliceHost Technicians() => new(services => services
         .AddStore<Technician>(technician => technician.OrgId)
         .AddScoped<ITechnicianRepository, FakeTechnicianRepository>());
+
+    /// <summary>
+    /// The Jobs slice, which needs customers too: booking a job resolves the service location it
+    /// happens at, so the Customers slice is how a test arranges one.
+    /// </summary>
+    public static SliceHost Jobs() => new(services => services
+        .AddStore<Job>(job => job.OrgId)
+        .AddScoped<IJobRepository, FakeJobRepository>()
+        .AddStore<Customer>(customer => customer.OrgId)
+        .AddScoped<ICustomerRepository, FakeCustomerRepository>());
 
     /// <summary>What the fake database holds for one aggregate.</summary>
     /// <typeparam name="TAggregate">The aggregate root being stored.</typeparam>
