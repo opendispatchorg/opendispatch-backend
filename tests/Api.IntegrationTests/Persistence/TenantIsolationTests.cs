@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Api.IntegrationTests.Fixtures;
+using OpenDispatch.Application;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Organizations;
@@ -112,9 +113,11 @@ public sealed class TenantIsolationTests
     /// nothing and present as a dispatch board that is simply empty.
     /// </summary>
     /// <remarks>
-    /// Built from <c>AddPersistence</c> alone, without the fixture's test double over the top, so
-    /// what is under test is the tenant context the host actually registers. Asserting this
-    /// against the double would only prove the double throws.
+    /// Built without the fixture's test double over the top, so what is under test is the tenant
+    /// context the host actually registers. Asserting this against the double would only prove
+    /// the double throws. <c>AddApplication</c> is here because the context needs somewhere to
+    /// publish domain events (step 31), not because this test has anything to do with the
+    /// pipeline.
     /// </remarks>
     [Fact]
     public async Task RefusesToQueryWhenNoTenantHasBeenResolved()
@@ -122,6 +125,7 @@ public sealed class TenantIsolationTests
         await SeedAsync(_acme);
 
         await using var services = new ServiceCollection()
+            .AddApplication()
             .AddPersistence(_ => _postgres.ConnectionString)
             .BuildServiceProvider();
         using var scope = services.CreateScope();

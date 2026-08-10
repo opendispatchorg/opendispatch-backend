@@ -1,22 +1,29 @@
 using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Infrastructure.Events;
 
 namespace OpenDispatch.Infrastructure.Persistence;
 
 /// <inheritdoc cref="IUnitOfWork"/>
 /// <remarks>
 /// <para>
-/// One line, because EF's <c>DbContext</c> already is a unit of work: the repositories stage
-/// changes on the same scoped context, and this commits them. Wrapping it in anything more would
+/// Two lines, because EF's <c>DbContext</c> already is a unit of work: the repositories stage
+/// changes on the same scoped context, this commits them, and its <c>Database</c> is where a
+/// transaction spanning several of those commits comes from. Wrapping any of it in more would
 /// be re-implementing what is already there.
 /// </para>
 /// <para>
-/// Atomicity comes from <c>SaveChangesAsync</c> itself, which opens a transaction around the
-/// whole batch unless one is already open. So a handler that writes an assignment and moves a job
-/// gets both or neither without asking for a transaction, and step 30's transaction behavior can
-/// widen the scope later without changing anything here.
+/// Atomicity over a single save comes from <c>SaveChangesAsync</c> itself, which opens a
+/// transaction around the whole batch unless one is already open — and when
+/// <c>TransactionBehavior</c> has opened one, that is exactly what happens: the save enlists
+/// rather than committing on its own.
 /// </para>
 /// </remarks>
-internal sealed class UnitOfWork(AppDbContext context) : IUnitOfWork
+internal sealed class UnitOfWork(AppDbContext context, DomainEventDispatcher dispatcher) : IUnitOfWork
 {
     public Task<int> SaveChangesAsync(CancellationToken ct) => context.SaveChangesAsync(ct);
+
+    public async Task<IUnitOfWorkTransaction> BeginTransactionAsync(CancellationToken ct) =>
+        new UnitOfWorkTransaction(
+            await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false),
+            dispatcher);
 }

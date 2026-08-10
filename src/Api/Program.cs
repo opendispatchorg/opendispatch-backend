@@ -2,6 +2,7 @@ using System.Globalization;
 using Microsoft.Extensions.Options;
 using OpenDispatch.Api.Configuration;
 using OpenDispatch.Api.Health;
+using OpenDispatch.Application;
 using OpenDispatch.Infrastructure.Persistence;
 using Serilog;
 
@@ -23,6 +24,11 @@ try
         .Enrich.FromLogContext());
 
     builder.Services.AddDatabaseOptions(builder.Configuration);
+
+    // The request pipeline every feature slice rides on: MediatR, the validators, and the
+    // logging/validation/transaction behaviors in that order. The order lives with the
+    // behaviors rather than here, so it cannot be half-stated in two places.
+    builder.Services.AddApplication();
 
     // The one place Api reaches into Infrastructure: registration, at startup, with the
     // connection string it owns. Everything above this line stays ignorant of EF Core.

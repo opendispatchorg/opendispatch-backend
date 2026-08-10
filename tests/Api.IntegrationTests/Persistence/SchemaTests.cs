@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
 using OpenDispatch.Api.IntegrationTests.Fixtures;
+using OpenDispatch.Application;
 using OpenDispatch.Infrastructure.Persistence;
 using OpenDispatch.TestSupport;
 
@@ -42,6 +43,9 @@ public sealed class SchemaTests
         {
             var connectionString = ConnectionStringFor(ProbeDatabase);
             await using var services = new ServiceCollection()
+                // Only so the context can be resolved: since step 31 it needs somewhere to
+                // publish domain events, and migrating raises none.
+                .AddApplication()
                 .AddPersistence(_ => connectionString)
                 .BuildServiceProvider();
             using var scope = services.CreateScope();

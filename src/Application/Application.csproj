@@ -1,6 +1,31 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <!--
+      MediatR is pinned to 12.5.0, the last release under Apache-2.0. From 13.0.0 it is
+      dual-licensed: RPL-1.5, which requires anyone distributing or hosting software built on
+      it to publish their own source, or a paid licence. OpenDispatch is Apache-2.0 and its
+      stated audience (Document 1) is builders packaging it for shops that cannot self-host —
+      exactly the people that licence would bill or oblige. Doc 2 names MediatR in the stack,
+      so the answer is the last version whose terms match this project's, not a different
+      library.
+
+      What the pin costs: no upstream fixes. If that ever matters, the replacement is a small
+      in-house mediator over these same ICommand/IQuery markers, not a version bump.
+    -->
+    <PackageReference Include="MediatR" Version="12.5.0" />
+    <PackageReference Include="FluentValidation" Version="12.1.1" />
+    <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
+    <!--
+      Abstractions only, both of them. A layer that may not know about ASP.NET or EF Core may
+      still declare that it logs and that it can be registered; what writes the log and what
+      builds the container stay outside.
+    -->
+    <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Domain\Domain.csproj" />
     <ProjectReference Include="..\Scheduling\Scheduling.csproj" />
   </ItemGroup>

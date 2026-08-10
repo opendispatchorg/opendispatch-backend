@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Infrastructure.Events;
 using OpenDispatch.Infrastructure.Persistence.Repositories;
 using OpenDispatch.Infrastructure.Tenancy;
 
@@ -10,9 +11,17 @@ namespace OpenDispatch.Infrastructure.Persistence;
 /// Registration for the persistence layer.
 /// </summary>
 /// <remarks>
+/// <para>
 /// The composition root is the Api (Document 2 §2), but which provider and which plugins the
 /// context needs is Infrastructure's business — so the host supplies a connection string and
 /// nothing more. Api never has to name Npgsql or NetTopologySuite.
+/// </para>
+/// <para>
+/// Since step 31 this needs a publisher to hand domain events to, which
+/// <c>AddApplication</c> supplies: saving is what announces what an aggregate did, so a
+/// persistence layer with nowhere to announce it is not a working one. Resolving a context
+/// without it fails at the first resolve rather than at the first event.
+/// </para>
 /// </remarks>
 public static class PersistenceRegistration
 {
@@ -30,6 +39,12 @@ public static class PersistenceRegistration
         this IServiceCollection services,
         Func<IServiceProvider, string> connectionString)
     {
+        // Scoped, all three: one queue, one dispatcher and one interceptor per request, sharing
+        // the lifetime of the context that fills the queue and the transaction that empties it.
+        services.AddScoped<DomainEventQueue>();
+        services.AddScoped<DomainEventDispatcher>();
+        services.AddScoped<DomainEventInterceptor>();
+
         services.AddDbContext<AppDbContext>((provider, options) => options
             .UseNpgsql(
                 connectionString(provider),
@@ -38,7 +53,10 @@ public static class PersistenceRegistration
                 npgsql => npgsql.UseNetTopologySuite())
             // Tables and columns are snake_case. This runs over whatever names the model ends
             // up with, so a configuration names a table once, in the words the database uses.
-            .UseSnakeCaseNamingConvention());
+            .UseSnakeCaseNamingConvention()
+            // Resolved from the request's own scope, so the events it collects go into that
+            // request's queue and no other's.
+            .AddInterceptors(provider.GetRequiredService<DomainEventInterceptor>()));
 
         // The context now depends on knowing whose request it is serving, so the tenant is
         // registered here rather than left to the host: a DbContext registered without one would
