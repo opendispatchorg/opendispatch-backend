@@ -2,11 +2,8 @@ using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Api.IntegrationTests.Fixtures;
-using OpenDispatch.Application;
-using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Results;
 using OpenDispatch.Domain.Identifiers;
-using OpenDispatch.Infrastructure.Persistence;
 using OpenDispatch.TestSupport;
 
 namespace OpenDispatch.Api.IntegrationTests.Pipeline;
@@ -75,25 +72,13 @@ public sealed class TransactionBehaviorTests
     }
 
     /// <summary>
-    /// The real composition — persistence, the application pipeline, a tenant — plus the one
-    /// sample handler. Nothing about the pipeline itself is restated here, so a behavior
-    /// registered in the wrong order fails these too.
+    /// The real composition plus the one sample handler. Nothing about the pipeline itself is
+    /// restated here, so a behavior registered in the wrong order fails these too.
     /// </summary>
     private ServiceProvider BuildPipeline() =>
-        new ServiceCollection()
-            .AddLogging()
-            .AddPersistence(_ => _postgres.ConnectionString)
-            .AddApplication()
-            .AddScoped<TestTenantContext>()
-            .AddScoped<ITenantContext>(provider => provider.GetRequiredService<TestTenantContext>())
+        TestHost.Over(_postgres)
             .AddTransient<IRequestHandler<TakeOnCustomerCommand, Result<CustomerId>>, TakeOnCustomerHandler>()
             .BuildServiceProvider(validateScopes: true);
 
-    private IServiceScope Acting(ServiceProvider services)
-    {
-        var scope = services.CreateScope();
-        scope.ServiceProvider.GetRequiredService<TestTenantContext>().ActAs(_tenant);
-
-        return scope;
-    }
+    private IServiceScope Acting(ServiceProvider services) => services.ActingAs(_tenant);
 }

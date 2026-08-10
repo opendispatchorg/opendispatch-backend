@@ -1,7 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using Npgsql;
-using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Infrastructure.Persistence;
 using Testcontainers.PostgreSql;
@@ -40,16 +39,11 @@ public sealed class PostgresFixture : IAsyncLifetime
     {
         await _container.StartAsync();
 
-        // Built through the real registration, so the provider and plugins under test are the
-        // ones the host runs with.
-        _services = new ServiceCollection()
-            .AddPersistence(_ => ConnectionString)
-            // Registered after AddPersistence, so it replaces the real tenant context: the last
-            // registration of a service type is the one resolved. Tests say which organization
-            // they are acting as; nothing here resolves one from a principal yet.
-            .AddScoped<TestTenantContext>()
-            .AddScoped<ITenantContext>(provider => provider.GetRequiredService<TestTenantContext>())
-            .BuildServiceProvider();
+        // Built through the real registrations, so the provider and plugins under test are the
+        // ones the host runs with. AddApplication is here because since step 31 the persistence
+        // layer publishes domain events on save, and publishing needs the mediator that
+        // registration supplies.
+        _services = TestHost.Over(this).BuildServiceProvider();
         _scope = _services.CreateScope();
         _options = _scope.ServiceProvider.GetRequiredService<DbContextOptions<AppDbContext>>();
 
@@ -69,15 +63,9 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// aggregates together. Resolving from separate scopes would test something the application
     /// never does.
     /// </remarks>
-    public IServiceScope ActingAs(OrgId tenant)
-    {
-        var scope = (_services ?? throw new InvalidOperationException("The fixture has not been initialised."))
-            .CreateScope();
-
-        scope.ServiceProvider.GetRequiredService<TestTenantContext>().ActAs(tenant);
-
-        return scope;
-    }
+    public IServiceScope ActingAs(OrgId tenant) =>
+        (_services ?? throw new InvalidOperationException("The fixture has not been initialised."))
+            .ActingAs(tenant);
 
     /// <summary>A context scoped to one organization. The caller disposes it.</summary>
     public AppDbContext NewContext(OrgId tenant)

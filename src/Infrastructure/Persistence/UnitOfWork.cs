@@ -1,4 +1,5 @@
 using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Infrastructure.Events;
 
 namespace OpenDispatch.Infrastructure.Persistence;
 
@@ -17,10 +18,12 @@ namespace OpenDispatch.Infrastructure.Persistence;
 /// rather than committing on its own.
 /// </para>
 /// </remarks>
-internal sealed class UnitOfWork(AppDbContext context) : IUnitOfWork
+internal sealed class UnitOfWork(AppDbContext context, DomainEventDispatcher dispatcher) : IUnitOfWork
 {
     public Task<int> SaveChangesAsync(CancellationToken ct) => context.SaveChangesAsync(ct);
 
     public async Task<IUnitOfWorkTransaction> BeginTransactionAsync(CancellationToken ct) =>
-        new UnitOfWorkTransaction(await context.Database.BeginTransactionAsync(ct));
+        new UnitOfWorkTransaction(
+            await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false),
+            dispatcher);
 }
