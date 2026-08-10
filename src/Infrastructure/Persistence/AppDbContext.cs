@@ -1,10 +1,14 @@
 using Microsoft.EntityFrameworkCore;
 using OpenDispatch.Domain.Assignments;
+using OpenDispatch.Domain.Common;
 using OpenDispatch.Domain.Customers;
+using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Invoices;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.Organizations;
 using OpenDispatch.Domain.Technicians;
+using OpenDispatch.Domain.ValueObjects;
+using OpenDispatch.Infrastructure.Persistence.Conversions;
 
 namespace OpenDispatch.Infrastructure.Persistence;
 
@@ -25,8 +29,15 @@ namespace OpenDispatch.Infrastructure.Persistence;
 /// aggregates reference each other by id, so a set for them would be an invitation to load one
 /// outside the boundary that keeps it consistent.
 /// </para>
+/// <para>
+/// Not sealed, which is the one thing here that is not obvious. EF only accepts a
+/// <see cref="DbContextOptions{TContext}"/> by a context assignable to its context type, so a
+/// context that wants these conventions has to extend this one; the alternative is a second copy
+/// of the provider registration and the model rules that can quietly disagree with these. The
+/// step-25 conversion tests extend it for exactly that reason.
+/// </para>
 /// </remarks>
-public sealed class AppDbContext : DbContext
+public class AppDbContext : DbContext
 {
     /// <summary>Creates the context. Options carry the provider, connection string and interceptors.</summary>
     /// <param name="options">Provider and behaviour configuration, supplied by the composition root.</param>
@@ -54,6 +65,36 @@ public sealed class AppDbContext : DbContext
     public DbSet<Organization> Organizations => Set<Organization>();
 
     /// <inheritdoc />
+    protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
+    {
+        // Every strongly-typed id in the system, and the fact that each is a uuid. Registered
+        // once for the whole model rather than per property, so a JobId column is a JobId column
+        // wherever one appears and no per-aggregate configuration has to name a converter.
+        configurationBuilder.Properties<AssignmentId>().HaveConversion<AssignmentIdConverter>();
+        configurationBuilder.Properties<CustomerId>().HaveConversion<CustomerIdConverter>();
+        configurationBuilder.Properties<InvoiceId>().HaveConversion<InvoiceIdConverter>();
+        configurationBuilder.Properties<JobId>().HaveConversion<JobIdConverter>();
+        configurationBuilder.Properties<LineItemId>().HaveConversion<LineItemIdConverter>();
+        configurationBuilder.Properties<OrgId>().HaveConversion<OrgIdConverter>();
+        configurationBuilder.Properties<ServiceLocationId>().HaveConversion<ServiceLocationIdConverter>();
+        configurationBuilder.Properties<TechnicianId>().HaveConversion<TechnicianIdConverter>();
+
+        // The value objects. Document 2 §6 calls these owned types, which is what EF called value
+        // objects when it was written; EF's answer for them now is complex types, and —
+        // decisively — an owned type is an entity type, which a struct cannot be. All of ours are
+        // readonly record structs.
+        //
+        // Two of the three collapse to a single column, so they are conversions: Money is its
+        // cents, and a GeoPoint is one geography(Point) — splitting it into two doubles would
+        // round-trip perfectly well and be unusable by PostGIS. The third, TimeWindow, is
+        // genuinely two instants and cannot be registered here at all; see TimeWindowMapping.
+        configurationBuilder.Properties<Money>().HaveConversion<MoneyConverter>();
+        configurationBuilder.Properties<GeoPoint>()
+            .HaveConversion<GeoPointConverter>()
+            .HaveColumnType(GeoPointConverter.ColumnType);
+    }
+
+    /// <inheritdoc />
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
         // Configuration lives one class per aggregate rather than in a single growing method
@@ -62,5 +103,52 @@ public sealed class AppDbContext : DbContext
         modelBuilder.ApplyConfigurationsFromAssembly(typeof(AppDbContext).Assembly);
 
         UnconfiguredAggregates.ExcludeUntilConfigured(modelBuilder);
+
+        // Last, so it reaches every root in the model however it got there.
+        AggregateRootConventions.Apply(modelBuilder);
+    }
+
+    /// <inheritdoc />
+    public override int SaveChanges(bool acceptAllChangesOnSuccess)
+    {
+        StampVersions();
+        return base.SaveChanges(acceptAllChangesOnSuccess);
+    }
+
+    /// <inheritdoc />
+    public override Task<int> SaveChangesAsync(
+        bool acceptAllChangesOnSuccess,
+        CancellationToken cancellationToken = default)
+    {
+        StampVersions();
+        return base.SaveChangesAsync(acceptAllChangesOnSuccess, cancellationToken);
+    }
+
+    /// <summary>
+    /// Advances <see cref="AggregateRoot.Version"/> on every root this transaction changed.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The concurrency token has to move for the check to mean anything, and the aggregate is
+    /// the wrong place to move it from: a version is a fact about a stored row, not about the
+    /// business, and having each intent method remember to bump it is the same
+    /// everyone-must-remember problem the domain exists to remove.
+    /// </para>
+    /// <para>
+    /// EF has already captured the value the row was read at, so the bump changes what is
+    /// written without touching what is compared: <c>SET version = @new WHERE ... AND version =
+    /// @original</c>. A root inserted this transaction keeps the version it was constructed
+    /// with.
+    /// </para>
+    /// </remarks>
+    private void StampVersions()
+    {
+        foreach (var entry in ChangeTracker.Entries<AggregateRoot>())
+        {
+            if (entry.State is EntityState.Modified)
+            {
+                entry.Entity.BumpVersion();
+            }
+        }
     }
 }
