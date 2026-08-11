@@ -81,6 +81,12 @@ public static class PersistenceRegistration
         // request's context: the board is read inside the same tenant scope everything else is.
         services.AddScoped<IDispatchBoardReadModel, DispatchBoardReadModel>();
 
+        // The op log stages like a repository and is committed by the same unit of work, so that
+        // the record of an operation and its effect land together. The cursor source shares the
+        // context for a different reason: a watermark is only true of the connection that asked.
+        services.AddScoped<ISyncOpStore, SyncOpStore>();
+        services.AddScoped<ISyncCursorSource, SyncCursorSource>();
+
         return services;
     }
 }

@@ -74,6 +74,7 @@ public sealed class SchemaTests
             Assert.Contains("organizations", tables);
             Assert.Contains("service_locations", tables);
             Assert.Contains("line_items", tables);
+            Assert.Contains("sync_ops", tables);
         }
         finally
         {
@@ -110,6 +111,60 @@ public sealed class SchemaTests
             "(org_id, status, window_start)",
             definitions["ix_jobs_org_id_status_window_start"],
             StringComparison.Ordinal);
+    }
+
+    /// <summary>
+    /// Every table carries the change stamp a sync cursor is a position in, and every one of them
+    /// has the trigger that maintains it.
+    /// </summary>
+    /// <remarks>
+    /// The two halves are asserted against each other because they come from different places and
+    /// only one of them is automatic: the column is swept onto the model, the trigger is written
+    /// by hand in a migration. A table added later gets the column for free and the trigger only
+    /// if somebody remembers — and the symptom of forgetting is a phone that never hears about an
+    /// edit, which nothing else in the suite would notice.
+    /// </remarks>
+    [Fact]
+    public async Task StampsEveryTableWithTheTransactionThatLastWroteIt()
+    {
+        // The tables this application owns: not EF's own bookkeeping, and not the two PostGIS
+        // brought with it when the migration enabled the extension.
+        var tables = await QueryAsync(
+            _postgres.ConnectionString,
+            """
+            SELECT tablename FROM pg_tables t
+            WHERE schemaname = 'public'
+              AND tablename <> '__EFMigrationsHistory'
+              AND NOT EXISTS (
+                  SELECT 1 FROM pg_depend
+                  JOIN pg_class ON pg_class.oid = pg_depend.objid
+                  JOIN pg_namespace ON pg_namespace.oid = pg_class.relnamespace
+                  WHERE pg_class.relname = t.tablename
+                    AND pg_namespace.nspname = t.schemaname
+                    AND pg_depend.deptype = 'e');
+            """,
+            reader => reader.GetString(0));
+
+        var stamped = await QueryAsync(
+            _postgres.ConnectionString,
+            """
+            SELECT table_name FROM information_schema.columns
+            WHERE table_schema = 'public' AND column_name = 'change_seq';
+            """,
+            reader => reader.GetString(0));
+
+        var triggered = await QueryAsync(
+            _postgres.ConnectionString,
+            """
+            SELECT relname FROM pg_trigger
+            JOIN pg_class ON pg_class.oid = pg_trigger.tgrelid
+            WHERE tgname = 'stamp_change_seq' AND NOT tgisinternal;
+            """,
+            reader => reader.GetString(0));
+
+        Assert.NotEmpty(tables);
+        Assert.Equal(tables.Order(), stamped.Order());
+        Assert.Equal(tables.Order(), triggered.Order());
     }
 
     [Fact]

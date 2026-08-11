@@ -34,6 +34,10 @@ migrate:
 ## The composite index on jobs(org_id, status, window_start) is hand-written in the initial
 ## migration because EF cannot declare an index over a complex type's member. Regenerating that
 ## migration from scratch would drop it; adding a new one on top will not.
+##
+## A migration that adds a table also needs its stamp_change_seq trigger, hand-written the way
+## the SyncOpLog migration writes them: the change_seq column arrives on the model by itself,
+## the trigger that keeps it current does not. SchemaTests fails if one is missing.
 migration:
 	@test -n "$(NAME)" || { echo "usage: make migration NAME=AddSomething" >&2; exit 1; }
 	dotnet tool restore

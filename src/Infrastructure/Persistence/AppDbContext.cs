@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Application.Sync;
 using OpenDispatch.Domain.Assignments;
 using OpenDispatch.Domain.Common;
 using OpenDispatch.Domain.Customers;
@@ -25,10 +26,12 @@ namespace OpenDispatch.Infrastructure.Persistence;
 /// token. None of it leaks back the other way, so the domain still references nothing.
 /// </para>
 /// <para>
-/// There is a <see cref="DbSet{TEntity}"/> per aggregate root and nothing else. Owned children —
-/// a customer's service locations, an invoice's line items — are reached through their root, and
-/// aggregates reference each other by id, so a set for them would be an invitation to load one
-/// outside the boundary that keeps it consistent.
+/// There is a <see cref="DbSet{TEntity}"/> per aggregate root, and one that is not: owned
+/// children — a customer's service locations, an invoice's line items — are reached through
+/// their root, and aggregates reference each other by id, so a set for them would be an
+/// invitation to load one outside the boundary that keeps it consistent. The sync op log is
+/// neither a root nor a child of one. It is the protocol's own record of what devices have
+/// already done, and the only way to reach it is a set of its own.
 /// </para>
 /// </remarks>
 public sealed class AppDbContext : DbContext
@@ -70,6 +73,12 @@ public sealed class AppDbContext : DbContext
     /// <summary>The tenants. Every other row in the database is scoped by one of these.</summary>
     public DbSet<Organization> Organizations => Set<Organization>();
 
+    /// <summary>
+    /// What technicians' devices have already done. Written once per applied operation and never
+    /// edited; it exists so that pushing the same operation twice changes nothing the second time.
+    /// </summary>
+    public DbSet<SyncOpRecord> SyncOps => Set<SyncOpRecord>();
+
     /// <inheritdoc />
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -83,6 +92,7 @@ public sealed class AppDbContext : DbContext
         configurationBuilder.Properties<LineItemId>().HaveConversion<LineItemIdConverter>();
         configurationBuilder.Properties<OrgId>().HaveConversion<OrgIdConverter>();
         configurationBuilder.Properties<ServiceLocationId>().HaveConversion<ServiceLocationIdConverter>();
+        configurationBuilder.Properties<SyncOpId>().HaveConversion<SyncOpIdConverter>();
         configurationBuilder.Properties<TechnicianId>().HaveConversion<TechnicianIdConverter>();
 
         // The value objects. Document 2 §6 calls these owned types, which is what EF called value
@@ -122,6 +132,7 @@ public sealed class AppDbContext : DbContext
         // Last, so they reach every type in the model however it got there — including the ones
         // whose configurations have not been written yet.
         AggregateRootConventions.Apply(modelBuilder);
+        ChangeStamps.Apply(modelBuilder);
         TenantQueryFilters.Apply(modelBuilder, this);
     }
 
