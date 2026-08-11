@@ -222,6 +222,31 @@ public sealed class Job : AggregateRoot
             estimatedDuration);
     }
 
+    /// <summary>
+    /// Whether the job may move to <paramref name="next"/> from where it is now.
+    /// </summary>
+    /// <param name="next">The status being considered.</param>
+    /// <remarks>
+    /// <para>
+    /// The question <see cref="Transition"/> answers by throwing, asked without throwing. It
+    /// exists so a caller that must report an illegal move rather than crash on one — a handler
+    /// returning a <c>Result</c>, a sync push deciding a stale phone's op is a conflict — can ask
+    /// the domain instead of catching an exception and hoping it was about the state machine.
+    /// </para>
+    /// <para>
+    /// It is the same table the technician app already reads: step 22b exports
+    /// <see cref="AllowedTransitions"/> as <c>canTransition</c> so a phone can decide offline
+    /// which buttons to offer. This is that function, on this side of the wire, so the two answers
+    /// cannot come from two opinions of the lifecycle.
+    /// </para>
+    /// <para>
+    /// Asking does not weaken enforcement: every intent method still goes through
+    /// <see cref="Transition"/>, so a caller that skips the question still cannot reach an illegal
+    /// state.
+    /// </para>
+    /// </remarks>
+    public bool CanTransition(JobStatus next) => Allowed[Status].Contains(next);
+
     /// <summary>Plans the job into someone's day.</summary>
     public void Schedule()
     {
@@ -260,6 +285,27 @@ public sealed class Job : AggregateRoot
         Transition(JobStatus.Completed);
         Raise(new JobCompleted(Id, at));
     }
+
+    /// <summary>The work has been billed.</summary>
+    /// <remarks>
+    /// <para>
+    /// Raises nothing, and it is the only pair of transitions that does not — the invoice
+    /// announces itself. A job reaching <see cref="JobStatus.Invoiced"/> is a consequence of an
+    /// <c>Invoice</c> being raised against it, and <c>InvoicePaid</c> already carries the job's
+    /// identity for anything that wants to react. A second event describing the same fact from the
+    /// other side would be two announcements of one thing, and the step-13 catalog names neither.
+    /// </para>
+    /// <para>
+    /// Nothing but the invoicing slice may call this, and nothing enforces that: the job cannot see
+    /// its invoice, so "there is a bill for this" is a rule one aggregate up. It is why the status
+    /// change and the invoice are written in one transaction.
+    /// </para>
+    /// </remarks>
+    public void MarkInvoiced() => Transition(JobStatus.Invoiced);
+
+    /// <summary>The bill has been settled.</summary>
+    /// <remarks>Silent, for the reason given on <see cref="MarkInvoiced"/>.</remarks>
+    public void MarkPaid() => Transition(JobStatus.Paid);
 
     /// <summary>Calls the job off.</summary>
     public void Cancel()

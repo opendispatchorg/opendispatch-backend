@@ -104,14 +104,6 @@ public sealed record JobBuilder
             return;
         }
 
-        if (status is JobStatus.Invoiced or JobStatus.Paid)
-        {
-            throw new ArgumentOutOfRangeException(
-                nameof(status),
-                status,
-                "Nothing can move a job past Completed until the invoicing slice lands.");
-        }
-
         job.Schedule();
         if (status is JobStatus.Scheduled)
         {
@@ -137,5 +129,17 @@ public sealed record JobBuilder
         }
 
         job.MarkCompleted(job.Window.End);
+        if (status is JobStatus.Completed)
+        {
+            return;
+        }
+
+        job.MarkInvoiced();
+        if (status is JobStatus.Invoiced)
+        {
+            return;
+        }
+
+        job.MarkPaid();
     }
 }

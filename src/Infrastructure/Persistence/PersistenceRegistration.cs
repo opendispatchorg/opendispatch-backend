@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Infrastructure.Events;
+using OpenDispatch.Infrastructure.Persistence.ReadModels;
 using OpenDispatch.Infrastructure.Persistence.Repositories;
 using OpenDispatch.Infrastructure.Tenancy;
 
@@ -75,6 +76,10 @@ public static class PersistenceRegistration
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
+
+        // A read port rather than a repository, and scoped like them because it shares the
+        // request's context: the board is read inside the same tenant scope everything else is.
+        services.AddScoped<IDispatchBoardReadModel, DispatchBoardReadModel>();
 
         return services;
     }

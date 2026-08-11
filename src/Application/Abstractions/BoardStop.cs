@@ -12,7 +12,10 @@ namespace OpenDispatch.Application.Abstractions;
 /// </remarks>
 /// <param name="AssignmentId">The stop's own identity — what a drag on the board reschedules.</param>
 /// <param name="Sequence">Where it falls in the technician's run, counting from zero.</param>
-/// <param name="ScheduledStart">When the technician is planned to arrive.</param>
+/// <param name="ScheduledStart">
+/// When the technician is planned to start work — which is the instant lateness is measured at,
+/// and why the block below can be derived rather than flagged.
+/// </param>
 /// <param name="TravelMin">Minutes of driving to get here from the previous stop.</param>
 /// <param name="Job">
 /// What the visit is for. Deliberately not late/on-time: whether a stop counts as late is a

@@ -69,6 +69,98 @@ public sealed class JobStateMachineTests
         Assert.Empty(job.DomainEvents);
     }
 
+    /// <summary>
+    /// Every status a job can be in, against every status an intent method can move it to.
+    /// </summary>
+    public static TheoryData<JobStatus, JobStatus> EveryMoveThatCouldBeAsked()
+    {
+        JobStatus[] from =
+        [
+            JobStatus.Unscheduled,
+            JobStatus.Scheduled,
+            JobStatus.Dispatched,
+            JobStatus.EnRoute,
+            JobStatus.InProgress,
+            JobStatus.Completed,
+            JobStatus.Invoiced,
+            JobStatus.Paid,
+            JobStatus.Cancelled,
+        ];
+
+        // Every status an intent method can reach, which since step 40 is every status but the
+        // one a job starts in.
+        JobStatus[] to =
+        [
+            JobStatus.Scheduled,
+            JobStatus.Dispatched,
+            JobStatus.EnRoute,
+            JobStatus.InProgress,
+            JobStatus.Completed,
+            JobStatus.Invoiced,
+            JobStatus.Paid,
+            JobStatus.Cancelled,
+        ];
+
+        var pairs = new TheoryData<JobStatus, JobStatus>();
+
+        foreach (var start in from)
+        {
+            foreach (var target in to)
+            {
+                pairs.Add(start, target);
+            }
+        }
+
+        return pairs;
+    }
+
+    /// <summary>
+    /// Asking is the same as trying, for every pair. This is the claim anything that reports an
+    /// illegal move rather than crashing on one depends on — step 35's handler returns a failure
+    /// <c>Result</c> by asking first, and would be lying if the answer could differ from what
+    /// calling the intent method actually does.
+    /// </summary>
+    [Theory]
+    [MemberData(nameof(EveryMoveThatCouldBeAsked))]
+    public void AskingWhetherAMoveIsLegalGivesTheSameAnswerAsMakingIt(JobStatus from, JobStatus to)
+    {
+        var job = JobBuilder.Any().InStatus(from).Build();
+
+        var permitted = job.CanTransition(to);
+
+        var moved = true;
+        try
+        {
+            MoveTo(job, to);
+        }
+        catch (DomainException)
+        {
+            moved = false;
+        }
+
+        Assert.Equal(permitted, moved);
+        Assert.Equal(permitted ? to : from, job.Status);
+    }
+
+    /// <summary>
+    /// The two transitions that announce nothing, and the only ones. A job reaching
+    /// <c>Invoiced</c> or <c>Paid</c> is a consequence of something an <c>Invoice</c> did, and
+    /// <c>InvoicePaid</c> already carries the job's identity — a second event describing the same
+    /// fact from the other side would be two announcements of one thing.
+    /// </summary>
+    [Theory]
+    [InlineData(JobStatus.Completed, JobStatus.Invoiced)]
+    [InlineData(JobStatus.Invoiced, JobStatus.Paid)]
+    public void BillingAJobMovesItWithoutAnnouncingAnything(JobStatus from, JobStatus to)
+    {
+        var job = JobBuilder.Any().InStatus(from).Build();
+
+        MoveTo(job, to);
+
+        Assert.Equal(to, job.Status);
+        Assert.Empty(job.DomainEvents);
+    }
+
     [Fact]
     public void CompletionRecordsWhenTheWorkFinishedNotWhenItWasReported()
     {
@@ -118,6 +210,12 @@ public sealed class JobStateMachineTests
                 break;
             case JobStatus.Completed:
                 job.MarkCompleted(CompletedAt);
+                break;
+            case JobStatus.Invoiced:
+                job.MarkInvoiced();
+                break;
+            case JobStatus.Paid:
+                job.MarkPaid();
                 break;
             case JobStatus.Cancelled:
                 job.Cancel();
