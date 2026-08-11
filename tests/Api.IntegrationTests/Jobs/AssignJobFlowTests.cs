@@ -60,14 +60,19 @@ public sealed class AssignJobFlowTests
             Assert.Equal(JobStatus.Scheduled, planned2.Status);
         }
 
-        var moved = await Send(services, new AssignJobCommand(job, ada, MondayMorning.AddHours(4)));
+        // Dropped at four in the shop's own summer offset. A stop's start is a plain column rather
+        // than a member of a complex type, so it is the other half of what the UTC convention has
+        // to reach — and Npgsql refuses a non-zero offset against timestamptz outright.
+        var inShopHours = new DateTimeOffset(2026, 8, 10, 14, 0, 0, TimeSpan.FromHours(2));
+        var moved = await Send(services, new AssignJobCommand(job, ada, inShopHours));
         Assert.Equal(planned.Value, moved.Value);
 
         await using (var context = _postgres.NewContext(_tenant))
         {
             var stop = Assert.Single(await context.Assignments.ToListAsync());
             Assert.Equal(ada, stop.TechnicianId);
-            Assert.Equal(MondayMorning.AddHours(4), stop.ScheduledStart);
+            Assert.Equal(inShopHours, stop.ScheduledStart);
+            Assert.Equal(TimeSpan.Zero, stop.ScheduledStart.Offset);
 
             // Still Scheduled: the job was planned once and has only been re-planned since.
             var reloaded = await context.Jobs.SingleAsync(candidate => candidate.Id == job);

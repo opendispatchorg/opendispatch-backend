@@ -73,7 +73,7 @@ internal sealed class AssignJobHandler(
         }
 
         // UTC before it reaches the domain, as everywhere else an instant arrives from outside.
-        var start = command.ScheduledStart.ToUniversalTime();
+        var start = command.ScheduledStart;
         var run = await DayOfAsync(technician, job.Id, cancellationToken).ConfigureAwait(false);
         var placement = await PlaceAsync(technician, job, run, start, cancellationToken).ConfigureAwait(false);
 

@@ -44,6 +44,7 @@ internal sealed class DispatchBoardReadModel(AppDbContext context) : IDispatchBo
             {
                 technician.Id,
                 technician.Name,
+                technician.Skills,
                 ShiftStart = technician.Shift.Start,
                 ShiftEnd = technician.Shift.End,
                 technician.HomeBase,
@@ -124,6 +125,10 @@ internal sealed class DispatchBoardReadModel(AppDbContext context) : IDispatchBo
                 .. crew.Select(technician => new BoardRoute(
                     technician.Id,
                     technician.Name,
+
+                    // Sorted, so two identical crews draw the same way round — the same reason
+                    // TechnicianSummary sorts them.
+                    [.. technician.Skills.Order(StringComparer.OrdinalIgnoreCase)],
                     new TimeWindow(technician.ShiftStart, technician.ShiftEnd),
                     technician.HomeBase,
                     lanes.TryGetValue(technician.Id, out var lane)

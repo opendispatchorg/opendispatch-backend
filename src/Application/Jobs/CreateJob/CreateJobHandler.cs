@@ -66,7 +66,7 @@ internal sealed class CreateJobHandler(
             // UTC for the same reason as a technician's shift: the column is timestamptz and
             // Npgsql refuses a non-zero offset, while the offset itself is something nothing in
             // the system reads.
-            new TimeWindow(command.WindowStart.ToUniversalTime(), command.WindowEnd.ToUniversalTime()),
+            new TimeWindow(command.WindowStart, command.WindowEnd),
             command.EstimatedDuration);
 
         jobs.Add(job);

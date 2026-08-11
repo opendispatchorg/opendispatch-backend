@@ -68,6 +68,7 @@ public sealed class DispatchBoardTests
         var lane = Assert.Single(board.Routes, route => route.TechnicianId == sam);
         Assert.Equal(Day, lane.Shift);
         Assert.Equal(Depot, lane.HomeBase);
+        Assert.Equal(["hvac"], lane.Skills);
         Assert.Equal([morning, afternoon], lane.Stops.Select(stop => stop.Job.JobId));
         Assert.Equal(
             [MondayMorning.AddHours(1), MondayMorning.AddHours(5)],
@@ -161,6 +162,29 @@ public sealed class DispatchBoardTests
         var stop = Assert.Single(Assert.Single(board.Routes).Stops);
         Assert.Equal(underway, stop.Job.JobId);
         Assert.Equal(JobStatus.EnRoute, stop.Job.Status);
+    }
+
+    /// <summary>
+    /// Step 36 lets a dispatcher put work on somebody who does not hold its skill — the engine
+    /// never will, but overruling it is deliberate — and said the board is where that becomes
+    /// visible. This is that: the lane carries what the technician can do, every block carries what
+    /// it needs, and the two can be compared.
+    /// </summary>
+    [Fact]
+    public async Task CarriesBothHalvesOfASkillMismatchSoTheBoardCanShowOne()
+    {
+        await using var services = BuildHost();
+        var plumber = await ATechnicianAsync(services, "Ada Okafor", skill: "plumbing");
+        var hvac = await ABookedJobAsync(services, Slough, "Vance Refrigeration", "12 Bath Road");
+
+        Assert.True((await Send(services, new AssignJobCommand(hvac, plumber, MondayMorning.AddHours(1)))).IsSuccess);
+
+        var lane = Assert.Single((await Board(services)).Routes);
+        var stop = Assert.Single(lane.Stops);
+
+        Assert.Equal(["plumbing"], lane.Skills);
+        Assert.Equal("hvac", stop.Job.RequiredSkill);
+        Assert.DoesNotContain(stop.Job.RequiredSkill, lane.Skills, StringComparer.OrdinalIgnoreCase);
     }
 
     [Fact]
@@ -266,11 +290,15 @@ public sealed class DispatchBoardTests
         return job.Value;
     }
 
-    private async Task<TechnicianId> ATechnicianAsync(ServiceProvider services, string name, OrgId? actingAs = null)
+    private async Task<TechnicianId> ATechnicianAsync(
+        ServiceProvider services,
+        string name,
+        OrgId? actingAs = null,
+        string skill = "hvac")
     {
         var technician = await Send(services, new CreateTechnicianCommand(
             name,
-            ["hvac"],
+            [skill],
             Day.Start,
             Day.End,
             Depot.Lat,

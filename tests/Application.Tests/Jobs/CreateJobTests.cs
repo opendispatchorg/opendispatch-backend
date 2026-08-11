@@ -166,25 +166,6 @@ public sealed class CreateJobTests
         Assert.Contains(nameof(CreateJobCommand.Priority), failure.Failures.Keys, StringComparer.Ordinal);
     }
 
-    [Fact]
-    public async Task AWindowGivenInAnotherOffsetIsKeptAsTheSameInstant()
-    {
-        await using var slice = SliceHost.Jobs();
-        var (customer, location) = await ACustomerWithASite(slice);
-        var summerMorning = new DateTimeOffset(2026, 8, 10, 9, 0, 0, TimeSpan.FromHours(2));
-
-        await slice.Send(NewJob(customer, location) with
-        {
-            WindowStart = summerMorning,
-            WindowEnd = summerMorning.AddHours(3),
-        });
-
-        var job = Assert.Single(slice.Store<Job>().Saved);
-        Assert.Equal(summerMorning, job.Window.Start);
-        Assert.Equal(TimeSpan.Zero, job.Window.Start.Offset);
-        Assert.Equal(TimeSpan.FromHours(3), job.Window.Duration);
-    }
-
     private static CreateJobCommand NewJob(CustomerId customer, ServiceLocationId location) =>
         new(
             customer,

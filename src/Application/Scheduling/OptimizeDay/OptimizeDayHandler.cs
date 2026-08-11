@@ -45,7 +45,7 @@ internal sealed class OptimizeDayHandler(
         OptimizeDayCommand command,
         CancellationToken cancellationToken)
     {
-        var horizon = new TimeWindow(command.From.ToUniversalTime(), command.To.ToUniversalTime());
+        var horizon = new TimeWindow(command.From, command.To);
 
         // "Schedulable" is the domain's answer, not a status list written here: work that is
         // finished, abandoned or already being driven to belongs to the technician doing it.

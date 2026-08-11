@@ -37,7 +37,7 @@ internal sealed class CreateTechnicianHandler(ITechnicianRepository technicians,
             tenant.OrgId,
             command.Name,
             command.Skills,
-            new TimeWindow(command.ShiftStart.ToUniversalTime(), command.ShiftEnd.ToUniversalTime()),
+            new TimeWindow(command.ShiftStart, command.ShiftEnd),
             new GeoPoint(command.Latitude, command.Longitude));
 
         technicians.Add(technician);

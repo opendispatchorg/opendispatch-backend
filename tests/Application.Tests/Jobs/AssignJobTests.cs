@@ -232,21 +232,6 @@ public sealed class AssignJobTests
         Assert.Empty(slice.Store<Assignment>().Saved);
     }
 
-    [Fact]
-    public async Task AStartGivenInAnotherOffsetIsKeptAsTheSameInstant()
-    {
-        await using var slice = SliceHost.Dispatching();
-        var technician = await ATechnician(slice);
-        var job = await ABookedJob(slice, Slough);
-        var summerMorning = new DateTimeOffset(2026, 8, 10, 11, 0, 0, TimeSpan.FromHours(2));
-
-        await slice.Send(new AssignJobCommand(job, technician, summerMorning));
-
-        var stop = Assert.Single(slice.Store<Assignment>().Saved);
-        Assert.Equal(summerMorning, stop.ScheduledStart);
-        Assert.Equal(TimeSpan.Zero, stop.ScheduledStart.Offset);
-    }
-
     private static Assignment StopFor(SliceHost slice, JobId job) =>
         Assert.Single(slice.Store<Assignment>().Saved, stop => stop.JobId == job);
 

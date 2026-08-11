@@ -98,6 +98,13 @@ public sealed class AppDbContext : DbContext
         configurationBuilder.Properties<GeoPoint>()
             .HaveConversion<GeoPointConverter>()
             .HaveColumnType(GeoPointConverter.ColumnType);
+
+        // Every instant, wherever it appears — a window's two ends, a stop's start, an invoice's
+        // issue date — goes to its column in UTC. Npgsql refuses any other offset against
+        // timestamptz, and until this line six handlers each remembered to convert before building
+        // a value object. One rule on the model is one rule; six is a rule somebody eventually
+        // forgets, and the next one to write is a sync op arriving from a phone.
+        configurationBuilder.Properties<DateTimeOffset>().HaveConversion<UtcInstantConverter>();
     }
 
     /// <inheritdoc />

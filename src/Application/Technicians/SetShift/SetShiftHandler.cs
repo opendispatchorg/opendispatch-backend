@@ -27,7 +27,7 @@ internal sealed class SetShiftHandler(ITechnicianRepository technicians)
             return Result.Failure(TechnicianErrors.NotFound(command.TechnicianId));
         }
 
-        technician.SetShift(new TimeWindow(command.Start.ToUniversalTime(), command.End.ToUniversalTime()));
+        technician.SetShift(new TimeWindow(command.Start, command.End));
 
         return Result.Success();
     }

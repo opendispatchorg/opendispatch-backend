@@ -17,8 +17,9 @@ namespace OpenDispatch.Application.Tests.Technicians;
 /// <remarks>
 /// The crew is the resource side of scheduling, so what is worth testing here is what the
 /// scheduler will later depend on: that skills survive being replaced without losing their
-/// case-insensitive identity, that a shift is stored as the instant it names whatever offset it
-/// arrived in, and that neither can be set on somebody this tenant does not have.
+/// case-insensitive identity, and that neither skills nor a shift can be set on somebody this
+/// tenant does not have. That a shift arriving in another offset is stored as the same instant is
+/// a claim about a column, and lives with the database in <c>Api.IntegrationTests</c>.
 /// </remarks>
 [Trait(TestCategories.Name, TestCategories.Unit)]
 public sealed class TechniciansSliceTests
@@ -94,33 +95,6 @@ public sealed class TechniciansSliceTests
         Assert.True((await slice.Send(new SetSkillsCommand(created.Value, []))).IsSuccess);
 
         Assert.Empty(Assert.Single((await slice.Send(new ListTechniciansQuery())).Value).Skills);
-    }
-
-    /// <summary>
-    /// A shift typed in a shop's own timezone is a perfectly good shift, and the storage layer's
-    /// requirement that instants arrive in UTC is not the caller's problem: Npgsql refuses a
-    /// non-zero offset against <c>timestamptz</c>, so the handler converts rather than refuses.
-    /// The instant is what the domain compares, and it is unchanged.
-    /// </summary>
-    [Fact]
-    public async Task AShiftGivenInAnotherOffsetIsKeptAsTheSameInstant()
-    {
-        await using var slice = SliceHost.Technicians();
-        var summer = new DateTimeOffset(2026, 8, 10, 9, 0, 0, TimeSpan.FromHours(2));
-
-        var created = await slice.Send(new CreateTechnicianCommand(
-            "Sam Rivera",
-            ["hvac"],
-            summer,
-            summer.AddHours(8),
-            51.5074,
-            -0.1278));
-
-        var technician = Assert.Single(slice.Store<Technician>().Saved);
-        Assert.Equal(TimeSpan.Zero, technician.Shift.Start.Offset);
-        Assert.Equal(summer, technician.Shift.Start);
-        Assert.Equal(TimeSpan.FromHours(8), technician.Shift.Duration);
-        Assert.Equal(created.Value, technician.Id);
     }
 
     [Fact]

@@ -25,7 +25,7 @@ internal sealed class GetBoardHandler(IDispatchBoardReadModel board)
 {
     public async Task<Result<DispatchBoard>> Handle(GetBoardQuery query, CancellationToken cancellationToken)
     {
-        var day = new TimeWindow(query.From.ToUniversalTime(), query.To.ToUniversalTime());
+        var day = new TimeWindow(query.From, query.To);
 
         return Result.Success(await board.GetAsync(day, cancellationToken).ConfigureAwait(false));
     }
