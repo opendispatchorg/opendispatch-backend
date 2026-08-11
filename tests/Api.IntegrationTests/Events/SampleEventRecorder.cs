@@ -53,9 +53,13 @@ internal sealed class SampleEventRecorder(DomainEventRecorder recorder)
     : IDomainEventHandler<JobEnRoute>,
         IDomainEventHandler<JobInProgress>,
         IDomainEventHandler<JobCompleted>,
-        IDomainEventHandler<AssignmentChanged>
+        IDomainEventHandler<AssignmentChanged>,
+        IDomainEventHandler<InvoicePaid>
 {
     public Task Handle(AssignmentChanged domainEvent, CancellationToken cancellationToken) =>
+        recorder.RecordAsync(domainEvent, cancellationToken);
+
+    public Task Handle(InvoicePaid domainEvent, CancellationToken cancellationToken) =>
         recorder.RecordAsync(domainEvent, cancellationToken);
 
     public Task Handle(JobEnRoute domainEvent, CancellationToken cancellationToken) =>

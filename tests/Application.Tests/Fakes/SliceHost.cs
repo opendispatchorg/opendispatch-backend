@@ -2,11 +2,13 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Tests.Customers;
+using OpenDispatch.Application.Tests.Invoicing;
 using OpenDispatch.Application.Tests.Jobs;
 using OpenDispatch.Application.Tests.Technicians;
 using OpenDispatch.Domain.Assignments;
 using OpenDispatch.Domain.Customers;
 using OpenDispatch.Domain.Identifiers;
+using OpenDispatch.Domain.Invoices;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.Technicians;
 using OpenDispatch.Scheduling;
@@ -101,10 +103,29 @@ internal sealed class SliceHost : IAsyncDisposable
         // that returned a canned answer would agree with a translation that made no sense.
         .AddSingleton<IScheduler, AnnealingScheduler>());
 
+    /// <summary>
+    /// The invoicing slice: jobs and their customers, the bills raised against them, and a gateway
+    /// a test can make refuse.
+    /// </summary>
+    public static SliceHost Invoicing() => new(services => services
+        .AddStore<Job>(job => job.OrgId)
+        .AddScoped<IJobRepository, FakeJobRepository>()
+        .AddStore<Customer>(customer => customer.OrgId)
+        .AddScoped<ICustomerRepository, FakeCustomerRepository>()
+        .AddStore<Invoice>(invoice => invoice.OrgId)
+        .AddScoped<IInvoiceRepository, FakeInvoiceRepository>()
+        .AddSingleton<ControllableGateway>()
+        .AddSingleton<IPaymentGateway>(provider => provider.GetRequiredService<ControllableGateway>()));
+
     /// <summary>What the fake database holds for one aggregate.</summary>
     /// <typeparam name="TAggregate">The aggregate root being stored.</typeparam>
     public FakeStore<TAggregate> Store<TAggregate>() =>
         _services.GetRequiredService<FakeStore<TAggregate>>();
+
+    /// <summary>A fake a test needs to steer or inspect — the gateway, so far.</summary>
+    /// <typeparam name="TPort">The fake's own type, not the port it implements.</typeparam>
+    public TPort Fake<TPort>()
+        where TPort : notnull => _services.GetRequiredService<TPort>();
 
     /// <summary>Sends one request through the whole pipeline, in a scope of its own.</summary>
     public async Task<TResponse> Send<TResponse>(IRequest<TResponse> request)

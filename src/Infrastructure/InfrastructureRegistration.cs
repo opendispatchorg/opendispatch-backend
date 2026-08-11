@@ -1,4 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
+using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Infrastructure.Payments;
 using OpenDispatch.Infrastructure.Persistence;
 using OpenDispatch.Infrastructure.Time;
 using OpenDispatch.Scheduling;
@@ -47,5 +49,10 @@ public static class InfrastructureRegistration
             // The engine. A singleton for the same reason: it holds the travel provider and its
             // search settings and nothing else — everything that varies between runs arrives in
             // the problem, including the seed that makes a plan reproducible.
-            .AddSingleton<IScheduler, AnnealingScheduler>();
+            .AddSingleton<IScheduler, AnnealingScheduler>()
+
+            // v1 takes no money, which is a scoped product decision (Document 1) rather than an
+            // unfinished adapter. A real processor is one class beside this one and one changed
+            // line here.
+            .AddSingleton<IPaymentGateway, FakePaymentGateway>();
 }

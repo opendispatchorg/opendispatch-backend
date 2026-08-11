@@ -82,9 +82,13 @@ public sealed class JobStateMachineTests
             JobStatus.EnRoute,
             JobStatus.InProgress,
             JobStatus.Completed,
+            JobStatus.Invoiced,
+            JobStatus.Paid,
             JobStatus.Cancelled,
         ];
 
+        // Every status an intent method can reach, which since step 40 is every status but the
+        // one a job starts in.
         JobStatus[] to =
         [
             JobStatus.Scheduled,
@@ -92,6 +96,8 @@ public sealed class JobStateMachineTests
             JobStatus.EnRoute,
             JobStatus.InProgress,
             JobStatus.Completed,
+            JobStatus.Invoiced,
+            JobStatus.Paid,
             JobStatus.Cancelled,
         ];
 
@@ -134,6 +140,25 @@ public sealed class JobStateMachineTests
 
         Assert.Equal(permitted, moved);
         Assert.Equal(permitted ? to : from, job.Status);
+    }
+
+    /// <summary>
+    /// The two transitions that announce nothing, and the only ones. A job reaching
+    /// <c>Invoiced</c> or <c>Paid</c> is a consequence of something an <c>Invoice</c> did, and
+    /// <c>InvoicePaid</c> already carries the job's identity — a second event describing the same
+    /// fact from the other side would be two announcements of one thing.
+    /// </summary>
+    [Theory]
+    [InlineData(JobStatus.Completed, JobStatus.Invoiced)]
+    [InlineData(JobStatus.Invoiced, JobStatus.Paid)]
+    public void BillingAJobMovesItWithoutAnnouncingAnything(JobStatus from, JobStatus to)
+    {
+        var job = JobBuilder.Any().InStatus(from).Build();
+
+        MoveTo(job, to);
+
+        Assert.Equal(to, job.Status);
+        Assert.Empty(job.DomainEvents);
     }
 
     [Fact]
@@ -185,6 +210,12 @@ public sealed class JobStateMachineTests
                 break;
             case JobStatus.Completed:
                 job.MarkCompleted(CompletedAt);
+                break;
+            case JobStatus.Invoiced:
+                job.MarkInvoiced();
+                break;
+            case JobStatus.Paid:
+                job.MarkPaid();
                 break;
             case JobStatus.Cancelled:
                 job.Cancel();

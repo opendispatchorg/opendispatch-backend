@@ -40,4 +40,7 @@ internal static class TextLimits
 
     /// <summary>One skill — "hvac", "gas safe", not a paragraph about it.</summary>
     internal const int Skill = 60;
+
+    /// <summary>A line on an invoice — what was done or fitted, not the story of it.</summary>
+    internal const int Description = 200;
 }
