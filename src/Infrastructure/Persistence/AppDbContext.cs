@@ -80,6 +80,12 @@ public sealed class AppDbContext : DbContext
     /// </summary>
     public DbSet<SyncOpRecord> SyncOps => Set<SyncOpRecord>();
 
+    /// <summary>
+    /// Notes saying a stop is gone. The one thing pull cannot read off a row, because the row is
+    /// what went.
+    /// </summary>
+    public DbSet<SyncRemoval> SyncRemovals => Set<SyncRemoval>();
+
     /// <inheritdoc />
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {

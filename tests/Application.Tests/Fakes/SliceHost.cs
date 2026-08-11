@@ -134,8 +134,11 @@ internal sealed class SliceHost : IAsyncDisposable
         .AddScoped<ICustomerRepository, FakeCustomerRepository>()
         .AddStore<SyncOpRecord>(op => op.OrgId)
         .AddScoped<ISyncOpStore, FakeSyncOpStore>()
+        .AddSingleton<CallOrder>()
         .AddSingleton<SteppingCursors>()
-        .AddSingleton<ISyncCursorSource>(provider => provider.GetRequiredService<SteppingCursors>()));
+        .AddSingleton<ISyncCursorSource>(provider => provider.GetRequiredService<SteppingCursors>())
+        .AddSingleton<RecordingChangeReader>()
+        .AddSingleton<ISyncChangeReader>(provider => provider.GetRequiredService<RecordingChangeReader>()));
 
     /// <summary>What the fake database holds for one aggregate.</summary>
     /// <typeparam name="TAggregate">The aggregate root being stored.</typeparam>

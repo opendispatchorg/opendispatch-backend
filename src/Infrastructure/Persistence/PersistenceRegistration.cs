@@ -87,6 +87,10 @@ public static class PersistenceRegistration
         services.AddScoped<ISyncOpStore, SyncOpStore>();
         services.AddScoped<ISyncCursorSource, SyncCursorSource>();
 
+        // A read port like the board's, and scoped for the same reason: the watermark and the
+        // changes read against it have to come from one connection to describe one moment.
+        services.AddScoped<ISyncChangeReader, SyncChangeReader>();
+
         return services;
     }
 }
