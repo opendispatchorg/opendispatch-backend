@@ -3,6 +3,7 @@ using Microsoft.EntityFrameworkCore.ChangeTracking;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Sync;
 using OpenDispatch.Domain.Assignments;
+using OpenDispatch.Domain.Attachments;
 using OpenDispatch.Domain.Common;
 using OpenDispatch.Domain.Customers;
 using OpenDispatch.Domain.Identifiers;
@@ -81,6 +82,12 @@ public sealed class AppDbContext : DbContext
     public DbSet<SyncOpRecord> SyncOps => Set<SyncOpRecord>();
 
     /// <summary>
+    /// What technicians captured in the field, minus the bytes: those live behind
+    /// <c>IAttachmentStorage</c>, because a row is not where a photograph belongs.
+    /// </summary>
+    public DbSet<Attachment> Attachments => Set<Attachment>();
+
+    /// <summary>
     /// Notes saying a stop is gone. The one thing pull cannot read off a row, because the row is
     /// what went.
     /// </summary>
@@ -93,6 +100,7 @@ public sealed class AppDbContext : DbContext
         // once for the whole model rather than per property, so a JobId column is a JobId column
         // wherever one appears and no per-aggregate configuration has to name a converter.
         configurationBuilder.Properties<AssignmentId>().HaveConversion<AssignmentIdConverter>();
+        configurationBuilder.Properties<AttachmentId>().HaveConversion<AttachmentIdConverter>();
         configurationBuilder.Properties<CustomerId>().HaveConversion<CustomerIdConverter>();
         configurationBuilder.Properties<InvoiceId>().HaveConversion<InvoiceIdConverter>();
         configurationBuilder.Properties<JobId>().HaveConversion<JobIdConverter>();
@@ -113,6 +121,7 @@ public sealed class AppDbContext : DbContext
         // round-trip perfectly well and be unusable by PostGIS. The third, TimeWindow, is
         // genuinely two instants and cannot be registered here at all; see TimeWindowMapping.
         configurationBuilder.Properties<Money>().HaveConversion<MoneyConverter>();
+        configurationBuilder.Properties<StorageKey>().HaveConversion<StorageKeyConverter>();
         configurationBuilder.Properties<GeoPoint>()
             .HaveConversion<GeoPointConverter>()
             .HaveColumnType(GeoPointConverter.ColumnType);

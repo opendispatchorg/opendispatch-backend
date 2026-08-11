@@ -75,6 +75,7 @@ public static class PersistenceRegistration
         services.AddScoped<ITechnicianRepository, TechnicianRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+        services.AddScoped<IAttachmentRepository, AttachmentRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // A read port rather than a repository, and scoped like them because it shares the

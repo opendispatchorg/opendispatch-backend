@@ -24,6 +24,7 @@ try
         .Enrich.FromLogContext());
 
     builder.Services.AddDatabaseOptions(builder.Configuration);
+    builder.Services.AddAttachmentOptions(builder.Configuration);
 
     // The request pipeline every feature slice rides on: MediatR, the validators, and the
     // logging/validation/transaction behaviors in that order. The order lives with the
@@ -32,8 +33,9 @@ try
 
     // The one place Api reaches into Infrastructure: registration, at startup, with the
     // connection string it owns. Everything above this line stays ignorant of EF Core.
-    builder.Services.AddInfrastructure(provider =>
-        provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.ConnectionString);
+    builder.Services.AddInfrastructure(
+        provider => provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.ConnectionString,
+        provider => provider.GetRequiredService<IOptions<AttachmentOptions>>().Value.Root);
 
     // The REST half of the API contract (Document 2 §11). The same registration serves the
     // document at /openapi/v1.json for a running host and feeds the build-time export that

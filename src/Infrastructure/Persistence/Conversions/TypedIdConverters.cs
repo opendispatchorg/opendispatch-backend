@@ -29,6 +29,11 @@ internal sealed class AssignmentIdConverter()
 {
 }
 
+internal sealed class AttachmentIdConverter()
+    : ValueConverter<AttachmentId, Guid>(id => id.Value, value => AttachmentId.From(value))
+{
+}
+
 internal sealed class CustomerIdConverter()
     : ValueConverter<CustomerId, Guid>(id => id.Value, value => CustomerId.From(value))
 {

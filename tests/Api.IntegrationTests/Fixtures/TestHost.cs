@@ -25,11 +25,15 @@ namespace OpenDispatch.Api.IntegrationTests.Fixtures;
 internal static class TestHost
 {
     /// <summary>The real registrations, over the shared container's database.</summary>
+    /// <remarks>
+    /// Attachment content goes to a directory of this run's own, deleted with the fixture. A test
+    /// that wrote photographs into the repository would be one nobody notices until it is committed.
+    /// </remarks>
     public static IServiceCollection Over(PostgresFixture postgres) =>
         new ServiceCollection()
             .AddLogging()
             .AddApplication()
-            .AddInfrastructure(_ => postgres.ConnectionString)
+            .AddInfrastructure(_ => postgres.ConnectionString, _ => postgres.AttachmentRoot)
             // Last, so it replaces the real tenant context: nothing resolves one from a
             // principal until step 45.
             .AddScoped<TestTenantContext>()

@@ -35,6 +35,17 @@ public sealed class PostgresFixture : IAsyncLifetime
     /// <summary>Connection string for the running container.</summary>
     public string ConnectionString => _container.GetConnectionString();
 
+    /// <summary>
+    /// Where attachment content goes for this run: a temporary directory, removed on disposal.
+    /// </summary>
+    /// <remarks>
+    /// Shared by every test in the collection like the container is, and for the same reason —
+    /// what is worth sharing is the arrangement, not the data. Keys are per tenant and per
+    /// attachment, so tests cannot collide inside it.
+    /// </remarks>
+    public string AttachmentRoot { get; } =
+        Path.Combine(Path.GetTempPath(), $"opendispatch-attachments-{Guid.NewGuid():N}");
+
     public async Task InitializeAsync()
     {
         await _container.StartAsync();
@@ -95,6 +106,11 @@ public sealed class PostgresFixture : IAsyncLifetime
 
     public async Task DisposeAsync()
     {
+        if (Directory.Exists(AttachmentRoot))
+        {
+            Directory.Delete(AttachmentRoot, recursive: true);
+        }
+
         _scope?.Dispose();
 
         if (_services is not null)
