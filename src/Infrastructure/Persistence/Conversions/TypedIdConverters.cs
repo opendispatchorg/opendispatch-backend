@@ -49,6 +49,11 @@ internal sealed class LineItemIdConverter()
 {
 }
 
+internal sealed class JobLineIdConverter()
+    : ValueConverter<JobLineId, Guid>(id => id.Value, value => JobLineId.From(value))
+{
+}
+
 internal sealed class OrgIdConverter()
     : ValueConverter<OrgId, Guid>(id => id.Value, value => OrgId.From(value))
 {

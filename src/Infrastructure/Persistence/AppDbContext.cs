@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Sync;
 using OpenDispatch.Domain.Assignments;
@@ -89,6 +90,7 @@ public sealed class AppDbContext : DbContext
         configurationBuilder.Properties<CustomerId>().HaveConversion<CustomerIdConverter>();
         configurationBuilder.Properties<InvoiceId>().HaveConversion<InvoiceIdConverter>();
         configurationBuilder.Properties<JobId>().HaveConversion<JobIdConverter>();
+        configurationBuilder.Properties<JobLineId>().HaveConversion<JobLineIdConverter>();
         configurationBuilder.Properties<LineItemId>().HaveConversion<LineItemIdConverter>();
         configurationBuilder.Properties<OrgId>().HaveConversion<OrgIdConverter>();
         configurationBuilder.Properties<ServiceLocationId>().HaveConversion<ServiceLocationIdConverter>();
@@ -168,15 +170,58 @@ public sealed class AppDbContext : DbContext
     /// @original</c>. A root inserted this transaction keeps the version it was constructed
     /// with.
     /// </para>
+    /// <para>
+    /// A change to something a root <em>owns</em> counts as a change to the root, which EF does
+    /// not say by itself: appending a line to a job leaves the job's own entry <c>Unchanged</c>
+    /// until the update is built, so a version that only followed the entry would sit still while
+    /// the row underneath it moved. That matters most to the thing furthest from here — a
+    /// technician's phone, which is told what to base its next operation on by reading a version.
+    /// </para>
     /// </remarks>
     private void StampVersions()
     {
         foreach (var entry in ChangeTracker.Entries<AggregateRoot>())
         {
-            if (entry.State is EntityState.Modified)
+            var changed = entry.State switch
+            {
+                EntityState.Modified => true,
+
+                // Added and Deleted are deliberately not here: a root created in this transaction
+                // keeps the version it was constructed with, and one being removed has nothing
+                // left to stamp.
+                EntityState.Unchanged => OwnsSomethingChanged(entry),
+                _ => false,
+            };
+
+            if (changed)
             {
                 entry.Entity.BumpVersion();
             }
         }
     }
+
+    /// <summary>
+    /// Whether anything this root owns — a service location, an invoice line, a line recorded in
+    /// the field — has been added or edited in this transaction.
+    /// </summary>
+    /// <remarks>
+    /// Walked from the root rather than from the tracked children, because a child does not know
+    /// its owner: EF gives a dependent no navigation back, and finding one by foreign key would be
+    /// a key comparison written by hand. The cost of the direction is that a <em>removed</em> child
+    /// is invisible here, having already left the collection — nothing in the application removes
+    /// one today, and the day something does, it is the aggregate's own method that will need to
+    /// say so.
+    /// </remarks>
+    private bool OwnsSomethingChanged(EntityEntry<AggregateRoot> root) =>
+        root.Collections
+            .Concat<NavigationEntry>(root.References)
+            .Where(navigation => navigation.Metadata.TargetEntityType.IsOwned())
+            .SelectMany(Owned)
+            .Any(child => Entry(child).State is not EntityState.Unchanged);
+
+    private static IEnumerable<object> Owned(NavigationEntry navigation) => navigation switch
+    {
+        CollectionEntry collection => collection.CurrentValue?.Cast<object>() ?? [],
+        _ => navigation.CurrentValue is { } only ? [only] : [],
+    };
 }

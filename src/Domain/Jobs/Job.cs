@@ -2,6 +2,7 @@ using System.Collections.Frozen;
 using OpenDispatch.Domain.Common;
 using OpenDispatch.Domain.Events;
 using OpenDispatch.Domain.Identifiers;
+using OpenDispatch.Domain.Invoices;
 using OpenDispatch.Domain.ValueObjects;
 
 namespace OpenDispatch.Domain.Jobs;
@@ -24,6 +25,8 @@ namespace OpenDispatch.Domain.Jobs;
 /// </remarks>
 public sealed class Job : AggregateRoot
 {
+    private readonly List<JobLine> _lines = [];
+
     /// <summary>
     /// What may follow what. The whole lifecycle in one place: a linear path from booked to
     /// paid, with cancellation available up to the moment the work is done.
@@ -176,6 +179,32 @@ public sealed class Job : AggregateRoot
     public JobStatus Status { get; private set; }
 
     /// <summary>
+    /// What the technician wrote about the job, or <see langword="null"/> if nobody has written
+    /// anything.
+    /// </summary>
+    /// <remarks>
+    /// One field that is overwritten rather than a list that is appended to, because that is what
+    /// Document 2 §10's conflict policy describes: free text is last-write-wins, and something
+    /// only wins if there is something to beat.
+    /// </remarks>
+    public string? Notes { get; private set; }
+
+    /// <summary>
+    /// When the notes now held were written, by the clock of whoever wrote them — or
+    /// <see langword="null"/> if there are none.
+    /// </summary>
+    /// <remarks>
+    /// This is what "last" means in last-write-wins, and it is deliberately the observer's clock
+    /// rather than the server's. A technician who wrote a note in a basement at two o'clock and
+    /// synced at six wrote it at two, and a note the office added at four should not be replaced
+    /// by it.
+    /// </remarks>
+    public DateTimeOffset? NotesRecordedAt { get; private set; }
+
+    /// <summary>What the work actually took, in the order it was recorded.</summary>
+    public IReadOnlyList<JobLine> Lines => _lines.AsReadOnly();
+
+    /// <summary>
     /// Books a new job. It starts <see cref="JobStatus.Unscheduled"/> — creating demand and
     /// planning for it are separate acts.
     /// </summary>
@@ -246,6 +275,85 @@ public sealed class Job : AggregateRoot
     /// </para>
     /// </remarks>
     public bool CanTransition(JobStatus next) => Allowed[Status].Contains(next);
+
+    /// <summary>
+    /// Whether notes observed at <paramref name="observedAt"/> would be kept.
+    /// </summary>
+    /// <param name="observedAt">When the writer says they wrote them.</param>
+    /// <remarks>
+    /// <para>
+    /// The last-write-wins rule, asked without being applied — the same shape as
+    /// <see cref="CanTransition"/> and for the same reason: a sync push has to report that a
+    /// device's note lost rather than crash on it, and the rule it reports has to be the domain's
+    /// rather than a copy of it in a handler.
+    /// </para>
+    /// <para>
+    /// Equal instants lose, so the first note recorded for a moment stands. Two writers claiming
+    /// the same instant have to be separated by something, and "the one already recorded" is the
+    /// only tie-break available that gives the same answer however the ops are ordered.
+    /// </para>
+    /// </remarks>
+    public bool CanRecordNotes(DateTimeOffset observedAt) =>
+        NotesRecordedAt is not { } recorded || observedAt > recorded;
+
+    /// <summary>
+    /// Records what somebody observed about the job, replacing what was there.
+    /// </summary>
+    /// <param name="text">What they wrote.</param>
+    /// <param name="observedAt">When they wrote it, by their own clock.</param>
+    /// <exception cref="DomainException">
+    /// The note says nothing, or something newer is already recorded — see
+    /// <see cref="CanRecordNotes"/>.
+    /// </exception>
+    /// <remarks>
+    /// It raises nothing. A note is an observation about work that is already happening, not a
+    /// step in the job's life, and the step-13 catalog names no event for one.
+    /// </remarks>
+    public void RecordNotes(string text, DateTimeOffset observedAt)
+    {
+        if (string.IsNullOrWhiteSpace(text))
+        {
+            throw new DomainException("A note must say something.");
+        }
+
+        if (!CanRecordNotes(observedAt))
+        {
+            throw new DomainException(
+                $"Notes recorded at {NotesRecordedAt:O} are newer than these, written at {observedAt:O}.");
+        }
+
+        Notes = text.Trim();
+        NotesRecordedAt = observedAt;
+    }
+
+    /// <summary>
+    /// Records something the work took — an hour of labour, a part fitted.
+    /// </summary>
+    /// <param name="kind">Labour or a part.</param>
+    /// <param name="description">What it was.</param>
+    /// <param name="quantity">How many.</param>
+    /// <param name="unitPrice">What one costs.</param>
+    /// <param name="recordedAt">When the technician wrote it down, by their own clock.</param>
+    /// <exception cref="DomainException">The line says nothing, or records nothing.</exception>
+    /// <remarks>
+    /// <para>
+    /// Append-only, and there is no rule about which statuses accept it. Lines and notes are
+    /// observations rather than steps: a technician who drives out to a job the office cancelled
+    /// an hour ago has still spent the hour, and refusing the record would lose the only evidence
+    /// of it.
+    /// </para>
+    /// <para>
+    /// Nothing bills from these yet — an invoice's lines are still stated by whoever raises it
+    /// (step 40). This is the record the two will be reconciled from.
+    /// </para>
+    /// </remarks>
+    public void RecordLine(
+        LineItemKind kind,
+        string description,
+        decimal quantity,
+        Money unitPrice,
+        DateTimeOffset recordedAt) =>
+        _lines.Add(JobLine.Create(kind, description, quantity, unitPrice, recordedAt));
 
     /// <summary>Plans the job into someone's day.</summary>
     public void Schedule()
