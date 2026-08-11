@@ -1,14 +1,14 @@
 using MediatR;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
-using OpenDispatch.Api.IntegrationTests.Events;
 using OpenDispatch.Api.IntegrationTests.Fixtures;
 using OpenDispatch.Application.Customers.AddServiceLocation;
 using OpenDispatch.Application.Customers.CreateCustomer;
 using OpenDispatch.Application.Jobs.CreateJob;
+using OpenDispatch.Application.Scheduling;
+using OpenDispatch.Application.Scheduling.InsertJob;
 using OpenDispatch.Application.Scheduling.OptimizeDay;
 using OpenDispatch.Application.Technicians.CreateTechnician;
-using OpenDispatch.Domain.Events;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.ValueObjects;
@@ -17,17 +17,17 @@ using OpenDispatch.TestSupport;
 namespace OpenDispatch.Api.IntegrationTests.Scheduling;
 
 /// <summary>
-/// The optimiser over persisted data: rows in, a solved day, rows back out.
+/// Emergency dispatch against a real database.
 /// </summary>
 /// <remarks>
-/// This is the step's "done when" and the first time the engine has ever seen data that came out
-/// of Postgres. What only a database can settle is that the plan it produces survives being
-/// written — every stop, its sequence and its drive — and that running it again over the same rows
-/// rewrites them in place rather than accumulating a second day.
+/// The insert is the one planning path that reads the plan back in order to change it, so this is
+/// the test that the round trip closes: a day written by the optimiser, loaded out of Postgres,
+/// turned back into something the engine can insert into, and written again with only the stops
+/// that moved touched.
 /// </remarks>
 [Collection(PostgresCollectionDefinition.Name)]
 [Trait(TestCategories.Name, TestCategories.Integration)]
-public sealed class OptimizeDayFlowTests
+public sealed class InsertJobFlowTests
 {
     private static readonly DateTimeOffset MondayMorning = new(2026, 8, 10, 8, 0, 0, TimeSpan.Zero);
     private static readonly TimeWindow Day = new(MondayMorning, MondayMorning.AddHours(9));
@@ -42,13 +42,12 @@ public sealed class OptimizeDayFlowTests
     ];
 
     private readonly OrgId _tenant = OrgId.New();
-    private readonly DomainEventRecorder _recorder = new();
     private readonly PostgresFixture _postgres;
 
-    public OptimizeDayFlowTests(PostgresFixture postgres) => _postgres = postgres;
+    public InsertJobFlowTests(PostgresFixture postgres) => _postgres = postgres;
 
     [Fact]
-    public async Task PlansASeededDayAndPlansItTheSameWayTheSecondTime()
+    public async Task SlotsAnEmergencyIntoAPlannedDayAndTouchesNothingElse()
     {
         await using var services = BuildHost();
         await ATechnicianAsync(services, "Sam Rivera");
@@ -59,62 +58,81 @@ public sealed class OptimizeDayFlowTests
             await ABookedJobAsync(services, site);
         }
 
-        var first = await Send(services, new OptimizeDayCommand(Day.Start, Day.End));
+        Assert.True((await Send(services, new OptimizeDayCommand(Day.Start, Day.End))).IsSuccess);
+        var before = await PlanAsync();
 
-        Assert.True(first.IsSuccess);
-        Assert.Equal(Sites.Length, first.Value.Planned);
-        Assert.Empty(first.Value.Unassigned);
+        var emergency = await ABookedJobAsync(services, new GeoPoint(51.4934d, 0.0098d), JobPriority.Emergency);
+        var inserted = await Send(services, new InsertJobCommand(emergency));
 
-        var afterFirst = await PlanAsync();
-        var announcedByTheFirstRun = _recorder.Received.OfType<AssignmentChanged>().Count();
+        Assert.True(inserted.IsSuccess);
 
-        // Everything the engine decided is on the rows, not just the count.
-        Assert.All(afterFirst, stop => Assert.True(stop.TravelMin >= 0d));
-        Assert.All(afterFirst, stop => Assert.True(stop.Start >= Day.Start));
-        Assert.All(await StatusesAsync(), status => Assert.Equal(JobStatus.Scheduled, status));
+        var after = await PlanAsync();
+        Assert.Equal(before.Count + 1, after.Count);
 
-        var second = await Send(services, new OptimizeDayCommand(Day.Start, Day.End));
-        var afterSecond = await PlanAsync();
+        var stop = Assert.Single(after, planned => planned.Job == emergency.Value);
+        Assert.Equal(inserted.Value.TechnicianId.Value, stop.Technician);
+        Assert.Equal(inserted.Value.ScheduledStart, stop.Start);
 
-        // Rewritten in place: four stops, not eight. That the plan is also reproducible is pinned
-        // against a day big enough for the seed to matter in the unit tests; here it is the
-        // rewriting that only a database can show.
-        Assert.Equal(afterFirst, afterSecond);
-        Assert.Equal(first.Value.Cost, second.Value.Cost);
-        Assert.Equal(Sites.Length, afterSecond.Count);
+        // Every stop that changed is on the technician who took the emergency, and there are as
+        // many of them as the answer reported.
+        var moved = before.Where(planned => !after.Contains(planned)).ToList();
+        Assert.All(moved, planned => Assert.Equal(inserted.Value.TechnicianId.Value, planned.Technician));
+        Assert.Equal(inserted.Value.Displaced, moved.Count);
 
-        // And the second run said nothing at all. This is the claim only a real database can make:
-        // the stops it compared against had been through a timestamptz column, so an instant that
-        // did not survive the round trip intact would look moved and repaint the whole board.
-        Assert.Empty(_recorder.Received.OfType<AssignmentChanged>().Skip(announcedByTheFirstRun));
+        Assert.Equal(
+            JobStatus.Scheduled,
+            await StatusAsync(emergency));
+    }
+
+    [Fact]
+    public async Task RefusesAnEmergencyNobodyCanTakeAndLeavesTheBoardAsItWas()
+    {
+        await using var services = BuildHost();
+        await ATechnicianAsync(services, "Sam Rivera");
+        await ABookedJobAsync(services, Sites[0]);
+        await Send(services, new OptimizeDayCommand(Day.Start, Day.End));
+
+        var before = await PlanAsync();
+        var gas = await ABookedJobAsync(services, Sites[1], skill: "gas safe");
+
+        var inserted = await Send(services, new InsertJobCommand(gas));
+
+        Assert.Equal(SchedulingErrors.CouldNotPlaceCode, inserted.Error!.Code);
+
+        // The failure rolled the transaction back, so the day is untouched and the job is still
+        // only demand.
+        Assert.Equal(before, await PlanAsync());
+        Assert.Equal(JobStatus.Unscheduled, await StatusAsync(gas));
     }
 
     /// <summary>The plan as a comparable shape, read back out of the database.</summary>
-    private async Task<IReadOnlyList<(Guid Job, Guid Technician, DateTimeOffset Start, int Sequence, double TravelMin)>>
-        PlanAsync()
+    private async Task<IReadOnlyList<(Guid Job, Guid Technician, DateTimeOffset Start, int Sequence)>> PlanAsync()
     {
         await using var context = _postgres.NewContext(_tenant);
 
         return await context.Assignments
             .OrderBy(assignment => assignment.ScheduledStart)
             .ThenBy(assignment => assignment.Id)
-            .Select(assignment => new ValueTuple<Guid, Guid, DateTimeOffset, int, double>(
+            .Select(assignment => new ValueTuple<Guid, Guid, DateTimeOffset, int>(
                 assignment.JobId.Value,
                 assignment.TechnicianId.Value,
                 assignment.ScheduledStart,
-                assignment.Sequence,
-                assignment.TravelMin))
+                assignment.Sequence))
             .ToListAsync();
     }
 
-    private async Task<IReadOnlyList<JobStatus>> StatusesAsync()
+    private async Task<JobStatus> StatusAsync(JobId job)
     {
         await using var context = _postgres.NewContext(_tenant);
 
-        return await context.Jobs.Select(job => job.Status).ToListAsync();
+        return await context.Jobs.Where(candidate => candidate.Id == job).Select(candidate => candidate.Status).SingleAsync();
     }
 
-    private async Task<JobId> ABookedJobAsync(ServiceProvider services, GeoPoint where)
+    private async Task<JobId> ABookedJobAsync(
+        ServiceProvider services,
+        GeoPoint where,
+        JobPriority priority = JobPriority.Normal,
+        string skill = "hvac")
     {
         var customer = await Send(services, new CreateCustomerCommand("Vance Refrigeration", null, null));
         var location = await Send(services, new AddServiceLocationCommand(
@@ -127,8 +145,8 @@ public sealed class OptimizeDayFlowTests
         var job = await Send(services, new CreateJobCommand(
             customer.Value,
             location.Value,
-            "hvac",
-            JobPriority.Normal,
+            skill,
+            priority,
             Day.Start,
             Day.End,
             TimeSpan.FromHours(1)));
@@ -150,10 +168,7 @@ public sealed class OptimizeDayFlowTests
     }
 
     private ServiceProvider BuildHost() =>
-        TestHost.Over(_postgres)
-            .AddSingleton(_recorder)
-            .AddMediatR(mediator => mediator.RegisterServicesFromAssemblyContaining<SampleEventRecorder>())
-            .BuildServiceProvider(validateScopes: true);
+        TestHost.Over(_postgres).BuildServiceProvider(validateScopes: true);
 
     /// <summary>One request: one scope, one tenant, one unit of work.</summary>
     private async Task<TResponse> Send<TResponse>(ServiceProvider services, IRequest<TResponse> request)

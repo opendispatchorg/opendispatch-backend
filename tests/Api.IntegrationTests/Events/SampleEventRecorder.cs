@@ -40,7 +40,8 @@ internal sealed class DomainEventRecorder
 }
 
 /// <summary>
-/// Subscribes to the three events the sample command raises.
+/// Subscribes to the three events the sample command raises, and to the one the planning slices
+/// raise.
 /// </summary>
 /// <remarks>
 /// One class implementing <see cref="IDomainEventHandler{TEvent}"/> three times, which is both
@@ -51,8 +52,12 @@ internal sealed class DomainEventRecorder
 internal sealed class SampleEventRecorder(DomainEventRecorder recorder)
     : IDomainEventHandler<JobEnRoute>,
         IDomainEventHandler<JobInProgress>,
-        IDomainEventHandler<JobCompleted>
+        IDomainEventHandler<JobCompleted>,
+        IDomainEventHandler<AssignmentChanged>
 {
+    public Task Handle(AssignmentChanged domainEvent, CancellationToken cancellationToken) =>
+        recorder.RecordAsync(domainEvent, cancellationToken);
+
     public Task Handle(JobEnRoute domainEvent, CancellationToken cancellationToken) =>
         recorder.RecordAsync(domainEvent, cancellationToken);
 

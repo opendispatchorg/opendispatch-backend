@@ -41,17 +41,6 @@ internal sealed class OptimizeDayHandler(
     ITenantContext tenant)
     : IRequestHandler<OptimizeDayCommand, Result<OptimizedDay>>
 {
-    /// <summary>
-    /// The seed every optimisation runs under.
-    /// </summary>
-    /// <remarks>
-    /// An arbitrary constant, and it has to be a constant: the reproducibility Document 2 §4 asks
-    /// for is between <em>runs</em>, not within one. If a caller ever needs to explore alternative
-    /// plans for the same day, that is a seed on the command and a deliberate decision, not a
-    /// clock reading slipped in here.
-    /// </remarks>
-    private const int Seed = 20260810;
-
     public async Task<Result<OptimizedDay>> Handle(
         OptimizeDayCommand command,
         CancellationToken cancellationToken)
@@ -68,7 +57,7 @@ internal sealed class OptimizeDayHandler(
             crew.Select(ToPlan),
             schedulable.Select(ToSchedJob),
             Weigh(command.Weights),
-            Seed);
+            SchedulingDefaults.Seed);
 
         var solution = scheduler.Solve(problem);
 
