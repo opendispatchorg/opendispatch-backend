@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenDispatch.Api.Attachments;
 using OpenDispatch.Api.Auth;
+using OpenDispatch.Api.Board;
 using OpenDispatch.Api.Configuration;
 using OpenDispatch.Api.Customers;
 using OpenDispatch.Api.Dispatch;
@@ -18,6 +19,7 @@ using OpenDispatch.Api.Sync;
 using OpenDispatch.Api.Technicians;
 using OpenDispatch.Api.Tenancy;
 using OpenDispatch.Application;
+using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Auth;
 using OpenDispatch.Infrastructure;
 using OpenDispatch.Infrastructure.Auth;
@@ -97,6 +99,28 @@ try
                 RoleClaimType = AuthClaimTypes.Role,
                 ClockSkew = TimeSpan.FromSeconds(30),
             };
+
+            // SignalR's browser transports (Server-Sent Events, long polling) cannot set an
+            // Authorization header on the connection they negotiate with, so the JWT bearer
+            // handler never sees the token unless something puts it somewhere a WebSocket/SSE
+            // request can carry it — the query string, by SignalR's own convention. Scoped to
+            // /hubs so an ordinary REST caller cannot bypass header-based auth by moving a token
+            // into a URL, which is otherwise a weaker place for one to travel (logged by proxies,
+            // kept in browser history).
+            bearerOptions.Events = new JwtBearerEvents
+            {
+                OnMessageReceived = context =>
+                {
+                    var accessToken = context.Request.Query["access_token"];
+
+                    if (accessToken.Count > 0 && context.HttpContext.Request.Path.StartsWithSegments("/hubs"))
+                    {
+                        context.Token = accessToken;
+                    }
+
+                    return Task.CompletedTask;
+                },
+            };
         });
 
     // Three roles (Document 2 §7), one policy each, plus the office-side pair step 47's
@@ -132,6 +156,12 @@ try
     // matching route) failures — from the one registration.
     builder.Services.AddProblemDetails();
     builder.Services.AddExceptionHandler<UnhandledExceptionHandler>();
+
+    // The real-time dispatch board (Document 2 §9, step 51). Scoped, not singleton: it reads
+    // ITenantContext, which is itself scoped to the request that raised the domain event this
+    // notifier is answering.
+    builder.Services.AddSignalR();
+    builder.Services.AddScoped<IBoardNotifier, SignalRBoardNotifier>();
 
     var app = builder.Build();
 
@@ -173,6 +203,7 @@ try
     app.MapExportEndpoints();
     app.MapSyncEndpoints();
     app.MapAttachmentEndpoints();
+    app.MapHub<DispatchHub>("/hubs/dispatch");
 
     app.Run();
     return 0;

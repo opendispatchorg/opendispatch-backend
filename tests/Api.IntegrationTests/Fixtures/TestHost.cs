@@ -47,7 +47,10 @@ internal static class TestHost
             // Last, so it replaces the real tenant context: nothing resolves one from a
             // principal until step 45.
             .AddScoped<TestTenantContext>()
-            .AddScoped<ITenantContext>(provider => provider.GetRequiredService<TestTenantContext>());
+            .AddScoped<ITenantContext>(provider => provider.GetRequiredService<TestTenantContext>())
+            // The real adapter lives in Api and needs a running host (step 51); this satisfies
+            // BoardNotifications' unconditional subscription without one.
+            .AddScoped<IBoardNotifier, NoOpBoardNotifier>();
 
     /// <summary>A scope acting as one organization — one request's worth of services.</summary>
     public static IServiceScope ActingAs(this ServiceProvider services, OrgId tenant)
