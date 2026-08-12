@@ -16,4 +16,11 @@ public static class AuthPolicies
 
     /// <summary>Technicians only.</summary>
     public const string TechnicianOnly = "TechnicianOnly";
+
+    /// <summary>
+    /// Admins or Dispatchers — the two office-side roles, step 47's default for the
+    /// Customers/Technicians/Jobs endpoints they both use day to day. Technicians reach this
+    /// data through the sync endpoints (step 50) instead, never through this surface.
+    /// </summary>
+    public const string AdminOrDispatcher = "AdminOrDispatcher";
 }

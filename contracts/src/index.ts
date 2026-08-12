@@ -15,6 +15,20 @@
 // OpenDispatch.Contracts
 // ---------------------------------------------------------------------------------------------
 
+/** How badly a job needs doing, as the clients see it. */
+export const JobPriority = {
+  /** Can wait. Slipping it to another day costs little. */
+  Low: 'Low',
+  /** Ordinary booked work. */
+  Normal: 'Normal',
+  /** Wants doing today. */
+  High: 'High',
+  /** No heat, no water, no power. Bump whatever it takes. */
+  Emergency: 'Emergency',
+} as const;
+
+export type JobPriority = (typeof JobPriority)[keyof typeof JobPriority];
+
 /** Where a job has got to in its life, as the clients see it. */
 export const JobStatus = {
   /** Booked, but nobody is going to it yet. */
@@ -135,6 +149,163 @@ export interface TechnicianMoved {
    * confidently wrong.
    */
   readonly at: string;
+}
+
+// ---------------------------------------------------------------------------------------------
+// OpenDispatch.Contracts.Customers
+// ---------------------------------------------------------------------------------------------
+
+/** The body of `POST /customers`. */
+export interface CreateCustomerRequest {
+  /** Their name, personal or trading. */
+  readonly name: string;
+  /** An email address, or `null` if there isn't one. */
+  readonly email: string | null;
+  /** A phone number, or `null` if there isn't one. */
+  readonly phone: string | null;
+}
+
+/**
+ * One customer, as the clients see them: who they are, how to reach them, and where they want
+ * work done.
+ */
+export interface CustomerResponse {
+  /** Their identity. */
+  readonly id: string;
+  /** Their name, personal or trading. */
+  readonly name: string;
+  /** Their email address, or `null` if there isn't one. */
+  readonly email: string | null;
+  /** Their phone number, or `null` if there isn't one. */
+  readonly phone: string | null;
+  /** The places they want work done, in the order they were added. */
+  readonly locations: readonly ServiceLocationResponse[];
+}
+
+/**
+ * A customer as `GET /customers` lists them: enough to recognise and to reach, and nothing
+ * else.
+ */
+export interface CustomerSummaryResponse {
+  /** Their identity, which is what a caller picks them by. */
+  readonly id: string;
+  /** Their name, personal or trading. */
+  readonly name: string;
+  /** Their email address, or `null` if there isn't one. */
+  readonly email: string | null;
+  /** Their phone number, or `null` if there isn't one. */
+  readonly phone: string | null;
+}
+
+/** The body of `POST /customers/{id}/locations` and `PUT .../locations/{locationId}`. */
+export interface ServiceLocationRequest {
+  /** What the customer calls it — "Home", "Unit 4", "the Croydon branch". */
+  readonly label: string;
+  /** The postal address a technician would be given. */
+  readonly address: string;
+  /** Where it is, in decimal degrees between -90 and 90. */
+  readonly latitude: number;
+  /** Where it is, in decimal degrees between -180 and 180. */
+  readonly longitude: number;
+}
+
+/** One of a customer's service locations, as the clients see it. */
+export interface ServiceLocationResponse {
+  /** The identity a job points at. */
+  readonly id: string;
+  /** What the customer calls it. */
+  readonly label: string;
+  /** The postal address a technician would be given. */
+  readonly address: string;
+  /** Where it is, in decimal degrees. */
+  readonly latitude: number;
+  /** Where it is, in decimal degrees. */
+  readonly longitude: number;
+}
+
+/** The body of `PUT /customers/{id}`. */
+export interface UpdateCustomerRequest {
+  /** Their name, personal or trading. */
+  readonly name: string;
+  /** An email address, or `null` if there isn't one. */
+  readonly email: string | null;
+  /** A phone number, or `null` if there isn't one. */
+  readonly phone: string | null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// OpenDispatch.Contracts.Jobs
+// ---------------------------------------------------------------------------------------------
+
+/** The body of `POST /jobs/{id}/assign`. */
+export interface AssignJobRequest {
+  /** Whose day it goes on. */
+  readonly technicianId: string;
+  /** When they are planned to arrive. */
+  readonly scheduledStart: string;
+}
+
+/** What a successful `POST /jobs/{id}/assign` returns. */
+export interface AssignJobResponse {
+  /** The identity of the stop it created or moved — the board has just drawn it. */
+  readonly assignmentId: string;
+}
+
+/** The body of `POST /jobs/{id}/status`. */
+export interface ChangeJobStatusRequest {
+  /** Where the job should be. */
+  readonly status: JobStatus;
+  /**
+   * When the work actually finished. Only read when `status` is `JobStatus.Completed`; when it
+   * is omitted the server asks its own clock.
+   */
+  readonly completedAt: string | null;
+}
+
+/** The body of `POST /jobs`. */
+export interface CreateJobRequest {
+  /** Whose work it is. */
+  readonly customerId: string;
+  /** Which of that customer's service locations it happens at. */
+  readonly locationId: string;
+  /** The skill a technician must have to take it. */
+  readonly requiredSkill: string;
+  /** How badly it needs doing. */
+  readonly priority: JobPriority;
+  /** When the promised window opens. */
+  readonly windowStart: string;
+  /** When the promised window closes. */
+  readonly windowEnd: string;
+  /** How long the work should take once a technician is on site. */
+  readonly estimatedDuration: string;
+}
+
+/** One job, as the clients see it: the demand, and nothing about the plan. */
+export interface JobResponse {
+  /** Its identity. */
+  readonly id: string;
+  /** Whose work it is. */
+  readonly customerId: string;
+  /** Which of that customer's service locations it happens at. */
+  readonly locationId: string;
+  /** Where it is, in decimal degrees. */
+  readonly latitude: number;
+  /** Where it is, in decimal degrees. */
+  readonly longitude: number;
+  /** The skill a technician must have to take it. */
+  readonly requiredSkill: string;
+  /** How badly it needs doing. */
+  readonly priority: JobPriority;
+  /** When the promised window opens. */
+  readonly windowStart: string;
+  /** When the promised window closes. */
+  readonly windowEnd: string;
+  /** How long the work should take once a technician is on site. */
+  readonly estimatedDuration: string;
+  /** How far through its life the job is. */
+  readonly status: JobStatus;
+  /** What a technician wrote about it, or `null` if nobody has. */
+  readonly notes: string | null;
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -266,6 +437,74 @@ export interface SyncPushResponse {
    * and a client that parses it is reading something it was not promised.
    */
   readonly cursor: string;
+}
+
+// ---------------------------------------------------------------------------------------------
+// OpenDispatch.Contracts.Technicians
+// ---------------------------------------------------------------------------------------------
+
+/** The body of `POST /technicians`. */
+export interface CreateTechnicianRequest {
+  /** Their name, as it appears on the dispatch board. */
+  readonly name: string;
+  /**
+   * What they are qualified to work on. Empty is allowed — a trainee simply matches no skilled
+   * job.
+   */
+  readonly skills: readonly string[];
+  /** When their working hours open. */
+  readonly shiftStart: string;
+  /** When their working hours close. */
+  readonly shiftEnd: string;
+  /** Their home base, in decimal degrees between -90 and 90. */
+  readonly latitude: number;
+  /** Their home base, in decimal degrees between -180 and 180. */
+  readonly longitude: number;
+}
+
+/** The body of `PUT /technicians/{id}/shift`. */
+export interface SetShiftRequest {
+  /** When their working hours open. */
+  readonly start: string;
+  /** When their working hours close. */
+  readonly end: string;
+}
+
+/** The body of `PUT /technicians/{id}/skills`. */
+export interface SetSkillsRequest {
+  /** The complete list they should have afterwards. Empty makes them a trainee again. */
+  readonly skills: readonly string[];
+}
+
+/** One technician, as the clients see them. */
+export interface TechnicianResponse {
+  /** Their identity. */
+  readonly id: string;
+  /** Their name, as it appears on the dispatch board. */
+  readonly name: string;
+  /** What they are qualified to work on, alphabetically. */
+  readonly skills: readonly string[];
+  /** When their working hours open. */
+  readonly shiftStart: string;
+  /** When their working hours close. */
+  readonly shiftEnd: string;
+  /** Their home base, in decimal degrees. */
+  readonly latitude: number;
+  /** Their home base, in decimal degrees. */
+  readonly longitude: number;
+}
+
+/**
+ * The body of `PUT /technicians/{id}` — everything `SetSkillsRequest` and `SetShiftRequest` do
+ * not own.
+ */
+export interface UpdateTechnicianRequest {
+  /** Their name, as it appears on the dispatch board. */
+  readonly name: string;
+  /** Their home base, in decimal degrees between -90 and 90. */
+  readonly latitude: number;
+  /** Their home base, in decimal degrees between -180 and 180. */
+  readonly longitude: number;
 }
 
 // ---------------------------------------------------------------------------------------------

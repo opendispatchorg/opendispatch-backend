@@ -122,4 +122,71 @@ public sealed class CustomerTests
         Assert.Null(customer.Contact.Email);
         Assert.Null(customer.Contact.Phone);
     }
+
+    [Fact]
+    public void RenamingTrimsTheNewName()
+    {
+        var customer = CustomerBuilder.Any().Build();
+
+        customer.Rename("  Vance Refrigeration  ");
+
+        Assert.Equal("Vance Refrigeration", customer.Name);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void RenamingToNothingIsRefused(string name)
+    {
+        var customer = CustomerBuilder.Any().Build();
+
+        Assert.Throws<DomainException>(() => customer.Rename(name));
+    }
+
+    [Fact]
+    public void ReplacingContactDetailsReplacesBothFields()
+    {
+        var customer = CustomerBuilder.Any().Reachable(new ContactInfo("old@vance.example", "0")).Build();
+
+        customer.SetContact(new ContactInfo("new@vance.example", null));
+
+        Assert.Equal("new@vance.example", customer.Contact.Email);
+        Assert.Null(customer.Contact.Phone);
+    }
+
+    [Fact]
+    public void UpdatingALocationCorrectsItInPlace()
+    {
+        var customer = CustomerBuilder.Any().Build();
+        var office = customer.AddLocation("Head office", "1 High Street, London", Somewhere);
+        var moved = new GeoPoint(51.51d, -0.12d);
+
+        customer.UpdateLocation(office, "New head office", "9 New Street, London", moved);
+
+        var location = Assert.Single(customer.Locations);
+        Assert.Equal(office, location.Id);
+        Assert.Equal("New head office", location.Label);
+        Assert.Equal("9 New Street, London", location.Address);
+        Assert.Equal(moved, location.Point);
+    }
+
+    [Fact]
+    public void UpdatingALocationTheCustomerNeverHadIsRefused()
+    {
+        var customer = CustomerBuilder.Any().Build();
+
+        Assert.Throws<DomainException>(
+            () => customer.UpdateLocation(ServiceLocationId.New(), "Label", "Address", Somewhere));
+    }
+
+    [Theory]
+    [InlineData("", "1 High Street, London")]
+    [InlineData("Head office", "")]
+    public void UpdatingALocationToNothingIsRefused(string label, string address)
+    {
+        var customer = CustomerBuilder.Any().Build();
+        var office = customer.AddLocation("Head office", "1 High Street, London", Somewhere);
+
+        Assert.Throws<DomainException>(() => customer.UpdateLocation(office, label, address, Somewhere));
+    }
 }

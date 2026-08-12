@@ -1,6 +1,5 @@
 using System.IdentityModel.Tokens.Jwt;
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Security.Claims;
 using System.Text;
@@ -10,7 +9,7 @@ using Microsoft.IdentityModel.Tokens;
 using OpenDispatch.Api.Configuration;
 using OpenDispatch.Api.IntegrationTests.Fixtures;
 using OpenDispatch.Application.Auth;
-using OpenDispatch.Contracts.Auth;
+using OpenDispatch.Contracts.Customers;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Infrastructure.Auth;
 using OpenDispatch.TestSupport;
@@ -58,14 +57,14 @@ public sealed class TenantResolutionFlowTests : IClassFixture<ApiFactory>
 
         await _factory.SeedUserAsync(acme, "dispatcher@acme.example", "shift-plan-monday", UserRole.Dispatcher);
         using var client = _factory.CreateClient();
-        var token = await LoginAsync(client, "dispatcher@acme.example", "shift-plan-monday");
+        var token = await client.LoginAsync("dispatcher@acme.example", "shift-plan-monday");
 
         using var response = await GetMyCustomersAsync(client, token);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var names = await response.Content.ReadFromJsonAsync<string[]>();
-        Assert.NotNull(names);
-        Assert.Equal(["Acme Refrigeration"], names);
+        var customers = await response.Content.ReadFromJsonAsync<CustomerSummaryResponse[]>();
+        Assert.NotNull(customers);
+        Assert.Equal(["Acme Refrigeration"], customers.Select(customer => customer.Name));
     }
 
     [Fact]
@@ -93,27 +92,14 @@ public sealed class TenantResolutionFlowTests : IClassFixture<ApiFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
-    private static Task<HttpResponseMessage> GetMyCustomersAsync(HttpClient client, string token)
-    {
-        var request = new HttpRequestMessage(HttpMethod.Get, "/tenant/_test/my-customers");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
-
-        return client.SendAsync(request);
-    }
-
-    private static async Task<string> LoginAsync(HttpClient client, string username, string password)
-    {
-        using var response = await client.PostAsJsonAsync("/auth/login", new LoginRequest(username, password));
-        var body = await response.Content.ReadFromJsonAsync<LoginResponse>();
-
-        return body!.Token;
-    }
+    private static Task<HttpResponseMessage> GetMyCustomersAsync(HttpClient client, string token) =>
+        client.SendAsync(new HttpRequestMessage(HttpMethod.Get, "/customers").Authorized(token));
 
     /// <summary>
-    /// Writes a customer straight through EF, bypassing the (not-yet-existent) HTTP endpoint that
-    /// would normally create one — <c>CustomersFlowTests</c> and <c>TenantIsolationTests</c> seed
-    /// the same way, for the same reason: this step is about reading, not about how the row got
-    /// there.
+    /// Writes a customer straight through EF rather than through <c>POST /customers</c> —
+    /// <c>TenantIsolationTests</c> seeds the same way, for the same reason: this test is about
+    /// whether a <em>read</em> is scoped, and a second org's worth of login/token ceremony just
+    /// to write a row would test the write path twice over.
     /// </summary>
     private async Task SeedCustomerAsync(OrgId org, string name)
     {

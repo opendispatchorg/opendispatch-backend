@@ -270,6 +270,36 @@ public sealed class AggregatePersistenceTests
     }
 
     /// <summary>
+    /// The gap step 41's decision entry named and step 47 closes: a removed owned child leaves
+    /// the root's own entry <c>Unchanged</c> and disappears from the live collection, so the
+    /// version has to be found some other way or a customer who only lost a location looks
+    /// unmodified to anyone comparing versions — a technician's phone among them.
+    /// </summary>
+    [Fact]
+    public async Task RemovingAnOwnedChildAdvancesTheRootsVersionToo()
+    {
+        var customer = CustomerBuilder.Any().ForOrg(_tenant).Build();
+        var locationId = customer.AddLocation("Head office", "1 High Street, London", new GeoPoint(51.5074, -0.1278));
+        customer.ClearDomainEvents();
+
+        await SaveAsync(context => context.Customers.Add(customer));
+
+        await using var context = NewContext();
+        var mine = await context.Customers.SingleAsync(c => c.Id == customer.Id);
+        Assert.Equal(0L, mine.Version);
+
+        mine.RemoveLocation(locationId);
+        await context.SaveChangesAsync();
+
+        Assert.Equal(1L, mine.Version);
+
+        await using var read = NewContext();
+        var reloaded = await read.Customers.SingleAsync(c => c.Id == customer.Id);
+        Assert.Empty(reloaded.Locations);
+        Assert.Equal(1L, reloaded.Version);
+    }
+
+    /// <summary>
     /// A job is planned once. Neither aggregate can say so, and
     /// <c>IAssignmentRepository.GetByJobAsync</c> (step 19) already promises callers it holds, so
     /// the unique index is the only thing keeping the promise.

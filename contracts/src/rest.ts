@@ -36,21 +36,372 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/customers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListCustomers"];
+        put?: never;
+        post: operations["CreateCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetCustomer"];
+        put: operations["UpdateCustomer"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/{id}/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AddServiceLocation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/{id}/locations/{locationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["UpdateServiceLocation"];
+        post?: never;
+        delete: operations["RemoveServiceLocation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/technicians": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListTechnicians"];
+        put?: never;
+        post: operations["CreateTechnician"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/technicians/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetTechnician"];
+        put: operations["UpdateTechnician"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/technicians/{id}/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["SetTechnicianSkills"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/technicians/{id}/shift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["SetTechnicianShift"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListJobs"];
+        put?: never;
+        post: operations["CreateJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ChangeJobStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/{id}/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AssignJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description The body of `POST /jobs/{id}/assign`. */
+        AssignJobRequest: {
+            /**
+             * Format: uuid
+             * @description Whose day it goes on.
+             */
+            technicianId: string;
+            /**
+             * Format: date-time
+             * @description When they are planned to arrive.
+             */
+            scheduledStart: string;
+        };
+        /** @description The body of `POST /jobs/{id}/status`. */
+        ChangeJobStatusRequest: {
+            /** @description Where the job should be. */
+            status: components["schemas"]["JobStatus"];
+            /**
+             * Format: date-time
+             * @description When the work actually finished. Only read when Status is
+             *     JobStatus.Completed; when it is omitted the server asks its own clock.
+             */
+            completedAt?: null | string;
+        };
+        /** @description The body of `POST /customers`. */
+        CreateCustomerRequest: {
+            /** @description Their name, personal or trading. */
+            name: string;
+            /** @description An email address, or `null` if there isn't one. */
+            email: null | string;
+            /** @description A phone number, or `null` if there isn't one. */
+            phone: null | string;
+        };
+        /** @description The body of `POST /jobs`. */
+        CreateJobRequest: {
+            /**
+             * Format: uuid
+             * @description Whose work it is.
+             */
+            customerId: string;
+            /**
+             * Format: uuid
+             * @description Which of that customer's service locations it happens at.
+             */
+            locationId: string;
+            /** @description The skill a technician must have to take it. */
+            requiredSkill: string;
+            /** @description How badly it needs doing. */
+            priority: components["schemas"]["JobPriority"];
+            /**
+             * Format: date-time
+             * @description When the promised window opens.
+             */
+            windowStart: string;
+            /**
+             * Format: date-time
+             * @description When the promised window closes.
+             */
+            windowEnd: string;
+            /** @description How long the work should take once a technician is on site. */
+            estimatedDuration: string;
+        };
+        /** @description The body of `POST /technicians`. */
+        CreateTechnicianRequest: {
+            /** @description Their name, as it appears on the dispatch board. */
+            name: string;
+            /** @description What they are qualified to work on. Empty is allowed — a trainee simply matches no skilled job. */
+            skills: string[];
+            /**
+             * Format: date-time
+             * @description When their working hours open.
+             */
+            shiftStart: string;
+            /**
+             * Format: date-time
+             * @description When their working hours close.
+             */
+            shiftEnd: string;
+            /**
+             * Format: double
+             * @description Their home base, in decimal degrees between -90 and 90.
+             */
+            latitude: number | string;
+            /**
+             * Format: double
+             * @description Their home base, in decimal degrees between -180 and 180.
+             */
+            longitude: number | string;
+        };
         /** @description The payload returned by `GET /health`. */
         HealthResponse: {
             status: string;
             service: string;
         };
+        /**
+         * @description How badly a job needs doing, as the clients see it.
+         * @enum {unknown}
+         */
+        JobPriority: "Low" | "Normal" | "High" | "Emergency";
+        /**
+         * @description Where a job has got to in its life, as the clients see it.
+         * @enum {unknown}
+         */
+        JobStatus: "Unscheduled" | "Scheduled" | "Dispatched" | "EnRoute" | "InProgress" | "Completed" | "Invoiced" | "Paid" | "Cancelled";
         /** @description The body of `POST /auth/login`. */
         LoginRequest: {
             /** @description Whoever is asking. */
             username: string;
             /** @description Proof it is them. */
             password: string;
+        };
+        /** @description The body of `POST /customers/{id}/locations` and `PUT .../locations/{locationId}`. */
+        ServiceLocationRequest: {
+            /** @description What the customer calls it — "Home", "Unit 4", "the Croydon branch". */
+            label: string;
+            /** @description The postal address a technician would be given. */
+            address: string;
+            /**
+             * Format: double
+             * @description Where it is, in decimal degrees between -90 and 90.
+             */
+            latitude: number | string;
+            /**
+             * Format: double
+             * @description Where it is, in decimal degrees between -180 and 180.
+             */
+            longitude: number | string;
+        };
+        /** @description The body of `PUT /technicians/{id}/shift`. */
+        SetShiftRequest: {
+            /**
+             * Format: date-time
+             * @description When their working hours open.
+             */
+            start: string;
+            /**
+             * Format: date-time
+             * @description When their working hours close.
+             */
+            end: string;
+        };
+        /** @description The body of `PUT /technicians/{id}/skills`. */
+        SetSkillsRequest: {
+            /** @description The complete list they should have afterwards. Empty makes them a trainee again. */
+            skills: string[];
+        };
+        /** @description The body of `PUT /customers/{id}`. */
+        UpdateCustomerRequest: {
+            /** @description Their name, personal or trading. */
+            name: string;
+            /** @description An email address, or `null` if there isn't one. */
+            email: null | string;
+            /** @description A phone number, or `null` if there isn't one. */
+            phone: null | string;
+        };
+        /** @description The body of `PUT /technicians/{id}` — everything SetSkillsRequest and
+         *     SetShiftRequest do not own. */
+        UpdateTechnicianRequest: {
+            /** @description Their name, as it appears on the dispatch board. */
+            name: string;
+            /**
+             * Format: double
+             * @description Their home base, in decimal degrees between -90 and 90.
+             */
+            latitude: number | string;
+            /**
+             * Format: double
+             * @description Their home base, in decimal degrees between -180 and 180.
+             */
+            longitude: number | string;
         };
     };
     responses: never;
@@ -91,6 +442,400 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListCustomers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CreateCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCustomerRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GetCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    UpdateCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCustomerRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AddServiceLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceLocationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    UpdateServiceLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                locationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceLocationRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    RemoveServiceLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                locationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListTechnicians: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CreateTechnician: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTechnicianRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GetTechnician: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    UpdateTechnician: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTechnicianRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SetTechnicianSkills: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetSkillsRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    SetTechnicianShift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetShiftRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ListJobs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    CreateJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateJobRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GetJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ChangeJobStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeJobStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    AssignJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignJobRequest"];
             };
         };
         responses: {

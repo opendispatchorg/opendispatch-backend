@@ -48,10 +48,663 @@
           }
         }
       }
+    },
+    "/customers": {
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "CreateCustomer",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateCustomerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "ListCustomers",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/customers/{id}": {
+      "get": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "GetCustomer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "UpdateCustomer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateCustomerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/customers/{id}/locations": {
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "AddServiceLocation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceLocationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/customers/{id}/locations/{locationId}": {
+      "put": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "UpdateServiceLocation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "locationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ServiceLocationRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "RemoveServiceLocation",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          },
+          {
+            "name": "locationId",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/technicians": {
+      "get": {
+        "tags": [
+          "Technicians"
+        ],
+        "operationId": "ListTechnicians",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "Technicians"
+        ],
+        "operationId": "CreateTechnician",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateTechnicianRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/technicians/{id}": {
+      "get": {
+        "tags": [
+          "Technicians"
+        ],
+        "operationId": "GetTechnician",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "put": {
+        "tags": [
+          "Technicians"
+        ],
+        "operationId": "UpdateTechnician",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/UpdateTechnicianRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/technicians/{id}/skills": {
+      "put": {
+        "tags": [
+          "Technicians"
+        ],
+        "operationId": "SetTechnicianSkills",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetSkillsRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/technicians/{id}/shift": {
+      "put": {
+        "tags": [
+          "Technicians"
+        ],
+        "operationId": "SetTechnicianShift",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SetShiftRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/jobs": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "CreateJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateJobRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      },
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "ListJobs",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/jobs/{id}": {
+      "get": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "GetJob",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/jobs/{id}/status": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "ChangeJobStatus",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/ChangeJobStatusRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/jobs/{id}/assign": {
+      "post": {
+        "tags": [
+          "Jobs"
+        ],
+        "operationId": "AssignJob",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/AssignJobRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "components": {
     "schemas": {
+      "AssignJobRequest": {
+        "required": [
+          "technicianId",
+          "scheduledStart"
+        ],
+        "type": "object",
+        "properties": {
+          "technicianId": {
+            "type": "string",
+            "description": "Whose day it goes on.",
+            "format": "uuid"
+          },
+          "scheduledStart": {
+            "type": "string",
+            "description": "When they are planned to arrive.",
+            "format": "date-time"
+          }
+        },
+        "description": "The body of `POST /jobs/{id}/assign`."
+      },
+      "ChangeJobStatusRequest": {
+        "required": [
+          "status"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "description": "Where the job should be.",
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "completedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When the work actually finished. Only read when Status is\nJobStatus.Completed; when it is omitted the server asks its own clock.",
+            "format": "date-time"
+          }
+        },
+        "description": "The body of `POST /jobs/{id}/status`."
+      },
+      "CreateCustomerRequest": {
+        "required": [
+          "name",
+          "email",
+          "phone"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Their name, personal or trading."
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An email address, or `null` if there isn't one."
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "A phone number, or `null` if there isn't one."
+          }
+        },
+        "description": "The body of `POST /customers`."
+      },
+      "CreateJobRequest": {
+        "required": [
+          "customerId",
+          "locationId",
+          "requiredSkill",
+          "priority",
+          "windowStart",
+          "windowEnd",
+          "estimatedDuration"
+        ],
+        "type": "object",
+        "properties": {
+          "customerId": {
+            "type": "string",
+            "description": "Whose work it is.",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "description": "Which of that customer's service locations it happens at.",
+            "format": "uuid"
+          },
+          "requiredSkill": {
+            "type": "string",
+            "description": "The skill a technician must have to take it."
+          },
+          "priority": {
+            "description": "How badly it needs doing.",
+            "$ref": "#/components/schemas/JobPriority"
+          },
+          "windowStart": {
+            "type": "string",
+            "description": "When the promised window opens.",
+            "format": "date-time"
+          },
+          "windowEnd": {
+            "type": "string",
+            "description": "When the promised window closes.",
+            "format": "date-time"
+          },
+          "estimatedDuration": {
+            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": "string",
+            "description": "How long the work should take once a technician is on site."
+          }
+        },
+        "description": "The body of `POST /jobs`."
+      },
+      "CreateTechnicianRequest": {
+        "required": [
+          "name",
+          "skills",
+          "shiftStart",
+          "shiftEnd",
+          "latitude",
+          "longitude"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Their name, as it appears on the dispatch board."
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What they are qualified to work on. Empty is allowed — a trainee simply matches no skilled job."
+          },
+          "shiftStart": {
+            "type": "string",
+            "description": "When their working hours open.",
+            "format": "date-time"
+          },
+          "shiftEnd": {
+            "type": "string",
+            "description": "When their working hours close.",
+            "format": "date-time"
+          },
+          "latitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Their home base, in decimal degrees between -90 and 90.",
+            "format": "double"
+          },
+          "longitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Their home base, in decimal degrees between -180 and 180.",
+            "format": "double"
+          }
+        },
+        "description": "The body of `POST /technicians`."
+      },
       "HealthResponse": {
         "required": [
           "status",
@@ -67,6 +720,29 @@
           }
         },
         "description": "The payload returned by `GET /health`."
+      },
+      "JobPriority": {
+        "enum": [
+          "Low",
+          "Normal",
+          "High",
+          "Emergency"
+        ],
+        "description": "How badly a job needs doing, as the clients see it."
+      },
+      "JobStatus": {
+        "enum": [
+          "Unscheduled",
+          "Scheduled",
+          "Dispatched",
+          "EnRoute",
+          "InProgress",
+          "Completed",
+          "Invoiced",
+          "Paid",
+          "Cancelled"
+        ],
+        "description": "Where a job has got to in its life, as the clients see it."
       },
       "LoginRequest": {
         "required": [
@@ -85,6 +761,142 @@
           }
         },
         "description": "The body of `POST /auth/login`."
+      },
+      "ServiceLocationRequest": {
+        "required": [
+          "label",
+          "address",
+          "latitude",
+          "longitude"
+        ],
+        "type": "object",
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "What the customer calls it — \"Home\", \"Unit 4\", \"the Croydon branch\"."
+          },
+          "address": {
+            "type": "string",
+            "description": "The postal address a technician would be given."
+          },
+          "latitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Where it is, in decimal degrees between -90 and 90.",
+            "format": "double"
+          },
+          "longitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Where it is, in decimal degrees between -180 and 180.",
+            "format": "double"
+          }
+        },
+        "description": "The body of `POST /customers/{id}/locations` and `PUT .../locations/{locationId}`."
+      },
+      "SetShiftRequest": {
+        "required": [
+          "start",
+          "end"
+        ],
+        "type": "object",
+        "properties": {
+          "start": {
+            "type": "string",
+            "description": "When their working hours open.",
+            "format": "date-time"
+          },
+          "end": {
+            "type": "string",
+            "description": "When their working hours close.",
+            "format": "date-time"
+          }
+        },
+        "description": "The body of `PUT /technicians/{id}/shift`."
+      },
+      "SetSkillsRequest": {
+        "required": [
+          "skills"
+        ],
+        "type": "object",
+        "properties": {
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "The complete list they should have afterwards. Empty makes them a trainee again."
+          }
+        },
+        "description": "The body of `PUT /technicians/{id}/skills`."
+      },
+      "UpdateCustomerRequest": {
+        "required": [
+          "name",
+          "email",
+          "phone"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Their name, personal or trading."
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "An email address, or `null` if there isn't one."
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "A phone number, or `null` if there isn't one."
+          }
+        },
+        "description": "The body of `PUT /customers/{id}`."
+      },
+      "UpdateTechnicianRequest": {
+        "required": [
+          "name",
+          "latitude",
+          "longitude"
+        ],
+        "type": "object",
+        "properties": {
+          "name": {
+            "type": "string",
+            "description": "Their name, as it appears on the dispatch board."
+          },
+          "latitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Their home base, in decimal degrees between -90 and 90.",
+            "format": "double"
+          },
+          "longitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Their home base, in decimal degrees between -180 and 180.",
+            "format": "double"
+          }
+        },
+        "description": "The body of `PUT /technicians/{id}` — everything SetSkillsRequest and\nSetShiftRequest do not own."
       }
     }
   },
@@ -94,6 +906,15 @@
     },
     {
       "name": "AuthEndpoints"
+    },
+    {
+      "name": "Customers"
+    },
+    {
+      "name": "Technicians"
+    },
+    {
+      "name": "Jobs"
     }
   ]
 }

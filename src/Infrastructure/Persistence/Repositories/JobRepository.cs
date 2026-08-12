@@ -14,6 +14,16 @@ internal sealed class JobRepository(AppDbContext context) : IJobRepository
 
     public void Add(Job job) => context.Jobs.Add(job);
 
+    /// <remarks>
+    /// By promised window, because this is read by a dispatcher scanning what is coming up —
+    /// unlike <see cref="ListSchedulableAsync"/>, which orders for the scheduler's own reasons.
+    /// </remarks>
+    public async Task<IReadOnlyList<Job>> ListAsync(CancellationToken ct) =>
+        await context.Jobs
+            .OrderBy(job => job.Window.Start)
+            .ThenBy(job => job.Id)
+            .ToListAsync(ct);
+
     public async Task<IReadOnlyList<Job>> ListSchedulableAsync(TimeWindow horizon, CancellationToken ct) =>
         await context.Jobs
             // The statuses come from the domain, not from a list written here. Three callers ask

@@ -5,8 +5,11 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenDispatch.Api.Auth;
 using OpenDispatch.Api.Configuration;
+using OpenDispatch.Api.Customers;
 using OpenDispatch.Api.ErrorHandling;
 using OpenDispatch.Api.Health;
+using OpenDispatch.Api.Jobs;
+using OpenDispatch.Api.Technicians;
 using OpenDispatch.Api.Tenancy;
 using OpenDispatch.Application;
 using OpenDispatch.Application.Auth;
@@ -90,13 +93,17 @@ try
             };
         });
 
-    // Three roles (Document 2 §7), one policy each. A later step's endpoint asks for
+    // Three roles (Document 2 §7), one policy each, plus the office-side pair step 47's
+    // Customers/Technicians/Jobs endpoints use by default. A later step's endpoint asks for
     // AuthPolicies.AdminOnly rather than [Authorize(Roles = "Admin")], so a typo fails to
     // compile instead of silently authorizing nobody.
     builder.Services.AddAuthorizationBuilder()
         .AddPolicy(AuthPolicies.AdminOnly, policy => policy.RequireRole(nameof(UserRole.Admin)))
         .AddPolicy(AuthPolicies.DispatcherOnly, policy => policy.RequireRole(nameof(UserRole.Dispatcher)))
-        .AddPolicy(AuthPolicies.TechnicianOnly, policy => policy.RequireRole(nameof(UserRole.Technician)));
+        .AddPolicy(AuthPolicies.TechnicianOnly, policy => policy.RequireRole(nameof(UserRole.Technician)))
+        .AddPolicy(
+            AuthPolicies.AdminOrDispatcher,
+            policy => policy.RequireRole(nameof(UserRole.Admin), nameof(UserRole.Dispatcher)));
 
     // The REST half of the API contract (Document 2 §11). The same registration serves the
     // document at /openapi/v1.json for a running host and feeds the build-time export that
@@ -150,8 +157,10 @@ try
 
     app.MapHealthEndpoint();
     app.MapAuthEndpoints();
-    app.MapTenancyTestEndpoints();
-    app.MapErrorMappingTestEndpoints();
+    app.MapDiagnosticsEndpoints();
+    app.MapCustomerEndpoints();
+    app.MapTechnicianEndpoints();
+    app.MapJobEndpoints();
 
     app.Run();
     return 0;

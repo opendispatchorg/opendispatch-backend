@@ -1,10 +1,10 @@
 using System.Net;
-using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using Microsoft.AspNetCore.Mvc;
 using OpenDispatch.Api.IntegrationTests.Fixtures;
 using OpenDispatch.Application.Auth;
 using OpenDispatch.Contracts.Auth;
+using OpenDispatch.Contracts.Technicians;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.TestSupport;
 
@@ -27,6 +27,8 @@ namespace OpenDispatch.Api.IntegrationTests.Auth;
 [Trait(TestCategories.Name, TestCategories.Integration)]
 public sealed class AuthFlowTests : IClassFixture<ApiFactory>
 {
+    private static readonly DateTimeOffset MorningOf = new(2026, 8, 10, 8, 0, 0, TimeSpan.Zero);
+
     private readonly ApiFactory _factory;
 
     public AuthFlowTests(ApiFactory factory) => _factory = factory;
@@ -81,12 +83,17 @@ public sealed class AuthFlowTests : IClassFixture<ApiFactory>
         Assert.Contains(nameof(LoginRequest.Username), problem.Errors.Keys);
     }
 
+    /// <summary>
+    /// <c>POST /technicians</c> is <c>AdminOnly</c> (step 47) — real, rather than a temporary
+    /// endpoint built to prove the pipeline: steps 44/45 needed one because nothing role-guarded
+    /// existed yet, and step 47 is exactly the step that stops that being true.
+    /// </summary>
     [Fact]
     public async Task AProtectedEndpointRejectsAnAnonymousCaller()
     {
         using var client = _factory.CreateClient();
 
-        using var response = await client.GetAsync("/auth/_test/admin-only");
+        using var response = await client.PostAsync("/technicians", content: null);
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
@@ -96,10 +103,9 @@ public sealed class AuthFlowTests : IClassFixture<ApiFactory>
     {
         await _factory.SeedUserAsync(OrgId.New(), "priya@vance.example", "shift-plan-monday", UserRole.Dispatcher);
         using var client = _factory.CreateClient();
-        var token = await LoginAsync(client, "priya@vance.example", "shift-plan-monday");
+        var token = await client.LoginAsync("priya@vance.example", "shift-plan-monday");
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/auth/_test/admin-only");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/technicians").Authorized(token);
         using var response = await client.SendAsync(request);
 
         Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
@@ -110,20 +116,13 @@ public sealed class AuthFlowTests : IClassFixture<ApiFactory>
     {
         await _factory.SeedUserAsync(OrgId.New(), "sam@vance.example", "boiler-service-call", UserRole.Admin);
         using var client = _factory.CreateClient();
-        var token = await LoginAsync(client, "sam@vance.example", "boiler-service-call");
+        var token = await client.LoginAsync("sam@vance.example", "boiler-service-call");
 
-        using var request = new HttpRequestMessage(HttpMethod.Get, "/auth/_test/admin-only");
-        request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+        using var request = new HttpRequestMessage(HttpMethod.Post, "/technicians").Authorized(token);
+        request.Content = JsonContent.Create(new CreateTechnicianRequest(
+            "Alex Rivera", ["hvac"], MorningOf, MorningOf.AddHours(9), 51.5074d, -0.1278d));
         using var response = await client.SendAsync(request);
 
-        Assert.Equal(HttpStatusCode.NoContent, response.StatusCode);
-    }
-
-    private static async Task<string> LoginAsync(HttpClient client, string username, string password)
-    {
-        using var response = await client.PostAsJsonAsync("/auth/login", new LoginRequest(username, password));
-        var body = await response.Content.ReadFromJsonAsync<LoginResponse>();
-
-        return body!.Token;
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
     }
 }

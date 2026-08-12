@@ -1,5 +1,7 @@
+using System.Globalization;
 using OpenDispatch.Contracts.Sync;
 using OpenDispatch.TestSupport;
+using DomainJobPriority = OpenDispatch.Domain.Jobs.JobPriority;
 using DomainJobStatus = OpenDispatch.Domain.Jobs.JobStatus;
 
 namespace OpenDispatch.Contracts.Tests;
@@ -19,14 +21,23 @@ namespace OpenDispatch.Contracts.Tests;
 public sealed class ContractsAssemblyTests
 {
     [Fact]
-    public void WireJobStatusMirrorsTheDomainNameForNameAndNumberForNumber()
+    public void WireJobStatusMirrorsTheDomainNameForNameAndNumberForNumber() =>
+        AssertMirrors<DomainJobStatus, JobStatus>();
+
+    [Fact]
+    public void WireJobPriorityMirrorsTheDomainNameForNameAndNumberForNumber() =>
+        AssertMirrors<DomainJobPriority, JobPriority>();
+
+    private static void AssertMirrors<TDomain, TWire>()
+        where TDomain : struct, Enum
+        where TWire : struct, Enum
     {
-        var domain = Enum.GetValues<DomainJobStatus>()
-            .Select(status => (Name: status.ToString(), Value: (int)status))
+        var domain = Enum.GetValues<TDomain>()
+            .Select(value => (Name: value.ToString(), Value: Convert.ToInt32(value, CultureInfo.InvariantCulture)))
             .ToHashSet();
 
-        var wire = Enum.GetValues<JobStatus>()
-            .Select(status => (Name: status.ToString(), Value: (int)status))
+        var wire = Enum.GetValues<TWire>()
+            .Select(value => (Name: value.ToString(), Value: Convert.ToInt32(value, CultureInfo.InvariantCulture)))
             .ToHashSet();
 
         var onlyInDomain = domain.Except(wire).ToArray();

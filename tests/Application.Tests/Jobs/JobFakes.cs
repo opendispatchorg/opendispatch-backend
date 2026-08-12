@@ -17,6 +17,12 @@ internal sealed class FakeJobRepository(FakeStore<Job> store, ITenantContext ten
 
     public void Add(Job job) => store.Stage(job);
 
+    public Task<IReadOnlyList<Job>> ListAsync(CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Job>>(
+        [
+            .. store.Owned(tenant.OrgId).OrderBy(job => job.Window.Start).ThenBy(job => job.Id.Value),
+        ]);
+
     /// <remarks>
     /// <para>
     /// Both halves of the real query, restated in memory: the domain's own

@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Metadata;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Sync;
 using OpenDispatch.Domain.Assignments;
@@ -217,26 +218,55 @@ public sealed class AppDbContext : DbContext
 
     /// <summary>
     /// Whether anything this root owns — a service location, an invoice line, a line recorded in
-    /// the field — has been added or edited in this transaction.
+    /// the field — has been added, edited, or removed in this transaction.
     /// </summary>
     /// <remarks>
     /// Walked from the root rather than from the tracked children, because a child does not know
     /// its owner: EF gives a dependent no navigation back, and finding one by foreign key would be
-    /// a key comparison written by hand. The cost of the direction is that a <em>removed</em> child
-    /// is invisible here, having already left the collection — nothing in the application removes
-    /// one today, and the day something does, it is the aggregate's own method that will need to
-    /// say so.
+    /// a key comparison written by hand. Added and edited children are visible in the live
+    /// collection (<see cref="Owned"/>); a <em>removed</em> one is not — it has already left — so
+    /// <see cref="LostAChild"/> looks for it the other way, by shadow foreign key, among the
+    /// tracker's <see cref="EntityState.Deleted"/> entries. Step 47 is what first removes an owned
+    /// child (<c>Customer.RemoveLocation</c>, reachable for real once it has an HTTP caller), which
+    /// is why this half exists now rather than from the start.
     /// </remarks>
     private bool OwnsSomethingChanged(EntityEntry<AggregateRoot> root) =>
         root.Collections
             .Concat<NavigationEntry>(root.References)
             .Where(navigation => navigation.Metadata.TargetEntityType.IsOwned())
-            .SelectMany(Owned)
-            .Any(child => Entry(child).State is not EntityState.Unchanged);
+            .Any(navigation =>
+                Owned(navigation).Any(child => Entry(child).State is not EntityState.Unchanged)
+                || LostAChild(root, navigation));
 
     private static IEnumerable<object> Owned(NavigationEntry navigation) => navigation switch
     {
         CollectionEntry collection => collection.CurrentValue?.Cast<object>() ?? [],
         _ => navigation.CurrentValue is { } only ? [only] : [],
     };
+
+    /// <summary>
+    /// Whether this navigation lost a child this transaction: something of its target type,
+    /// pending deletion, whose shadow foreign key still points at this root.
+    /// </summary>
+    /// <remarks>
+    /// A deleted owned entity keeps its values — including the foreign key EF mapped its
+    /// ownership through (<c>CustomerConfiguration</c>'s <c>WithOwner().HasForeignKey(...)</c>)
+    /// — right up until the delete is written, so this reads it back rather than needing a
+    /// navigation that does not exist.
+    /// </remarks>
+    private bool LostAChild(EntityEntry<AggregateRoot> root, NavigationEntry navigation)
+    {
+        if (navigation.Metadata is not INavigation { ForeignKey: var foreignKey })
+        {
+            return false;
+        }
+
+        return ChangeTracker.Entries()
+            .Where(entry => entry.State == EntityState.Deleted && entry.Metadata == foreignKey.DeclaringEntityType)
+            .Any(entry => foreignKey.Properties
+                .Zip(foreignKey.PrincipalKey.Properties)
+                .All(pair => Equals(
+                    entry.Property(pair.First.Name).CurrentValue,
+                    root.Property(pair.Second.Name).CurrentValue)));
+    }
 }
