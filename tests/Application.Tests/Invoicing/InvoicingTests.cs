@@ -46,7 +46,7 @@ public sealed class InvoicingTests
         Assert.True(raised.IsSuccess);
 
         var invoice = Assert.Single(slice.Store<Invoice>().Saved);
-        Assert.Equal(raised.Value, invoice.Id);
+        Assert.Equal(raised.Value.Id, invoice.Id);
         Assert.Equal(slice.Tenant, invoice.OrgId);
         Assert.Equal(job, invoice.JobId);
         Assert.Equal(InvoiceStatus.Draft, invoice.Status);
@@ -56,6 +56,13 @@ public sealed class InvoicingTests
         Assert.Equal(new Money(16_250L + 8_499L + 1_350L), invoice.Total);
         Assert.Equal(3, invoice.Lines.Count);
         Assert.Equal(LineItemKind.Labor, invoice.Lines[0].Kind);
+
+        // The projection the caller was actually handed says the same thing the persisted
+        // aggregate does — the whole reason it is built from the invoice in hand rather than
+        // re-derived from a second read.
+        Assert.Equal(invoice.Total, raised.Value.Total);
+        Assert.Equal(invoice.Issued, raised.Value.Issued);
+        Assert.Equal(3, raised.Value.Lines.Count);
 
         Assert.Equal(JobStatus.Invoiced, Assert.Single(slice.Store<Job>().Saved).Status);
     }
@@ -287,7 +294,7 @@ public sealed class InvoicingTests
         var raised = await slice.Send(new GenerateInvoiceCommand(job,
             [new InvoiceLine(LineItemKind.Labor, "Diagnosis and repair", 2.5m, 65m)]));
 
-        return raised.Value;
+        return raised.Value.Id;
     }
 
     private static Task<JobId> ACompletedJob(SliceHost slice) =>

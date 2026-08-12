@@ -16,4 +16,11 @@ internal sealed class InvoiceRepository(AppDbContext context) : IInvoiceReposito
         context.Invoices.FirstOrDefaultAsync(invoice => invoice.Id == id, ct);
 
     public void Add(Invoice invoice) => context.Invoices.Add(invoice);
+
+    /// <remarks>By issue date: a billing history is read in the order it happened.</remarks>
+    public async Task<IReadOnlyList<Invoice>> ListAsync(CancellationToken ct) =>
+        await context.Invoices
+            .OrderBy(invoice => invoice.Issued)
+            .ThenBy(invoice => invoice.Id)
+            .ToListAsync(ct);
 }

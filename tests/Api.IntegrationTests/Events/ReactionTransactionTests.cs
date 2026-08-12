@@ -214,7 +214,7 @@ internal sealed class InvoiceOnCompletion(ISender sender, IServiceProvider servi
         // Deliberately unguarded: a failure here should surface as the value being unreadable
         // rather than as a quiet empty list, because "the reaction did not happen" is the thing
         // this test exists to notice.
-        reactions.Raised.Add(raised.Value);
+        reactions.Raised.Add(raised.Value.Id);
 
         if (reactions.ThrowAfterReacting)
         {

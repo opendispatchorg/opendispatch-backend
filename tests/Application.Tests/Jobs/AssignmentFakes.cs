@@ -45,5 +45,11 @@ internal sealed class FakeAssignmentRepository(FakeStore<Assignment> store, ITen
                 .ThenBy(assignment => assignment.Id.Value),
         ]);
 
+    public Task<IReadOnlyList<Assignment>> ListAsync(CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Assignment>>(
+        [
+            .. Mine().OrderBy(assignment => assignment.ScheduledStart).ThenBy(assignment => assignment.Id.Value),
+        ]);
+
     private IEnumerable<Assignment> Mine() => store.Owned(tenant.OrgId);
 }

@@ -36,6 +36,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/jobs/{id}/invoice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["GenerateInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{id}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ExportTenant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/customers": {
         parameters: {
             query?: never;
@@ -313,6 +361,11 @@ export interface components {
             /** @description A phone number, or `null` if there isn't one. */
             phone: null | string;
         };
+        /** @description The body of `POST /jobs/{id}/invoice`. The job comes from the route. */
+        CreateInvoiceRequest: {
+            /** @description What to charge for — time on the job, and parts fitted. */
+            lines: components["schemas"]["InvoiceLineRequest"][];
+        };
         /** @description The body of `POST /jobs`. */
         CreateJobRequest: {
             /**
@@ -382,6 +435,23 @@ export interface components {
              */
             jobId: string;
         };
+        /** @description One line to bill, as submitted to `POST /jobs/{id}/invoice`. */
+        InvoiceLineRequest: {
+            /** @description Labour or a part. */
+            kind: components["schemas"]["LineItemKind"];
+            /** @description What it says on the invoice. */
+            description: string;
+            /**
+             * Format: double
+             * @description How many — hours for labour, units for parts. Fractions are ordinary.
+             */
+            quantity: number | string;
+            /**
+             * Format: double
+             * @description The price of one, in whole currency units (dollars, not cents). Negative for a discount.
+             */
+            unitPrice: number | string;
+        };
         /**
          * @description How badly a job needs doing, as the clients see it.
          * @enum {unknown}
@@ -392,6 +462,11 @@ export interface components {
          * @enum {unknown}
          */
         JobStatus: "Unscheduled" | "Scheduled" | "Dispatched" | "EnRoute" | "InProgress" | "Completed" | "Invoiced" | "Paid" | "Cancelled";
+        /**
+         * @description What a billed line is for, as the clients see it.
+         * @enum {unknown}
+         */
+        LineItemKind: "Labor" | "Part";
         /** @description The body of `POST /auth/login`. */
         LoginRequest: {
             /** @description Whoever is asking. */
@@ -537,6 +612,68 @@ export interface operations {
                 "application/json": components["schemas"]["LoginRequest"];
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GenerateInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInvoiceRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PayInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    ExportTenant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {

@@ -15,6 +15,16 @@
 // OpenDispatch.Contracts
 // ---------------------------------------------------------------------------------------------
 
+/** Whether an invoice has been settled, as the clients see it. */
+export const InvoiceStatus = {
+  /** Raised but not settled. */
+  Draft: 'Draft',
+  /** Settled. Terminal. */
+  Paid: 'Paid',
+} as const;
+
+export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
+
 /** How badly a job needs doing, as the clients see it. */
 export const JobPriority = {
   /** Can wait. Slipping it to another day costs little. */
@@ -52,6 +62,16 @@ export const JobStatus = {
 } as const;
 
 export type JobStatus = (typeof JobStatus)[keyof typeof JobStatus];
+
+/** What a billed line is for, as the clients see it. */
+export const LineItemKind = {
+  /** Time on the job, billed by the hour. */
+  Labor: 'Labor',
+  /** Something fitted or supplied, billed by the unit. */
+  Part: 'Part',
+} as const;
+
+export type LineItemKind = (typeof LineItemKind)[keyof typeof LineItemKind];
 
 // ---------------------------------------------------------------------------------------------
 // OpenDispatch.Contracts.Auth
@@ -315,6 +335,96 @@ export interface UpdateCustomerRequest {
   readonly email: string | null;
   /** A phone number, or `null` if there isn't one. */
   readonly phone: string | null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// OpenDispatch.Contracts.Export
+// ---------------------------------------------------------------------------------------------
+
+/** One stop, as it appears in `GET /export`. */
+export interface AssignmentExport {
+  /** The stop's identity. */
+  readonly id: string;
+  /** The job being planned. */
+  readonly jobId: string;
+  /** Whose day it sits on. */
+  readonly technicianId: string;
+  /** Where it falls in the technician's run, counting from zero. */
+  readonly sequence: number;
+  /** When the technician is planned to start work. */
+  readonly scheduledStart: string;
+  /** Minutes of driving to reach this stop from the previous one. */
+  readonly travelMin: number;
+}
+
+/**
+ * The whole of a tenant's business data — the response from `GET /export`, Document 1's
+ * anti-lock-in feature: "your customers, your jobs, your data — on software you control."
+ */
+export interface ExportResponse {
+  /** Every customer, with their service locations. */
+  readonly customers: readonly CustomerResponse[];
+  /** Every job, whatever its status. */
+  readonly jobs: readonly JobResponse[];
+  /** The plan: every stop, whichever technician it is on. */
+  readonly assignments: readonly AssignmentExport[];
+  /** Every bill raised, with its lines and whether it is settled. */
+  readonly invoices: readonly InvoiceResponse[];
+}
+
+// ---------------------------------------------------------------------------------------------
+// OpenDispatch.Contracts.Invoicing
+// ---------------------------------------------------------------------------------------------
+
+/** The body of `POST /jobs/{id}/invoice`. The job comes from the route. */
+export interface CreateInvoiceRequest {
+  /** What to charge for — time on the job, and parts fitted. */
+  readonly lines: readonly InvoiceLineRequest[];
+}
+
+/** One line to bill, as submitted to `POST /jobs/{id}/invoice`. */
+export interface InvoiceLineRequest {
+  /** Labour or a part. */
+  readonly kind: LineItemKind;
+  /** What it says on the invoice. */
+  readonly description: string;
+  /** How many — hours for labour, units for parts. Fractions are ordinary. */
+  readonly quantity: number;
+  /** The price of one, in whole currency units (dollars, not cents). Negative for a discount. */
+  readonly unitPrice: number;
+}
+
+/** One billed line, as the clients see it. */
+export interface InvoiceLineResponse {
+  /** Labour or a part. */
+  readonly kind: LineItemKind;
+  /** What it says on the invoice. */
+  readonly description: string;
+  /** How many — hours for labour, units for parts. */
+  readonly quantity: number;
+  /** The price of one, in dollars. Negative for a discount. */
+  readonly unitPrice: number;
+  /** What this line adds to the invoice, in dollars. */
+  readonly lineTotal: number;
+}
+
+/**
+ * One invoice, as the clients see it — the response from `POST /jobs/{id}/invoice`, and the
+ * shape every invoice takes in `GET /export`.
+ */
+export interface InvoiceResponse {
+  /** Its identity. */
+  readonly id: string;
+  /** The job it bills. */
+  readonly jobId: string;
+  /** Whether it has been settled. */
+  readonly status: InvoiceStatus;
+  /** When it was raised. */
+  readonly issued: string;
+  /** What it bills for, in the order the lines were added. */
+  readonly lines: readonly InvoiceLineResponse[];
+  /** What is owed, in dollars. */
+  readonly total: number;
 }
 
 // ---------------------------------------------------------------------------------------------

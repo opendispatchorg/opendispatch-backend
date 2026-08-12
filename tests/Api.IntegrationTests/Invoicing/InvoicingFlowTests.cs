@@ -96,7 +96,7 @@ public sealed class InvoicingFlowTests
 
         await using (var context = _postgres.NewContext(_tenant))
         {
-            var invoice = await context.Invoices.SingleAsync(candidate => candidate.Id == raised.Value);
+            var invoice = await context.Invoices.SingleAsync(candidate => candidate.Id == raised.Value.Id);
 
             // The money came back out of the database as the same money: two lines, and a total
             // computed from them rather than stored beside them.
@@ -105,14 +105,18 @@ public sealed class InvoicingFlowTests
             Assert.Equal(new Money(16_250L + 8_499L), invoice.Total);
             Assert.Equal(job.Value, invoice.JobId);
 
+            // And the projection the caller was handed at the moment of creation says the same
+            // thing the row now holds.
+            Assert.Equal(invoice.Total, raised.Value.Total);
+
             Assert.Equal(JobStatus.Invoiced, await StatusAsync(context, job.Value));
         }
 
-        Assert.True((await Send(services, new MarkPaidCommand(raised.Value))).IsSuccess);
+        Assert.True((await Send(services, new MarkPaidCommand(raised.Value.Id))).IsSuccess);
 
         await using (var context = _postgres.NewContext(_tenant))
         {
-            var invoice = await context.Invoices.SingleAsync(candidate => candidate.Id == raised.Value);
+            var invoice = await context.Invoices.SingleAsync(candidate => candidate.Id == raised.Value.Id);
 
             Assert.Equal(InvoiceStatus.Paid, invoice.Status);
             Assert.Equal(JobStatus.Paid, await StatusAsync(context, job.Value));
@@ -121,7 +125,7 @@ public sealed class InvoicingFlowTests
         // The extension seam, on the one event this phase raises that nothing in the application
         // subscribes to: a handler that exists only in this test assembly heard it.
         var settled = Assert.IsType<InvoicePaid>(Assert.Single(_recorder.Received.OfType<InvoicePaid>()));
-        Assert.Equal(raised.Value, settled.InvoiceId);
+        Assert.Equal(raised.Value.Id, settled.InvoiceId);
         Assert.Equal(job.Value, settled.JobId);
     }
 

@@ -8,7 +8,9 @@ using OpenDispatch.Api.Configuration;
 using OpenDispatch.Api.Customers;
 using OpenDispatch.Api.Dispatch;
 using OpenDispatch.Api.ErrorHandling;
+using OpenDispatch.Api.Export;
 using OpenDispatch.Api.Health;
+using OpenDispatch.Api.Invoicing;
 using OpenDispatch.Api.Jobs;
 using OpenDispatch.Api.Schedule;
 using OpenDispatch.Api.Technicians;
@@ -165,6 +167,8 @@ try
     app.MapJobEndpoints();
     app.MapScheduleEndpoints();
     app.MapDispatchEndpoints();
+    app.MapInvoiceEndpoints();
+    app.MapExportEndpoints();
 
     app.Run();
     return 0;

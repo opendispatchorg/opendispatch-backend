@@ -49,6 +49,77 @@
         }
       }
     },
+    "/jobs/{id}/invoice": {
+      "post": {
+        "tags": [
+          "Invoicing"
+        ],
+        "operationId": "GenerateInvoice",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/CreateInvoiceRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/invoices/{id}/pay": {
+      "post": {
+        "tags": [
+          "Invoicing"
+        ],
+        "operationId": "PayInvoice",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/export": {
+      "get": {
+        "tags": [
+          "Export"
+        ],
+        "operationId": "ExportTenant",
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/customers": {
       "post": {
         "tags": [
@@ -674,6 +745,22 @@
         },
         "description": "The body of `POST /customers`."
       },
+      "CreateInvoiceRequest": {
+        "required": [
+          "lines"
+        ],
+        "type": "object",
+        "properties": {
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceLineRequest"
+            },
+            "description": "What to charge for — time on the job, and parts fitted."
+          }
+        },
+        "description": "The body of `POST /jobs/{id}/invoice`. The job comes from the route."
+      },
       "CreateJobRequest": {
         "required": [
           "customerId",
@@ -805,6 +892,44 @@
         },
         "description": "The body of `POST /schedule/insert`: an emergency, named by the job it is for."
       },
+      "InvoiceLineRequest": {
+        "required": [
+          "kind",
+          "description",
+          "quantity",
+          "unitPrice"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "description": "Labour or a part.",
+            "$ref": "#/components/schemas/LineItemKind"
+          },
+          "description": {
+            "type": "string",
+            "description": "What it says on the invoice."
+          },
+          "quantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "How many — hours for labour, units for parts. Fractions are ordinary.",
+            "format": "double"
+          },
+          "unitPrice": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "The price of one, in whole currency units (dollars, not cents). Negative for a discount.",
+            "format": "double"
+          }
+        },
+        "description": "One line to bill, as submitted to `POST /jobs/{id}/invoice`."
+      },
       "JobPriority": {
         "enum": [
           "Low",
@@ -827,6 +952,13 @@
           "Cancelled"
         ],
         "description": "Where a job has got to in its life, as the clients see it."
+      },
+      "LineItemKind": {
+        "enum": [
+          "Labor",
+          "Part"
+        ],
+        "description": "What a billed line is for, as the clients see it."
       },
       "LoginRequest": {
         "required": [
@@ -1069,6 +1201,12 @@
     },
     {
       "name": "AuthEndpoints"
+    },
+    {
+      "name": "Invoicing"
+    },
+    {
+      "name": "Export"
     },
     {
       "name": "Customers"
