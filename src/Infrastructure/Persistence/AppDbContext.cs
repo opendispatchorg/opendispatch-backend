@@ -1,6 +1,9 @@
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
 using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Application.Sync;
 using OpenDispatch.Domain.Assignments;
+using OpenDispatch.Domain.Attachments;
 using OpenDispatch.Domain.Common;
 using OpenDispatch.Domain.Customers;
 using OpenDispatch.Domain.Identifiers;
@@ -25,10 +28,12 @@ namespace OpenDispatch.Infrastructure.Persistence;
 /// token. None of it leaks back the other way, so the domain still references nothing.
 /// </para>
 /// <para>
-/// There is a <see cref="DbSet{TEntity}"/> per aggregate root and nothing else. Owned children —
-/// a customer's service locations, an invoice's line items — are reached through their root, and
-/// aggregates reference each other by id, so a set for them would be an invitation to load one
-/// outside the boundary that keeps it consistent.
+/// There is a <see cref="DbSet{TEntity}"/> per aggregate root, and one that is not: owned
+/// children — a customer's service locations, an invoice's line items — are reached through
+/// their root, and aggregates reference each other by id, so a set for them would be an
+/// invitation to load one outside the boundary that keeps it consistent. The sync op log is
+/// neither a root nor a child of one. It is the protocol's own record of what devices have
+/// already done, and the only way to reach it is a set of its own.
 /// </para>
 /// </remarks>
 public sealed class AppDbContext : DbContext
@@ -70,6 +75,24 @@ public sealed class AppDbContext : DbContext
     /// <summary>The tenants. Every other row in the database is scoped by one of these.</summary>
     public DbSet<Organization> Organizations => Set<Organization>();
 
+    /// <summary>
+    /// What technicians' devices have already done. Written once per applied operation and never
+    /// edited; it exists so that pushing the same operation twice changes nothing the second time.
+    /// </summary>
+    public DbSet<SyncOpRecord> SyncOps => Set<SyncOpRecord>();
+
+    /// <summary>
+    /// What technicians captured in the field, minus the bytes: those live behind
+    /// <c>IAttachmentStorage</c>, because a row is not where a photograph belongs.
+    /// </summary>
+    public DbSet<Attachment> Attachments => Set<Attachment>();
+
+    /// <summary>
+    /// Notes saying a stop is gone. The one thing pull cannot read off a row, because the row is
+    /// what went.
+    /// </summary>
+    public DbSet<SyncRemoval> SyncRemovals => Set<SyncRemoval>();
+
     /// <inheritdoc />
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -77,12 +100,15 @@ public sealed class AppDbContext : DbContext
         // once for the whole model rather than per property, so a JobId column is a JobId column
         // wherever one appears and no per-aggregate configuration has to name a converter.
         configurationBuilder.Properties<AssignmentId>().HaveConversion<AssignmentIdConverter>();
+        configurationBuilder.Properties<AttachmentId>().HaveConversion<AttachmentIdConverter>();
         configurationBuilder.Properties<CustomerId>().HaveConversion<CustomerIdConverter>();
         configurationBuilder.Properties<InvoiceId>().HaveConversion<InvoiceIdConverter>();
         configurationBuilder.Properties<JobId>().HaveConversion<JobIdConverter>();
+        configurationBuilder.Properties<JobLineId>().HaveConversion<JobLineIdConverter>();
         configurationBuilder.Properties<LineItemId>().HaveConversion<LineItemIdConverter>();
         configurationBuilder.Properties<OrgId>().HaveConversion<OrgIdConverter>();
         configurationBuilder.Properties<ServiceLocationId>().HaveConversion<ServiceLocationIdConverter>();
+        configurationBuilder.Properties<SyncOpId>().HaveConversion<SyncOpIdConverter>();
         configurationBuilder.Properties<TechnicianId>().HaveConversion<TechnicianIdConverter>();
 
         // The value objects. Document 2 §6 calls these owned types, which is what EF called value
@@ -95,6 +121,7 @@ public sealed class AppDbContext : DbContext
         // round-trip perfectly well and be unusable by PostGIS. The third, TimeWindow, is
         // genuinely two instants and cannot be registered here at all; see TimeWindowMapping.
         configurationBuilder.Properties<Money>().HaveConversion<MoneyConverter>();
+        configurationBuilder.Properties<StorageKey>().HaveConversion<StorageKeyConverter>();
         configurationBuilder.Properties<GeoPoint>()
             .HaveConversion<GeoPointConverter>()
             .HaveColumnType(GeoPointConverter.ColumnType);
@@ -122,6 +149,7 @@ public sealed class AppDbContext : DbContext
         // Last, so they reach every type in the model however it got there — including the ones
         // whose configurations have not been written yet.
         AggregateRootConventions.Apply(modelBuilder);
+        ChangeStamps.Apply(modelBuilder);
         TenantQueryFilters.Apply(modelBuilder, this);
     }
 
@@ -157,15 +185,58 @@ public sealed class AppDbContext : DbContext
     /// @original</c>. A root inserted this transaction keeps the version it was constructed
     /// with.
     /// </para>
+    /// <para>
+    /// A change to something a root <em>owns</em> counts as a change to the root, which EF does
+    /// not say by itself: appending a line to a job leaves the job's own entry <c>Unchanged</c>
+    /// until the update is built, so a version that only followed the entry would sit still while
+    /// the row underneath it moved. That matters most to the thing furthest from here — a
+    /// technician's phone, which is told what to base its next operation on by reading a version.
+    /// </para>
     /// </remarks>
     private void StampVersions()
     {
         foreach (var entry in ChangeTracker.Entries<AggregateRoot>())
         {
-            if (entry.State is EntityState.Modified)
+            var changed = entry.State switch
+            {
+                EntityState.Modified => true,
+
+                // Added and Deleted are deliberately not here: a root created in this transaction
+                // keeps the version it was constructed with, and one being removed has nothing
+                // left to stamp.
+                EntityState.Unchanged => OwnsSomethingChanged(entry),
+                _ => false,
+            };
+
+            if (changed)
             {
                 entry.Entity.BumpVersion();
             }
         }
     }
+
+    /// <summary>
+    /// Whether anything this root owns — a service location, an invoice line, a line recorded in
+    /// the field — has been added or edited in this transaction.
+    /// </summary>
+    /// <remarks>
+    /// Walked from the root rather than from the tracked children, because a child does not know
+    /// its owner: EF gives a dependent no navigation back, and finding one by foreign key would be
+    /// a key comparison written by hand. The cost of the direction is that a <em>removed</em> child
+    /// is invisible here, having already left the collection — nothing in the application removes
+    /// one today, and the day something does, it is the aggregate's own method that will need to
+    /// say so.
+    /// </remarks>
+    private bool OwnsSomethingChanged(EntityEntry<AggregateRoot> root) =>
+        root.Collections
+            .Concat<NavigationEntry>(root.References)
+            .Where(navigation => navigation.Metadata.TargetEntityType.IsOwned())
+            .SelectMany(Owned)
+            .Any(child => Entry(child).State is not EntityState.Unchanged);
+
+    private static IEnumerable<object> Owned(NavigationEntry navigation) => navigation switch
+    {
+        CollectionEntry collection => collection.CurrentValue?.Cast<object>() ?? [],
+        _ => navigation.CurrentValue is { } only ? [only] : [],
+    };
 }

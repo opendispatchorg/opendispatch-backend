@@ -37,6 +37,8 @@ public sealed class JobStateMachineTests
     [InlineData(JobStatus.EnRoute, JobStatus.Cancelled)]
     [InlineData(JobStatus.InProgress, JobStatus.Completed)]
     [InlineData(JobStatus.InProgress, JobStatus.Cancelled)]
+    [InlineData(JobStatus.Scheduled, JobStatus.Unscheduled)]   // the optimiser withdrew the plan
+    [InlineData(JobStatus.Dispatched, JobStatus.Unscheduled)]  // ...even after the phone was told
     public void LegalTransitionMovesTheJobAndRaisesItsEvent(JobStatus from, JobStatus to)
     {
         var job = JobBuilder.Any().InStatus(from).Build();
@@ -59,6 +61,9 @@ public sealed class JobStateMachineTests
     [InlineData(JobStatus.Completed, JobStatus.Scheduled)]     // doing it again is a new job
     [InlineData(JobStatus.Cancelled, JobStatus.Scheduled)]     // terminal
     [InlineData(JobStatus.Cancelled, JobStatus.Cancelled)]     // cancelling twice
+    [InlineData(JobStatus.EnRoute, JobStatus.Unscheduled)]      // the day belongs to the technician
+    [InlineData(JobStatus.InProgress, JobStatus.Unscheduled)]   // work under way is not demand
+    [InlineData(JobStatus.Completed, JobStatus.Unscheduled)]    // doing it again is a new job
     public void IllegalTransitionThrowsAndLeavesTheJobExactlyAsItWas(JobStatus from, JobStatus to)
     {
         var job = JobBuilder.Any().InStatus(from).Build();
@@ -87,10 +92,11 @@ public sealed class JobStateMachineTests
             JobStatus.Cancelled,
         ];
 
-        // Every status an intent method can reach, which since step 40 is every status but the
-        // one a job starts in.
+        // Every status an intent method can reach, which since the plan can be withdrawn is all
+        // nine — a job starts Unscheduled and can also be put back there.
         JobStatus[] to =
         [
+            JobStatus.Unscheduled,
             JobStatus.Scheduled,
             JobStatus.Dispatched,
             JobStatus.EnRoute,
@@ -196,6 +202,9 @@ public sealed class JobStateMachineTests
     {
         switch (target)
         {
+            case JobStatus.Unscheduled:
+                job.Unschedule();
+                break;
             case JobStatus.Scheduled:
                 job.Schedule();
                 break;
@@ -237,6 +246,7 @@ public sealed class JobStateMachineTests
         JobInProgress inProgress => inProgress.JobId,
         JobCompleted completed => completed.JobId,
         JobCancelled cancelled => cancelled.JobId,
+        JobUnscheduled unscheduled => unscheduled.JobId,
         _ => throw new ArgumentOutOfRangeException(
             nameof(raised), raised, "Not an event a job raises."),
     };
@@ -249,6 +259,7 @@ public sealed class JobStateMachineTests
         JobStatus.InProgress => typeof(JobInProgress),
         JobStatus.Completed => typeof(JobCompleted),
         JobStatus.Cancelled => typeof(JobCancelled),
+        JobStatus.Unscheduled => typeof(JobUnscheduled),
         _ => throw new ArgumentOutOfRangeException(
             nameof(status), status, "No intent method moves a job to this status yet."),
     };

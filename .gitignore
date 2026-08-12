@@ -438,3 +438,7 @@ opendispatch-02-backend-architecture.md
 opendispatch-03-backend-build-plan.md
 
 .idea/.idea.OpenDispatch/
+
+# Attachment content written by a locally-run host. The default Attachments:Root is relative,
+# so `make run` puts photographs and signatures under the Api project; they are data, not source.
+src/Api/attachments/

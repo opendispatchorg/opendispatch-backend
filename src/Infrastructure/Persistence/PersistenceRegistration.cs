@@ -75,11 +75,22 @@ public static class PersistenceRegistration
         services.AddScoped<ITechnicianRepository, TechnicianRepository>();
         services.AddScoped<ICustomerRepository, CustomerRepository>();
         services.AddScoped<IInvoiceRepository, InvoiceRepository>();
+        services.AddScoped<IAttachmentRepository, AttachmentRepository>();
         services.AddScoped<IUnitOfWork, UnitOfWork>();
 
         // A read port rather than a repository, and scoped like them because it shares the
         // request's context: the board is read inside the same tenant scope everything else is.
         services.AddScoped<IDispatchBoardReadModel, DispatchBoardReadModel>();
+
+        // The op log stages like a repository and is committed by the same unit of work, so that
+        // the record of an operation and its effect land together. The cursor source shares the
+        // context for a different reason: a watermark is only true of the connection that asked.
+        services.AddScoped<ISyncOpStore, SyncOpStore>();
+        services.AddScoped<ISyncCursorSource, SyncCursorSource>();
+
+        // A read port like the board's, and scoped for the same reason: the watermark and the
+        // changes read against it have to come from one connection to describe one moment.
+        services.AddScoped<ISyncChangeReader, SyncChangeReader>();
 
         return services;
     }

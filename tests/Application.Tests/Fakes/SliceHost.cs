@@ -1,9 +1,11 @@
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Application.Sync;
 using OpenDispatch.Application.Tests.Customers;
 using OpenDispatch.Application.Tests.Invoicing;
 using OpenDispatch.Application.Tests.Jobs;
+using OpenDispatch.Application.Tests.Sync;
 using OpenDispatch.Application.Tests.Technicians;
 using OpenDispatch.Domain.Assignments;
 using OpenDispatch.Domain.Customers;
@@ -116,6 +118,27 @@ internal sealed class SliceHost : IAsyncDisposable
         .AddScoped<IInvoiceRepository, FakeInvoiceRepository>()
         .AddSingleton<ControllableGateway>()
         .AddSingleton<IPaymentGateway>(provider => provider.GetRequiredService<ControllableGateway>()));
+
+    /// <summary>
+    /// The sync slice: jobs and their customers, the op log a push dedupes against, and a cursor
+    /// source that moves.
+    /// </summary>
+    /// <remarks>
+    /// Customers are here for the same reason as in <see cref="Jobs"/> — a job is arranged through
+    /// the slices that own it — and not because sync touches a customer.
+    /// </remarks>
+    public static SliceHost Sync() => new(services => services
+        .AddStore<Job>(job => job.OrgId)
+        .AddScoped<IJobRepository, FakeJobRepository>()
+        .AddStore<Customer>(customer => customer.OrgId)
+        .AddScoped<ICustomerRepository, FakeCustomerRepository>()
+        .AddStore<SyncOpRecord>(op => op.OrgId)
+        .AddScoped<ISyncOpStore, FakeSyncOpStore>()
+        .AddSingleton<CallOrder>()
+        .AddSingleton<SteppingCursors>()
+        .AddSingleton<ISyncCursorSource>(provider => provider.GetRequiredService<SteppingCursors>())
+        .AddSingleton<RecordingChangeReader>()
+        .AddSingleton<ISyncChangeReader>(provider => provider.GetRequiredService<RecordingChangeReader>()));
 
     /// <summary>What the fake database holds for one aggregate.</summary>
     /// <typeparam name="TAggregate">The aggregate root being stored.</typeparam>

@@ -25,11 +25,119 @@ namespace OpenDispatch.Infrastructure.Persistence.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "postgis");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("OpenDispatch.Application.Sync.SyncOpRecord", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<DateTimeOffset>("AppliedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("applied_at");
+
+                    b.Property<long>("BaseVersion")
+                        .HasColumnType("bigint")
+                        .HasColumnName("base_version");
+
+                    b.Property<long>("ChangeSeq")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasColumnName("change_seq")
+                        .HasDefaultValueSql("pg_current_xact_id()::text::bigint");
+
+                    b.Property<DateTimeOffset>("ClientTs")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("client_ts");
+
+                    b.Property<string>("Entity")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("entity");
+
+                    b.Property<Guid>("EntityId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("entity_id");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
+                    b.Property<string>("Payload")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("payload");
+
+                    b.Property<Guid>("TechnicianId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("technician_id");
+
+                    b.Property<string>("Type")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("type");
+
+                    b.HasKey("Id")
+                        .HasName("pk_sync_ops");
+
+                    b.HasIndex("OrgId")
+                        .HasDatabaseName("ix_sync_ops_org_id");
+
+                    b.ToTable("sync_ops", (string)null);
+                });
+
+            modelBuilder.Entity("OpenDispatch.Application.Sync.SyncRemoval", b =>
+                {
+                    b.Property<Guid>("EntityId")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("entity_id");
+
+                    b.Property<long>("ChangeSeq")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasColumnName("change_seq")
+                        .HasDefaultValueSql("pg_current_xact_id()::text::bigint");
+
+                    b.Property<string>("Entity")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("entity");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
+                    b.Property<DateTimeOffset>("RemovedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("removed_at");
+
+                    b.Property<Guid>("TechnicianId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("technician_id");
+
+                    b.HasKey("EntityId")
+                        .HasName("pk_sync_removals");
+
+                    b.HasIndex("OrgId")
+                        .HasDatabaseName("ix_sync_removals_org_id");
+
+                    b.HasIndex("TechnicianId")
+                        .HasDatabaseName("ix_sync_removals_technician_id");
+
+                    b.ToTable("sync_removals", (string)null);
+                });
+
             modelBuilder.Entity("OpenDispatch.Domain.Assignments.Assignment", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<long>("ChangeSeq")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasColumnName("change_seq")
+                        .HasDefaultValueSql("pg_current_xact_id()::text::bigint");
 
                     b.Property<Guid>("JobId")
                         .HasColumnType("uuid")
@@ -73,11 +181,67 @@ namespace OpenDispatch.Infrastructure.Persistence.Migrations
                     b.ToTable("assignments", (string)null);
                 });
 
+            modelBuilder.Entity("OpenDispatch.Domain.Attachments.Attachment", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<long>("ChangeSeq")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasColumnName("change_seq")
+                        .HasDefaultValueSql("pg_current_xact_id()::text::bigint");
+
+                    b.Property<DateTimeOffset>("CreatedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("created_at");
+
+                    b.Property<Guid>("JobId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("job_id");
+
+                    b.Property<int>("Kind")
+                        .HasColumnType("integer")
+                        .HasColumnName("kind");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
+                    b.Property<string>("StorageKey")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("storage_key");
+
+                    b.Property<long>("Version")
+                        .IsConcurrencyToken()
+                        .HasColumnType("bigint")
+                        .HasColumnName("version");
+
+                    b.HasKey("Id")
+                        .HasName("pk_attachments");
+
+                    b.HasIndex("JobId")
+                        .HasDatabaseName("ix_attachments_job_id");
+
+                    b.HasIndex("OrgId")
+                        .HasDatabaseName("ix_attachments_org_id");
+
+                    b.ToTable("attachments", (string)null);
+                });
+
             modelBuilder.Entity("OpenDispatch.Domain.Customers.Customer", b =>
                 {
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<long>("ChangeSeq")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasColumnName("change_seq")
+                        .HasDefaultValueSql("pg_current_xact_id()::text::bigint");
 
                     b.Property<string>("Name")
                         .IsRequired()
@@ -121,6 +285,12 @@ namespace OpenDispatch.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<long>("ChangeSeq")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasColumnName("change_seq")
+                        .HasDefaultValueSql("pg_current_xact_id()::text::bigint");
+
                     b.Property<DateTimeOffset>("Issued")
                         .HasColumnType("timestamp with time zone")
                         .HasColumnName("issued");
@@ -157,6 +327,12 @@ namespace OpenDispatch.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<long>("ChangeSeq")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasColumnName("change_seq")
+                        .HasDefaultValueSql("pg_current_xact_id()::text::bigint");
+
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid")
                         .HasColumnName("customer_id");
@@ -173,6 +349,14 @@ namespace OpenDispatch.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("LocationId")
                         .HasColumnType("uuid")
                         .HasColumnName("location_id");
+
+                    b.Property<string>("Notes")
+                        .HasColumnType("text")
+                        .HasColumnName("notes");
+
+                    b.Property<DateTimeOffset?>("NotesRecordedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("notes_recorded_at");
 
                     b.Property<Guid>("OrgId")
                         .HasColumnType("uuid")
@@ -229,6 +413,12 @@ namespace OpenDispatch.Infrastructure.Persistence.Migrations
                         .HasColumnType("uuid")
                         .HasColumnName("id");
 
+                    b.Property<long>("ChangeSeq")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasColumnName("change_seq")
+                        .HasDefaultValueSql("pg_current_xact_id()::text::bigint");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text")
@@ -250,6 +440,12 @@ namespace OpenDispatch.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("Id")
                         .HasColumnType("uuid")
                         .HasColumnName("id");
+
+                    b.Property<long>("ChangeSeq")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasColumnName("change_seq")
+                        .HasDefaultValueSql("pg_current_xact_id()::text::bigint");
 
                     b.Property<Point>("HomeBase")
                         .IsRequired()
@@ -315,6 +511,12 @@ namespace OpenDispatch.Infrastructure.Persistence.Migrations
                                 .HasColumnType("text")
                                 .HasColumnName("address");
 
+                            b1.Property<long>("ChangeSeq")
+                                .ValueGeneratedOnAddOrUpdate()
+                                .HasColumnType("bigint")
+                                .HasColumnName("change_seq")
+                                .HasDefaultValueSql("pg_current_xact_id()::text::bigint");
+
                             b1.Property<Guid>("CustomerId")
                                 .HasColumnType("uuid")
                                 .HasColumnName("customer_id");
@@ -358,6 +560,12 @@ namespace OpenDispatch.Infrastructure.Persistence.Migrations
                                 .HasColumnType("uuid")
                                 .HasColumnName("id");
 
+                            b1.Property<long>("ChangeSeq")
+                                .ValueGeneratedOnAddOrUpdate()
+                                .HasColumnType("bigint")
+                                .HasColumnName("change_seq")
+                                .HasDefaultValueSql("pg_current_xact_id()::text::bigint");
+
                             b1.Property<string>("Description")
                                 .IsRequired()
                                 .HasColumnType("text")
@@ -390,6 +598,45 @@ namespace OpenDispatch.Infrastructure.Persistence.Migrations
                             b1.WithOwner()
                                 .HasForeignKey("InvoiceId")
                                 .HasConstraintName("fk_line_items_invoices_invoice_id");
+                        });
+
+                    b.Navigation("Lines");
+                });
+
+            modelBuilder.Entity("OpenDispatch.Domain.Jobs.Job", b =>
+                {
+                    b.OwnsMany("OpenDispatch.Domain.Jobs.JobLine", "Lines", b1 =>
+                        {
+                            b1.Property<Guid>("JobId");
+
+                            b1.Property<int>("__synthesizedOrdinal")
+                                .ValueGeneratedOnAdd();
+
+                            b1.Property<string>("Description")
+                                .IsRequired();
+
+                            b1.Property<Guid>("Id");
+
+                            b1.Property<int>("Kind");
+
+                            b1.Property<decimal>("Quantity");
+
+                            b1.Property<DateTimeOffset>("RecordedAt");
+
+                            b1.Property<long>("UnitPrice");
+
+                            b1.HasKey("JobId", "__synthesizedOrdinal")
+                                .HasName("pk_jobs");
+
+                            b1.ToTable("jobs");
+
+                            b1
+                                .ToJson("lines")
+                                .HasColumnType("jsonb");
+
+                            b1.WithOwner()
+                                .HasForeignKey("JobId")
+                                .HasConstraintName("fk_jobs_jobs_job_id");
                         });
 
                     b.Navigation("Lines");

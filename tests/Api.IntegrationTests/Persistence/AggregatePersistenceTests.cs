@@ -68,6 +68,45 @@ public sealed class AggregatePersistenceTests
         Assert.Equal(-0.1281, loaded.Location.Lng, precision: 6);
     }
 
+    /// <summary>
+    /// What a technician records in the field, which is the one collection in the system stored
+    /// as JSON on its owner's row rather than in a table of its own.
+    /// </summary>
+    /// <remarks>
+    /// Worth its own test because the JSON document has to carry the same converted values a
+    /// column would — a typed id, <c>Money</c> as cents, an instant in UTC — and there is no
+    /// column type to catch it if one arrives as something else.
+    /// </remarks>
+    [Fact]
+    public async Task RoundTripsWhatWasRecordedInTheField()
+    {
+        var recordedAt = new DateTimeOffset(2026, 8, 10, 14, 30, 0, TimeSpan.FromHours(-5));
+        var job = JobBuilder.Any().ForOrg(_tenant).Build();
+        job.RecordNotes("Meter behind the boiler; access via side gate.", recordedAt);
+        job.RecordLine(LineItemKind.Labor, "Diagnostic", 1.5m, Money.FromDollars(95m), recordedAt);
+        job.RecordLine(LineItemKind.Part, "Run capacitor 45/5", 2m, Money.FromDollars(28.50m), recordedAt);
+
+        await SaveAsync(context => context.Jobs.Add(job));
+
+        await using var read = NewContext();
+        var loaded = await read.Jobs.SingleAsync(j => j.Id == job.Id);
+
+        Assert.Equal("Meter behind the boiler; access via side gate.", loaded.Notes);
+        Assert.Equal(recordedAt, loaded.NotesRecordedAt);
+        Assert.Equal(2, loaded.Lines.Count);
+
+        var labour = loaded.Lines[0];
+        Assert.Equal(job.Lines[0].Id, labour.Id);
+        Assert.Equal(LineItemKind.Labor, labour.Kind);
+        Assert.Equal("Diagnostic", labour.Description);
+        Assert.Equal(1.5m, labour.Quantity);
+        Assert.Equal(9_500L, labour.UnitPrice.Cents);
+        Assert.Equal(recordedAt, labour.RecordedAt);
+
+        // The order they were recorded in survives, which is the only thing a list of them means.
+        Assert.Equal(5_700L, loaded.Lines[1].LineTotal.Cents);
+    }
+
     [Fact]
     public async Task RoundTripsAnAssignment()
     {

@@ -8,10 +8,11 @@ namespace OpenDispatch.Application.Jobs.ChangeJobStatus;
 /// </summary>
 /// <remarks>
 /// <para>
-/// It refuses a status this request cannot drive — <c>Unscheduled</c>, which nothing returns to,
-/// and <c>Invoiced</c> and <c>Paid</c>, which invoicing drives through the invoice aggregate. That
-/// is a malformed request rather than a conflict: the caller asked this endpoint for something it
-/// does not do, whatever state the job happens to be in.
+/// It refuses a status this request cannot drive — <c>Unscheduled</c>, which only the optimiser
+/// returns a job to when it withdraws a plan, and <c>Invoiced</c> and <c>Paid</c>, which invoicing
+/// drives through the invoice aggregate. That is a malformed request rather than a conflict: the
+/// caller asked this endpoint for something it does not do, whatever state the job happens to be
+/// in. A dispatcher who wants work out of a day drags it or cancels it.
 /// </para>
 /// <para>
 /// It does <em>not</em> check whether the move is legal from where the job is now. That needs the

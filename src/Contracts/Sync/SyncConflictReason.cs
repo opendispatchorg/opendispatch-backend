@@ -7,16 +7,23 @@ namespace OpenDispatch.Contracts.Sync;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Two, because the conflict policy has two halves (Document 2 §10): status is governed by
+/// Two of these are the conflict policy's two halves (Document 2 §10): status is governed by
 /// the state machine, and everything else is governed by versions. An operation that had
 /// already been applied is not here — that is idempotency working, and the device is told it
 /// succeeded.
 /// </para>
 /// <para>
-/// The two are separate because a client should treat them differently. An illegal transition
+/// They are separate because a client should treat them differently. An illegal transition
 /// is final and the device's copy of the job is simply wrong; a version conflict means
 /// somebody else got there first, and the technician may well want to do it again once they
 /// have seen the newer state.
+/// </para>
+/// <para>
+/// <see cref="Unsupported"/> is the third, and it is here because the alternative is a poisoned
+/// queue. <c>SyncOp.Entity</c> and <c>SyncOp.Type</c> are strings precisely so a device can name
+/// an operation this server has never heard of; without a way to refuse exactly that operation,
+/// the only answer left is to reject the whole batch, and a device that keeps re-sending the
+/// batch it cannot get rid of never syncs the rest of the technician's day either.
 /// </para>
 /// </remarks>
 [JsonConverter(typeof(JsonStringEnumConverter<SyncConflictReason>))]
@@ -34,4 +41,16 @@ public enum SyncConflictReason
     /// server holds stands, and the device rebases onto it.
     /// </summary>
     VersionConflict = 1,
+
+    /// <summary>
+    /// The server cannot apply this operation at all: it does not know that kind of operation,
+    /// or cannot read its payload, or does not have the thing it names.
+    /// </summary>
+    /// <remarks>
+    /// One reason rather than three, because a device does the same thing with all of them —
+    /// drop the operation, because retrying it will fail identically forever. The message says
+    /// which, for the technician and for whoever reads the logs. Unlike the other two, this one
+    /// says nothing about the state of the world: it is the server declining to guess.
+    /// </remarks>
+    Unsupported = 2,
 }

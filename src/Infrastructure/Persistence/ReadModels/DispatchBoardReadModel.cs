@@ -138,7 +138,14 @@ internal sealed class DispatchBoardReadModel(AppDbContext context) : IDispatchBo
                                 stop.Id,
                                 stop.Sequence,
                                 stop.ScheduledStart,
+
+                                // Answered here, by the domain's own rule, rather than left for
+                                // the board to derive — the optimiser charges for lateness using
+                                // the same method, and two opinions of one promise is a stop the
+                                // engine thought was on time drawn in red.
                                 stop.TravelMin,
+                                new TimeWindow(stop.Job.WindowStart, stop.Job.WindowEnd)
+                                    .LatenessOf(stop.ScheduledStart),
                                 new BoardJob(
                                     stop.Job.Id,
                                     stop.Job.Status,

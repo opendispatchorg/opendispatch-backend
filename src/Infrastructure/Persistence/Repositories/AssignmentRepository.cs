@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Application.Sync;
 using OpenDispatch.Domain.Assignments;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.ValueObjects;
@@ -7,14 +8,36 @@ using OpenDispatch.Domain.ValueObjects;
 namespace OpenDispatch.Infrastructure.Persistence.Repositories;
 
 /// <inheritdoc cref="IAssignmentRepository"/>
-internal sealed class AssignmentRepository(AppDbContext context) : IAssignmentRepository
+internal sealed class AssignmentRepository(AppDbContext context, IClock clock) : IAssignmentRepository
 {
     public Task<Assignment?> GetAsync(AssignmentId id, CancellationToken ct) =>
         context.Assignments.FirstOrDefaultAsync(assignment => assignment.Id == id, ct);
 
     public void Add(Assignment assignment) => context.Assignments.Add(assignment);
 
-    public void Remove(Assignment assignment) => context.Assignments.Remove(assignment);
+    /// <remarks>
+    /// <para>
+    /// Removing a stop writes a note that it went, in the same save. This is the one place a stop
+    /// is deleted, and after the transaction commits there is nothing left to infer from: pull
+    /// answers "what changed?" by reading rows and their stamps, and a deleted row has neither. A
+    /// technician whose stop was dropped by a re-optimisation would keep it on their phone and
+    /// drive to it.
+    /// </para>
+    /// <para>
+    /// It is here rather than in the handler that decided to drop the stop because there is only
+    /// one of those today and there will be more; a note that has to be remembered is a note
+    /// somebody eventually forgets, and the symptom is a wasted callout rather than an error.
+    /// </para>
+    /// </remarks>
+    public void Remove(Assignment assignment)
+    {
+        context.Assignments.Remove(assignment);
+        context.SyncRemovals.Add(SyncRemoval.OfStop(
+            assignment.Id,
+            assignment.OrgId,
+            assignment.TechnicianId,
+            clock.UtcNow));
+    }
 
     /// <remarks>
     /// <c>SingleOrDefault</c> rather than <c>FirstOrDefault</c>: the port promises at most one

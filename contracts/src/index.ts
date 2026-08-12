@@ -165,6 +165,11 @@ export const SyncConflictReason = {
    * server holds stands, and the device rebases onto it.
    */
   VersionConflict: 'VersionConflict',
+  /**
+   * The server cannot apply this operation at all: it does not know that kind of operation, or
+   * cannot read its payload, or does not have the thing it names.
+   */
+  Unsupported: 'Unsupported',
 } as const;
 
 export type SyncConflictReason = (typeof SyncConflictReason)[keyof typeof SyncConflictReason];
@@ -254,8 +259,8 @@ export interface SyncPushResponse {
  */
 export const jobTransitions: Readonly<Record<JobStatus, readonly JobStatus[]>> = {
   Unscheduled: ['Scheduled', 'Cancelled'],
-  Scheduled: ['Dispatched', 'Cancelled'],
-  Dispatched: ['EnRoute', 'Cancelled'],
+  Scheduled: ['Unscheduled', 'Dispatched', 'Cancelled'],
+  Dispatched: ['Unscheduled', 'EnRoute', 'Cancelled'],
   EnRoute: ['InProgress', 'Cancelled'],
   InProgress: ['Completed', 'Cancelled'],
   Completed: ['Invoiced'],

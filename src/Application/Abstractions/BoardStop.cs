@@ -17,14 +17,21 @@ namespace OpenDispatch.Application.Abstractions;
 /// and why the block below can be derived rather than flagged.
 /// </param>
 /// <param name="TravelMin">Minutes of driving to get here from the previous stop.</param>
-/// <param name="Job">
-/// What the visit is for. Deliberately not late/on-time: whether a stop counts as late is a
-/// rule with one right answer, and until the domain states it, the board would be inventing
-/// a second one. Everything needed to derive it is here.
+/// <param name="LateBy">
+/// How far past the promised window the work is planned to begin, or zero when it begins inside
+/// it.
 /// </param>
+/// <param name="Job">What the visit is for.</param>
+/// <remarks>
+/// <see cref="LateBy"/> is the answer rather than the ingredients, and that is the point. Whether a
+/// stop counts as late is a rule with one right answer — <c>TimeWindow.LatenessOf</c>, which the
+/// optimiser also charges for — and a board that derived it client-side would be a second opinion
+/// of the same promise, drawn beside blocks the engine priced by the first one.
+/// </remarks>
 public sealed record BoardStop(
     AssignmentId AssignmentId,
     int Sequence,
     DateTimeOffset ScheduledStart,
     double TravelMin,
+    TimeSpan LateBy,
     BoardJob Job);

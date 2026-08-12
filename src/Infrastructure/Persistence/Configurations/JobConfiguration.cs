@@ -25,6 +25,21 @@ internal sealed class JobConfiguration : IEntityTypeConfiguration<Job>
         // is two timestamptz columns, window_start and window_end.
         builder.HasTimeWindow(job => job.Window);
 
+        // What the work took, as one jsonb column on the job rather than a table beside it.
+        //
+        // Two reasons, and the second is the load-bearing one. They are never read without the
+        // job and never queried on their own — an invoice raised from the work reads the whole
+        // job — so a table would buy joins nobody makes. And being part of the job's own row is
+        // what makes a recorded line a change *to the job*: the version stamp moves and the sync
+        // change stamp moves, so a phone that added a part is told about it by the same mechanism
+        // that tells it about a status. A separate table would leave both untouched, because
+        // adding a child does not modify its parent's row.
+        builder.OwnsMany(job => job.Lines, lines =>
+        {
+            lines.ToJson("lines");
+            lines.Ignore(line => line.LineTotal);
+        });
+
         // Every query that is not by primary key is scoped to an organisation, because step 29's
         // global filter puts it there whether the query asked or not.
         builder.HasIndex(job => job.OrgId);

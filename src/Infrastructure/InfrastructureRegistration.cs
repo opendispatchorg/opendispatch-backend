@@ -1,5 +1,6 @@
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Infrastructure.Attachments;
 using OpenDispatch.Infrastructure.Payments;
 using OpenDispatch.Infrastructure.Persistence;
 using OpenDispatch.Infrastructure.Time;
@@ -14,7 +15,7 @@ namespace OpenDispatch.Infrastructure;
 /// <remarks>
 /// <para>
 /// It exists because the count went from one to three in two steps: persistence, then a clock,
-/// then a travel-time provider. Three registrations called from two places — the composition root
+/// then a travel-time provider — and attachment storage since. Registrations called from two places — the composition root
 /// and the integration harness that stands in for it — is three chances for the harness to compose
 /// half a host and for a test to pass against a system nobody runs.
 /// </para>
@@ -30,12 +31,21 @@ public static class InfrastructureRegistration
     /// </summary>
     /// <param name="services">The host's service collection.</param>
     /// <param name="connectionString">Reads the connection string once the container is built.</param>
+    /// <param name="attachmentRoot">
+    /// Reads the directory attachment content is stored under, once the container is built.
+    /// </param>
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
-        Func<IServiceProvider, string> connectionString) =>
+        Func<IServiceProvider, string> connectionString,
+        Func<IServiceProvider, string> attachmentRoot) =>
         services
             .AddPersistence(connectionString)
             .AddSystemClock()
+
+            // Photographs and signatures on a local disk, which is the whole answer for a shop
+            // hosting this itself (Document 1). A bucket adapter is one class beside it and this
+            // line changed; nothing above the port knows the difference.
+            .AddLocalAttachmentStorage(attachmentRoot)
 
             // Straight-line travel: the default that ships with the engine and needs no
             // infrastructure at all. The road-network provider Document 2 §4 describes is a class
