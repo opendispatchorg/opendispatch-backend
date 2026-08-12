@@ -25,6 +25,29 @@
           }
         }
       }
+    },
+    "/auth/login": {
+      "post": {
+        "tags": [
+          "AuthEndpoints"
+        ],
+        "operationId": "Login",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/LoginRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -44,12 +67,33 @@
           }
         },
         "description": "The payload returned by `GET /health`."
+      },
+      "LoginRequest": {
+        "required": [
+          "username",
+          "password"
+        ],
+        "type": "object",
+        "properties": {
+          "username": {
+            "type": "string",
+            "description": "Whoever is asking."
+          },
+          "password": {
+            "type": "string",
+            "description": "Proof it is them."
+          }
+        },
+        "description": "The body of `POST /auth/login`."
       }
     }
   },
   "tags": [
     {
       "name": "OpenDispatch.Api"
+    },
+    {
+      "name": "AuthEndpoints"
     }
   ]
 }

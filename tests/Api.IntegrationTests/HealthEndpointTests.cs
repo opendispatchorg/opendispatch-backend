@@ -11,6 +11,7 @@ namespace OpenDispatch.Api.IntegrationTests;
 /// binding, startup validation and routing end to end rather than calling the endpoint
 /// delegate directly.
 /// </summary>
+[Collection(ApiHostCollectionDefinition.Name)]
 [Trait(TestCategories.Name, TestCategories.Integration)]
 public sealed class HealthEndpointTests : IClassFixture<ApiFactory>
 {

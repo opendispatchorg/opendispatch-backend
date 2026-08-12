@@ -1,6 +1,10 @@
 using Microsoft.AspNetCore.Hosting;
 using Microsoft.AspNetCore.Mvc.Testing;
 using Microsoft.Extensions.Configuration;
+using Microsoft.Extensions.DependencyInjection;
+using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Application.Auth;
+using OpenDispatch.Domain.Identifiers;
 
 namespace OpenDispatch.Api.IntegrationTests.Fixtures;
 
@@ -10,9 +14,10 @@ namespace OpenDispatch.Api.IntegrationTests.Fixtures;
 /// host-level test configuration from one place.
 /// </summary>
 /// <remarks>
-/// Helpers to seed an organization and users, issue a JWT and set the tenant belong here
-/// too — they are added alongside the features they exercise, since there is no auth,
-/// tenant context or Organization aggregate to seed yet.
+/// The user-seeding helper below belongs here per this class's own earlier remark: it is added
+/// alongside the feature it exercises, step 44, since there was no auth to seed for before it.
+/// Issuing a token and setting the tenant are still to come — step 44 has no
+/// <c>ITenantContext</c> caller, and step 45 is what will need the second.
 /// </remarks>
 public sealed class ApiFactory : WebApplicationFactory<Program>
 {
@@ -27,6 +32,30 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     /// public constructor.
     /// </remarks>
     public string? ConnectionString { get; set; }
+
+    /// <summary>
+    /// Seeds one user directly into the host's <see cref="IUserStore"/> — the store is an
+    /// in-memory singleton (Document 3, step 44), so this needs no database and survives for the
+    /// life of the factory, exactly like a real deployment's own seed.
+    /// </summary>
+    /// <param name="orgId">The tenant this user signs in as.</param>
+    /// <param name="username">Looked up case-insensitively; must be unique across the store.</param>
+    /// <param name="password">The plaintext password a test will post to <c>/auth/login</c>.</param>
+    /// <param name="role">What they are allowed to do.</param>
+    public async Task<AuthUser> SeedUserAsync(
+        OrgId orgId,
+        string username,
+        string password,
+        UserRole role)
+    {
+        var hasher = Services.GetRequiredService<IPasswordHasher>();
+        var users = Services.GetRequiredService<IUserStore>();
+
+        var user = new AuthUser(UserId.New(), orgId, username, hasher.Hash(password), role);
+        await users.AddAsync(user, CancellationToken.None).ConfigureAwait(false);
+
+        return user;
+    }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {

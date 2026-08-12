@@ -12,11 +12,11 @@ namespace OpenDispatch.Application.Results;
 /// enum and that map together.
 /// </para>
 /// <para>
-/// There are three, and none of them is "something went wrong". An unexpected failure is an
+/// Four now, and none of them is "something went wrong". An unexpected failure is an
 /// exception: it is not a result the caller was ever going to handle, and modelling it here
-/// would invite handlers to catch and downgrade bugs into 400s. Roles and authorisation arrive
-/// with auth in step 44 and will add their own category then, when there is something to
-/// refuse.
+/// would invite handlers to catch and downgrade bugs into 400s. <see cref="Unauthorized"/> is
+/// step 44's addition — the first category with something to refuse before it — and step 46
+/// still owns the one place the whole enum turns into a status code.
 /// </para>
 /// </remarks>
 public enum ErrorCategory
@@ -41,4 +41,13 @@ public enum ErrorCategory
     /// unchanged will fail the same way. Answered as 409.
     /// </summary>
     Conflict,
+
+    /// <summary>
+    /// The caller's credentials do not check out — an unknown username, a wrong password.
+    /// Answered as 401. This is deliberately not what a wrong <em>role</em> gets: that caller
+    /// is who they say they are and is refused by an authorization policy before a request
+    /// reaches a handler at all, so it never becomes a <see cref="Result"/> for this enum to
+    /// describe.
+    /// </summary>
+    Unauthorized,
 }

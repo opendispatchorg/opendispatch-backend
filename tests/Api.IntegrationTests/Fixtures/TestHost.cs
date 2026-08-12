@@ -3,6 +3,7 @@ using OpenDispatch.Application;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Infrastructure;
+using OpenDispatch.Infrastructure.Auth;
 
 namespace OpenDispatch.Api.IntegrationTests.Fixtures;
 
@@ -33,7 +34,16 @@ internal static class TestHost
         new ServiceCollection()
             .AddLogging()
             .AddApplication()
-            .AddInfrastructure(_ => postgres.ConnectionString, _ => postgres.AttachmentRoot)
+            .AddInfrastructure(
+                _ => postgres.ConnectionString,
+                _ => postgres.AttachmentRoot,
+                // None of these tests are about auth, so the signing key only has to satisfy
+                // JwtTokenIssuer's constructor — nothing here issues or reads a real token.
+                _ => new JwtSigningOptions(
+                    "test-host-signing-key-not-for-production-use-ever",
+                    "opendispatch-tests",
+                    "opendispatch-tests",
+                    TimeSpan.FromHours(1)))
             // Last, so it replaces the real tenant context: nothing resolves one from a
             // principal until step 45.
             .AddScoped<TestTenantContext>()

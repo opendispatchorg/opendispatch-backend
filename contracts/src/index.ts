@@ -40,6 +40,26 @@ export const JobStatus = {
 export type JobStatus = (typeof JobStatus)[keyof typeof JobStatus];
 
 // ---------------------------------------------------------------------------------------------
+// OpenDispatch.Contracts.Auth
+// ---------------------------------------------------------------------------------------------
+
+/** The body of `POST /auth/login`. */
+export interface LoginRequest {
+  /** Whoever is asking. */
+  readonly username: string;
+  /** Proof it is them. */
+  readonly password: string;
+}
+
+/** What a successful `POST /auth/login` returns. */
+export interface LoginResponse {
+  /** The bearer token — send it as `Authorization: Bearer {Token}`. */
+  readonly token: string;
+  /** When the token stops being accepted. */
+  readonly expiresAt: string;
+}
+
+// ---------------------------------------------------------------------------------------------
 // OpenDispatch.Contracts.Board
 // ---------------------------------------------------------------------------------------------
 
