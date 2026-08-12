@@ -530,6 +530,76 @@
           }
         }
       }
+    },
+    "/schedule/optimize": {
+      "post": {
+        "tags": [
+          "Schedule"
+        ],
+        "operationId": "OptimizeSchedule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/OptimizeScheduleRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/schedule/insert": {
+      "post": {
+        "tags": [
+          "Schedule"
+        ],
+        "operationId": "InsertScheduleJob",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/InsertJobRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/dispatch/board": {
+      "get": {
+        "tags": [
+          "Dispatch"
+        ],
+        "operationId": "GetDispatchBoard",
+        "parameters": [
+          {
+            "name": "day",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "date"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -721,6 +791,20 @@
         },
         "description": "The payload returned by `GET /health`."
       },
+      "InsertJobRequest": {
+        "required": [
+          "jobId"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "The work that has just come in.",
+            "format": "uuid"
+          }
+        },
+        "description": "The body of `POST /schedule/insert`: an emergency, named by the job it is for."
+      },
       "JobPriority": {
         "enum": [
           "Low",
@@ -761,6 +845,85 @@
           }
         },
         "description": "The body of `POST /auth/login`."
+      },
+      "ObjectiveWeightsRequest": {
+        "required": [
+          "travel",
+          "lateness",
+          "overtime",
+          "unassigned"
+        ],
+        "type": "object",
+        "properties": {
+          "travel": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Cost of one minute of driving. The unit the other three are quoted in.",
+            "format": "double"
+          },
+          "lateness": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Cost of one minute past a job's promised window.",
+            "format": "double"
+          },
+          "overtime": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Cost of one minute worked past the end of a technician's shift.",
+            "format": "double"
+          },
+          "unassigned": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Cost of leaving a job undone, per unit of its priority.",
+            "format": "double"
+          }
+        },
+        "description": "What a good schedule is worth, as a caller states it. Optional on OptimizeScheduleRequest."
+      },
+      "OptimizeScheduleRequest": {
+        "required": [
+          "from",
+          "to"
+        ],
+        "type": "object",
+        "properties": {
+          "from": {
+            "type": "string",
+            "description": "When the horizon to re-plan opens.",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "description": "When it closes. Never earlier than From.",
+            "format": "date-time"
+          },
+          "weights": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "What a good schedule is worth, or `null` for the engine's defaults.",
+                "$ref": "#/components/schemas/ObjectiveWeightsRequest"
+              }
+            ]
+          }
+        },
+        "description": "The body of `POST /schedule/optimize`."
       },
       "ServiceLocationRequest": {
         "required": [
@@ -915,6 +1078,12 @@
     },
     {
       "name": "Jobs"
+    },
+    {
+      "name": "Schedule"
+    },
+    {
+      "name": "Dispatch"
     }
   ]
 }

@@ -6,9 +6,11 @@ using Microsoft.IdentityModel.Tokens;
 using OpenDispatch.Api.Auth;
 using OpenDispatch.Api.Configuration;
 using OpenDispatch.Api.Customers;
+using OpenDispatch.Api.Dispatch;
 using OpenDispatch.Api.ErrorHandling;
 using OpenDispatch.Api.Health;
 using OpenDispatch.Api.Jobs;
+using OpenDispatch.Api.Schedule;
 using OpenDispatch.Api.Technicians;
 using OpenDispatch.Api.Tenancy;
 using OpenDispatch.Application;
@@ -161,6 +163,8 @@ try
     app.MapCustomerEndpoints();
     app.MapTechnicianEndpoints();
     app.MapJobEndpoints();
+    app.MapScheduleEndpoints();
+    app.MapDispatchEndpoints();
 
     app.Run();
     return 0;

@@ -115,6 +115,90 @@ export const BoardEvents = {
   TechnicianMoved: 'technician.moved',
 } as const;
 
+/** A job as the board shows it, over REST — the snapshot half of `JobUpdated`'s delta. */
+export interface BoardJobResponse {
+  /** Which job. */
+  readonly jobId: string;
+  /** How far through its life it is — what colours the block. */
+  readonly status: JobStatus;
+  /** How badly it needs doing. */
+  readonly priority: JobPriority;
+  /** What a technician needs to take it. */
+  readonly requiredSkill: string;
+  /** When the promised window opens. */
+  readonly windowStart: string;
+  /** When the promised window closes. */
+  readonly windowEnd: string;
+  /** How long the work should take — the width of the block. */
+  readonly estimatedDuration: string;
+  /** Where it is, in decimal degrees. */
+  readonly latitude: number;
+  /** Where it is, in decimal degrees. */
+  readonly longitude: number;
+  /** Who it is for. */
+  readonly customerName: string;
+  /** Where it is, for a human. */
+  readonly address: string;
+}
+
+/** One technician's day, as it appears on the board over REST: a lane and a line on the map. */
+export interface BoardRouteResponse {
+  /** Whose day it is. */
+  readonly technicianId: string;
+  /** Their name, as the lane is labelled. */
+  readonly name: string;
+  /**
+   * What they are qualified for. Here for the same reason it is on the projection this mirrors:
+   * a manual assignment may put work on somebody who does not hold the job's skill, and the
+   * board is what shows the mismatch.
+   */
+  readonly skills: readonly string[];
+  /** When their working hours begin. */
+  readonly shiftStart: string;
+  /** When their working hours end. */
+  readonly shiftEnd: string;
+  /** Where the day starts and ends, in decimal degrees. */
+  readonly homeLat: number;
+  /** Where the day starts and ends, in decimal degrees. */
+  readonly homeLng: number;
+  /** Their run, in sequence order. */
+  readonly stops: readonly BoardStopResponse[];
+}
+
+/** A planned visit, as it appears on a technician's lane over REST. */
+export interface BoardStopResponse {
+  /** The stop's own identity — what a drag on the board reschedules. */
+  readonly assignmentId: string;
+  /** Where it falls in the technician's run, counting from zero. */
+  readonly sequence: number;
+  /** When the technician is planned to start work. */
+  readonly scheduledStart: string;
+  /** Minutes of driving to get here from the previous stop. */
+  readonly travelMin: number;
+  /**
+   * How far past the promised window the work is planned to begin, or zero when it begins
+   * inside it.
+   */
+  readonly lateBy: string;
+  /** What the visit is for. */
+  readonly job: BoardJobResponse;
+}
+
+/** The response from `GET /dispatch/board?day=`: a snapshot of the day. */
+export interface DispatchBoardResponse {
+  /** The instant the requested day opens, UTC. */
+  readonly dayStart: string;
+  /** The instant the requested day closes, UTC. */
+  readonly dayEnd: string;
+  /**
+   * One run per technician, each ordered by sequence. Technicians with nothing on are present
+   * and empty.
+   */
+  readonly routes: readonly BoardRouteResponse[];
+  /** Jobs promised inside the day that no technician has been given. */
+  readonly unassigned: readonly BoardJobResponse[];
+}
+
 /**
  * A job moved through its lifecycle. Pushed to the org's board group under
  * `BoardEvents.JobUpdated`.
@@ -306,6 +390,68 @@ export interface JobResponse {
   readonly status: JobStatus;
   /** What a technician wrote about it, or `null` if nobody has. */
   readonly notes: string | null;
+}
+
+// ---------------------------------------------------------------------------------------------
+// OpenDispatch.Contracts.Schedule
+// ---------------------------------------------------------------------------------------------
+
+/** The body of `POST /schedule/insert`: an emergency, named by the job it is for. */
+export interface InsertJobRequest {
+  /** The work that has just come in. */
+  readonly jobId: string;
+}
+
+/** The response from `POST /schedule/insert`: where the emergency went. */
+export interface InsertJobResponse {
+  /** The stop that now exists for it. */
+  readonly assignmentId: string;
+  /** Whose day it landed on. */
+  readonly technicianId: string;
+  /** When the work is planned to start. */
+  readonly scheduledStart: string;
+  /** Where it falls in that technician's run, counting from zero. */
+  readonly sequence: number;
+  /**
+   * How many of that technician's other stops had to move along to make room. Zero when the job
+   * went on the end of a day.
+   */
+  readonly displaced: number;
+}
+
+/** What a good schedule is worth, as a caller states it. Optional on `OptimizeScheduleRequest`. */
+export interface ObjectiveWeightsRequest {
+  /** Cost of one minute of driving. The unit the other three are quoted in. */
+  readonly travel: number;
+  /** Cost of one minute past a job's promised window. */
+  readonly lateness: number;
+  /** Cost of one minute worked past the end of a technician's shift. */
+  readonly overtime: number;
+  /** Cost of leaving a job undone, per unit of its priority. */
+  readonly unassigned: number;
+}
+
+/** The body of `POST /schedule/optimize`. */
+export interface OptimizeScheduleRequest {
+  /** When the horizon to re-plan opens. */
+  readonly from: string;
+  /** When it closes. Never earlier than `from`. */
+  readonly to: string;
+  /** What a good schedule is worth, or `null` for the engine's defaults. */
+  readonly weights: ObjectiveWeightsRequest | null;
+}
+
+/** The response from `POST /schedule/optimize`: what the optimiser did. */
+export interface OptimizeScheduleResponse {
+  /** How many stops the day now has. */
+  readonly planned: number;
+  /** The jobs no technician could take. Not a failure — see the remarks on `OptimizedDay`. */
+  readonly unassigned: readonly string[];
+  /**
+   * What the plan scores under the weights it was given. Only comparable against another
+   * response for the same horizon under the same weights.
+   */
+  readonly cost: number;
 }
 
 // ---------------------------------------------------------------------------------------------

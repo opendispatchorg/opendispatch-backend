@@ -228,6 +228,54 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/schedule/optimize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["OptimizeSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedule/insert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InsertScheduleJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dispatch/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetDispatchBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -326,6 +374,14 @@ export interface components {
             status: string;
             service: string;
         };
+        /** @description The body of `POST /schedule/insert`: an emergency, named by the job it is for. */
+        InsertJobRequest: {
+            /**
+             * Format: uuid
+             * @description The work that has just come in.
+             */
+            jobId: string;
+        };
         /**
          * @description How badly a job needs doing, as the clients see it.
          * @enum {unknown}
@@ -342,6 +398,43 @@ export interface components {
             username: string;
             /** @description Proof it is them. */
             password: string;
+        };
+        /** @description What a good schedule is worth, as a caller states it. Optional on OptimizeScheduleRequest. */
+        ObjectiveWeightsRequest: {
+            /**
+             * Format: double
+             * @description Cost of one minute of driving. The unit the other three are quoted in.
+             */
+            travel: number | string;
+            /**
+             * Format: double
+             * @description Cost of one minute past a job's promised window.
+             */
+            lateness: number | string;
+            /**
+             * Format: double
+             * @description Cost of one minute worked past the end of a technician's shift.
+             */
+            overtime: number | string;
+            /**
+             * Format: double
+             * @description Cost of leaving a job undone, per unit of its priority.
+             */
+            unassigned: number | string;
+        };
+        /** @description The body of `POST /schedule/optimize`. */
+        OptimizeScheduleRequest: {
+            /**
+             * Format: date-time
+             * @description When the horizon to re-plan opens.
+             */
+            from: string;
+            /**
+             * Format: date-time
+             * @description When it closes. Never earlier than From.
+             */
+            to: string;
+            weights?: null | components["schemas"]["ObjectiveWeightsRequest"];
         };
         /** @description The body of `POST /customers/{id}/locations` and `PUT .../locations/{locationId}`. */
         ServiceLocationRequest: {
@@ -838,6 +931,70 @@ export interface operations {
                 "application/json": components["schemas"]["AssignJobRequest"];
             };
         };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    OptimizeSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OptimizeScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    InsertScheduleJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsertJobRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    GetDispatchBoard: {
+        parameters: {
+            query: {
+                day: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description OK */
             200: {

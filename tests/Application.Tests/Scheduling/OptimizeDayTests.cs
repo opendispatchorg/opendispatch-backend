@@ -305,6 +305,24 @@ public sealed class OptimizeDayTests
     }
 
     /// <summary>
+    /// The cap that keeps a caller from asking to optimise a decade — step 37's own entry named the
+    /// O(n²) search and left the limit for the controller, and this is where it landed.
+    /// </summary>
+    [Fact]
+    public async Task RefusesAHorizonLongerThanNinetyDays()
+    {
+        await using var slice = SliceHost.Dispatching();
+
+        var optimized = await slice.Send(
+            new OptimizeDayCommand(MondayMorning, MondayMorning.AddDays(91)));
+
+        var failure = Assert.IsType<ValidationError>(optimized.Error);
+        Assert.Equal(
+            "A horizon cannot span more than 90 days.",
+            Assert.Single(failure.Failures[nameof(OptimizeDayCommand.To)]));
+    }
+
+    /// <summary>
     /// A negative price is a reward for the thing it is meant to discourage, and the engine refuses
     /// one by throwing — so this rule is what stands between a mistyped weight and a 500.
     /// </summary>
