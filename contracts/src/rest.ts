@@ -84,6 +84,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/jobs/{id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["UploadAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/customers": {
         parameters: {
             query?: never;
@@ -373,6 +389,11 @@ export interface components {
              */
             scheduledStart: string;
         };
+        /**
+         * @description What a technician captured, as the clients see it.
+         * @enum {unknown}
+         */
+        AttachmentKind: "Photo" | "Signature";
         /** @description The body of `POST /jobs/{id}/status`. */
         ChangeJobStatusRequest: {
             /** @description Where the job should be. */
@@ -459,6 +480,8 @@ export interface components {
             status: string;
             service: string;
         };
+        /** Format: binary */
+        IFormFile: string;
         /** @description The body of `POST /schedule/insert`: an emergency, named by the job it is for. */
         InsertJobRequest: {
             /**
@@ -644,6 +667,26 @@ export interface components {
              */
             longitude: number | string;
         };
+        /** @description The metadata half of `POST /jobs/{id}/attachments` — the multipart form's fields beside the
+         *     binary itself. */
+        UploadAttachmentRequest: {
+            /**
+             * Format: uuid
+             * @description The id the device generated for the capture — the idempotency key.
+             */
+            attachmentId: string;
+            /**
+             * Format: uuid
+             * @description The job it was captured against. Carried here as the build text names it, but the route's own
+             *     `{id}` is what the endpoint actually acts on — the same convention every other
+             *     `/jobs/{id}/...` route in this API already follows, of not trusting a body to restate an id
+             *     the URL already carries. The two are checked against each other; a mismatch is refused rather
+             *     than silently resolved one way.
+             */
+            jobId: string;
+            /** @description Photograph or signature. */
+            kind: components["schemas"]["AttachmentKind"];
+        };
     };
     responses: never;
     parameters: never;
@@ -747,6 +790,32 @@ export interface operations {
             cookie?: never;
         };
         requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    UploadAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["UploadAttachmentRequest"] & {
+                    file: components["schemas"]["IFormFile"];
+                };
+            };
+        };
         responses: {
             /** @description OK */
             200: {

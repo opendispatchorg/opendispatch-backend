@@ -12,4 +12,11 @@ internal sealed class AttachmentRepository(AppDbContext context) : IAttachmentRe
         context.Attachments.FirstOrDefaultAsync(attachment => attachment.Id == id, ct);
 
     public void Add(Attachment attachment) => context.Attachments.Add(attachment);
+
+    /// <remarks>By capture instant: an export reads a shop's records in the order they happened.</remarks>
+    public async Task<IReadOnlyList<Attachment>> ListAsync(CancellationToken ct) =>
+        await context.Attachments
+            .OrderBy(attachment => attachment.CreatedAt)
+            .ThenBy(attachment => attachment.Id)
+            .ToListAsync(ct);
 }

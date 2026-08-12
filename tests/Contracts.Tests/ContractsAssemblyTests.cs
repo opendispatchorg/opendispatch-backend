@@ -1,6 +1,7 @@
 using System.Globalization;
 using OpenDispatch.Contracts.Sync;
 using OpenDispatch.TestSupport;
+using DomainAttachmentKind = OpenDispatch.Domain.Attachments.AttachmentKind;
 using DomainInvoiceStatus = OpenDispatch.Domain.Invoices.InvoiceStatus;
 using DomainJobPriority = OpenDispatch.Domain.Jobs.JobPriority;
 using DomainJobStatus = OpenDispatch.Domain.Jobs.JobStatus;
@@ -37,6 +38,10 @@ public sealed class ContractsAssemblyTests
     [Fact]
     public void WireLineItemKindMirrorsTheDomainNameForNameAndNumberForNumber() =>
         AssertMirrors<DomainLineItemKind, LineItemKind>();
+
+    [Fact]
+    public void WireAttachmentKindMirrorsTheDomainNameForNameAndNumberForNumber() =>
+        AssertMirrors<DomainAttachmentKind, AttachmentKind>();
 
     private static void AssertMirrors<TDomain, TWire>()
         where TDomain : struct, Enum

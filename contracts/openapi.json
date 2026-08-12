@@ -120,6 +120,56 @@
         }
       }
     },
+    "/jobs/{id}/attachments": {
+      "post": {
+        "tags": [
+          "Attachments"
+        ],
+        "operationId": "UploadAttachment",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "required": [
+                  "file"
+                ],
+                "type": "object",
+                "allOf": [
+                  {
+                    "$ref": "#/components/schemas/UploadAttachmentRequest"
+                  },
+                  {
+                    "type": "object",
+                    "properties": {
+                      "file": {
+                        "$ref": "#/components/schemas/IFormFile"
+                      }
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
     "/customers": {
       "post": {
         "tags": [
@@ -741,6 +791,13 @@
         },
         "description": "The body of `POST /jobs/{id}/assign`."
       },
+      "AttachmentKind": {
+        "enum": [
+          "Photo",
+          "Signature"
+        ],
+        "description": "What a technician captured, as the clients see it."
+      },
       "ChangeJobStatusRequest": {
         "required": [
           "status"
@@ -923,6 +980,10 @@
           }
         },
         "description": "The payload returned by `GET /health`."
+      },
+      "IFormFile": {
+        "type": "string",
+        "format": "binary"
       },
       "InsertJobRequest": {
         "required": [
@@ -1306,6 +1367,31 @@
           }
         },
         "description": "The body of `PUT /technicians/{id}` — everything SetSkillsRequest and\nSetShiftRequest do not own."
+      },
+      "UploadAttachmentRequest": {
+        "required": [
+          "attachmentId",
+          "jobId",
+          "kind"
+        ],
+        "type": "object",
+        "properties": {
+          "attachmentId": {
+            "type": "string",
+            "description": "The id the device generated for the capture — the idempotency key.",
+            "format": "uuid"
+          },
+          "jobId": {
+            "type": "string",
+            "description": "The job it was captured against. Carried here as the build text names it, but the route's own\n`{id}` is what the endpoint actually acts on — the same convention every other\n`/jobs/{id}/...` route in this API already follows, of not trusting a body to restate an id\nthe URL already carries. The two are checked against each other; a mismatch is refused rather\nthan silently resolved one way.",
+            "format": "uuid"
+          },
+          "kind": {
+            "description": "Photograph or signature.",
+            "$ref": "#/components/schemas/AttachmentKind"
+          }
+        },
+        "description": "The metadata half of `POST /jobs/{id}/attachments` — the multipart form's fields beside the\nbinary itself."
       }
     }
   },
@@ -1321,6 +1407,9 @@
     },
     {
       "name": "Export"
+    },
+    {
+      "name": "Attachments"
     },
     {
       "name": "Customers"

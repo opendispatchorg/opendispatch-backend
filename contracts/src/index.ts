@@ -15,6 +15,16 @@
 // OpenDispatch.Contracts
 // ---------------------------------------------------------------------------------------------
 
+/** What a technician captured, as the clients see it. */
+export const AttachmentKind = {
+  /** A picture of the site, the fault, or the finished work. */
+  Photo: 'Photo',
+  /** The customer's signature, captured on the technician's screen. */
+  Signature: 'Signature',
+} as const;
+
+export type AttachmentKind = (typeof AttachmentKind)[keyof typeof AttachmentKind];
+
 /** Whether an invoice has been settled, as the clients see it. */
 export const InvoiceStatus = {
   /** Raised but not settled. */
@@ -72,6 +82,38 @@ export const LineItemKind = {
 } as const;
 
 export type LineItemKind = (typeof LineItemKind)[keyof typeof LineItemKind];
+
+// ---------------------------------------------------------------------------------------------
+// OpenDispatch.Contracts.Attachments
+// ---------------------------------------------------------------------------------------------
+
+/**
+ * The metadata half of `POST /jobs/{id}/attachments` — the multipart form's fields beside the
+ * binary itself.
+ */
+export interface UploadAttachmentRequest {
+  /** The id the device generated for the capture — the idempotency key. */
+  readonly attachmentId: string;
+  /**
+   * The job it was captured against. Carried here as the build text names it, but the route's
+   * own `{id}` is what the endpoint actually acts on — the same convention every other
+   * `/jobs/{id}/...` route in this API already follows, of not trusting a body to restate an id
+   * the URL already carries. The two are checked against each other; a mismatch is refused
+   * rather than silently resolved one way.
+   */
+  readonly jobId: string;
+  /** Photograph or signature. */
+  readonly kind: AttachmentKind;
+}
+
+/** The response from `POST /jobs/{id}/attachments`. */
+export interface UploadAttachmentResponse {
+  /**
+   * The handle the server holds this content under. Opaque — a client stores it and does not
+   * parse it, the same register as a sync cursor.
+   */
+  readonly serverId: string;
+}
 
 // ---------------------------------------------------------------------------------------------
 // OpenDispatch.Contracts.Auth
@@ -357,6 +399,20 @@ export interface AssignmentExport {
   readonly travelMin: number;
 }
 
+/** One captured photo or signature's metadata, as it appears in `GET /export`. */
+export interface AttachmentExport {
+  /** The device's own id for the capture. */
+  readonly id: string;
+  /** The job it was captured against. */
+  readonly jobId: string;
+  /** Photograph or signature. */
+  readonly kind: AttachmentKind;
+  /** The handle its bytes are stored under. */
+  readonly serverId: string;
+  /** When it was captured, by the device's clock. */
+  readonly createdAt: string;
+}
+
 /**
  * The whole of a tenant's business data — the response from `GET /export`, Document 1's
  * anti-lock-in feature: "your customers, your jobs, your data — on software you control."
@@ -370,6 +426,8 @@ export interface ExportResponse {
   readonly assignments: readonly AssignmentExport[];
   /** Every bill raised, with its lines and whether it is settled. */
   readonly invoices: readonly InvoiceResponse[];
+  /** Every photo and signature captured, by metadata — not their bytes. */
+  readonly attachments: readonly AttachmentExport[];
 }
 
 // ---------------------------------------------------------------------------------------------

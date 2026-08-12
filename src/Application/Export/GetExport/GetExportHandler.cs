@@ -5,6 +5,7 @@ using OpenDispatch.Application.Invoicing;
 using OpenDispatch.Application.Jobs;
 using OpenDispatch.Application.Results;
 using OpenDispatch.Domain.Assignments;
+using OpenDispatch.Domain.Attachments;
 using OpenDispatch.Domain.Customers;
 using OpenDispatch.Domain.Invoices;
 using OpenDispatch.Domain.Jobs;
@@ -16,7 +17,7 @@ namespace OpenDispatch.Application.Export.GetExport;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The four reads run one after another, not in parallel: they share the one scoped
+/// The five reads run one after another, not in parallel: they share the one scoped
 /// <c>DbContext</c> the request's unit of work owns, and EF Core refuses a second operation
 /// started on a context before the first has finished. The same reason every other multi-read
 /// handler in this codebase (<c>OptimizeDayHandler</c>, <c>InsertJobHandler</c>) awaits its reads
@@ -31,7 +32,8 @@ internal sealed class GetExportHandler(
     ICustomerRepository customers,
     IJobRepository jobs,
     IAssignmentRepository assignments,
-    IInvoiceRepository invoices)
+    IInvoiceRepository invoices,
+    IAttachmentRepository attachments)
     : IRequestHandler<GetExportQuery, Result<TenantExport>>
 {
     public async Task<Result<TenantExport>> Handle(GetExportQuery query, CancellationToken cancellationToken)
@@ -40,12 +42,14 @@ internal sealed class GetExportHandler(
         var foundJobs = await jobs.ListAsync(cancellationToken).ConfigureAwait(false);
         var foundAssignments = await assignments.ListAsync(cancellationToken).ConfigureAwait(false);
         var foundInvoices = await invoices.ListAsync(cancellationToken).ConfigureAwait(false);
+        var foundAttachments = await attachments.ListAsync(cancellationToken).ConfigureAwait(false);
 
         return Result.Success(new TenantExport(
             [.. foundCustomers.Select(ProjectCustomer)],
             [.. foundJobs.Select(ProjectJob)],
             [.. foundAssignments.Select(ProjectAssignment)],
-            [.. foundInvoices.Select(ProjectInvoice)]));
+            [.. foundInvoices.Select(ProjectInvoice)],
+            [.. foundAttachments.Select(ProjectAttachment)]));
     }
 
     private static CustomerDetail ProjectCustomer(Customer customer) => new(
@@ -90,4 +94,11 @@ internal sealed class GetExportHandler(
         [.. invoice.Lines.Select(line => new InvoiceLineSummary(
             line.Kind, line.Description, line.Quantity, line.UnitPrice, line.LineTotal))],
         invoice.Total);
+
+    private static AttachmentSummary ProjectAttachment(Attachment attachment) => new(
+        attachment.Id,
+        attachment.JobId,
+        attachment.Kind,
+        attachment.StorageKey.Value,
+        attachment.CreatedAt);
 }

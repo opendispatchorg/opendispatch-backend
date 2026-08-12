@@ -3,6 +3,7 @@ using System.Text;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
+using OpenDispatch.Api.Attachments;
 using OpenDispatch.Api.Auth;
 using OpenDispatch.Api.Configuration;
 using OpenDispatch.Api.Customers;
@@ -171,6 +172,7 @@ try
     app.MapInvoiceEndpoints();
     app.MapExportEndpoints();
     app.MapSyncEndpoints();
+    app.MapAttachmentEndpoints();
 
     app.Run();
     return 0;

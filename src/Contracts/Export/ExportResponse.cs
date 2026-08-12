@@ -12,16 +12,19 @@ namespace OpenDispatch.Contracts.Export;
 /// <param name="Jobs">Every job, whatever its status.</param>
 /// <param name="Assignments">The plan: every stop, whichever technician it is on.</param>
 /// <param name="Invoices">Every bill raised, with its lines and whether it is settled.</param>
+/// <param name="Attachments">Every photo and signature captured, by metadata — not their bytes.</param>
 /// <remarks>
 /// Built entirely from response shapes that already exist for their own endpoints —
 /// <see cref="CustomerResponse"/>, <see cref="JobResponse"/> and <see cref="InvoiceResponse"/> —
 /// rather than a parallel set invented for this one. A client that already knows how to read a
-/// customer or a job from the rest of the API reads one here the same way. Only
-/// <see cref="AssignmentExport"/> is new: nothing before this endpoint has ever exposed the plan on
-/// its own, flat, outside a technician's lane on the dispatch board.
+/// customer or a job from the rest of the API reads one here the same way. <see cref="AssignmentExport"/>
+/// and <see cref="AttachmentExport"/> are the two exceptions: nothing before step 49 ever exposed
+/// the plan on its own, flat, outside a technician's lane on the dispatch board, and nothing before
+/// step 50b ever read attachment metadata back out at all.
 /// </remarks>
 public sealed record ExportResponse(
     IReadOnlyList<CustomerResponse> Customers,
     IReadOnlyList<JobResponse> Jobs,
     IReadOnlyList<AssignmentExport> Assignments,
-    IReadOnlyList<InvoiceResponse> Invoices);
+    IReadOnlyList<InvoiceResponse> Invoices,
+    IReadOnlyList<AttachmentExport> Attachments);

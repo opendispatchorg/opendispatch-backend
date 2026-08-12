@@ -15,8 +15,9 @@ using OpenDispatch.Domain.ValueObjects;
 namespace OpenDispatch.Api.Export;
 
 /// <summary>
-/// <c>GET /export</c> — Document 1's anti-lock-in feature over HTTP (Document 3, step 49): every
-/// customer, job, assignment and invoice in the tenant, in one JSON dump.
+/// <c>GET /export</c> — Document 1's anti-lock-in feature over HTTP (Document 3, steps 49 and
+/// 50b): every customer, job, assignment, invoice and attachment's metadata in the tenant, in one
+/// JSON dump.
 /// </summary>
 /// <remarks>
 /// <c>AdminOnly</c>, the same call as Invoicing beside it: a full-tenant data dump is a business
@@ -46,7 +47,8 @@ public static class ExportEndpoints
         [.. export.Customers.Select(ToResponse)],
         [.. export.Jobs.Select(ToResponse)],
         [.. export.Assignments.Select(ToResponse)],
-        [.. export.Invoices.Select(ToResponse)]);
+        [.. export.Invoices.Select(ToResponse)],
+        [.. export.Attachments.Select(ToResponse)]);
 
     private static CustomerResponse ToResponse(CustomerDetail customer) => new(
         customer.Id.Value,
@@ -94,4 +96,11 @@ public static class ExportEndpoints
         ToDollars(line.LineTotal));
 
     private static decimal ToDollars(Money money) => money.Cents / 100m;
+
+    private static AttachmentExport ToResponse(AttachmentSummary attachment) => new(
+        attachment.Id.Value,
+        attachment.JobId.Value,
+        (Contracts.AttachmentKind)attachment.Kind,
+        attachment.ServerId,
+        attachment.CreatedAt);
 }
