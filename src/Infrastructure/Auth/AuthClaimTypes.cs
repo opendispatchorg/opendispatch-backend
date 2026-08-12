@@ -17,4 +17,12 @@ public static class AuthClaimTypes
 
     /// <summary>The caller's role — see <see cref="OpenDispatch.Application.Auth.UserRole"/>.</summary>
     public const string Role = "role";
+
+    /// <summary>
+    /// Which technician the caller is. Present only on a token issued for a
+    /// <see cref="OpenDispatch.Application.Auth.UserRole.Technician"/> whose <c>AuthUser</c> was
+    /// seeded with one. Step 50 reads this — the sync endpoints are the first thing that needs to
+    /// know whose field work a request is about.
+    /// </summary>
+    public const string Technician = "tech";
 }

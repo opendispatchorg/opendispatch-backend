@@ -671,6 +671,52 @@
           }
         }
       }
+    },
+    "/sync/push": {
+      "post": {
+        "tags": [
+          "Sync"
+        ],
+        "operationId": "PushSyncOps",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SyncPushRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
+    },
+    "/sync/pull": {
+      "get": {
+        "tags": [
+          "Sync"
+        ],
+        "operationId": "PullSyncChanges",
+        "parameters": [
+          {
+            "name": "since",
+            "in": "query",
+            "required": true,
+            "schema": {
+              "type": "string"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK"
+          }
+        }
+      }
     }
   },
   "components": {
@@ -953,6 +999,7 @@
         ],
         "description": "Where a job has got to in its life, as the clients see it."
       },
+      "JsonElement": { },
       "LineItemKind": {
         "enum": [
           "Labor",
@@ -1131,6 +1178,73 @@
         },
         "description": "The body of `PUT /technicians/{id}/skills`."
       },
+      "SyncOp": {
+        "required": [
+          "id",
+          "entity",
+          "entityId",
+          "type",
+          "payload",
+          "baseVersion",
+          "clientTs"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The device's own identifier for this operation, and the idempotency key. A phone that\npushes, loses signal, and pushes again sends the same id, which is how the server knows\nnot to apply it twice.",
+            "format": "uuid"
+          },
+          "entity": {
+            "type": "string",
+            "description": "What kind of thing it happened to — `\"job\"`, `\"line_item\"`."
+          },
+          "entityId": {
+            "type": "string",
+            "description": "Which one.",
+            "format": "uuid"
+          },
+          "type": {
+            "type": "string",
+            "description": "What was done — `\"status_change\"`, `\"add_note\"`."
+          },
+          "payload": {
+            "description": "The operation's own data, shaped by Type.",
+            "$ref": "#/components/schemas/JsonElement"
+          },
+          "baseVersion": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "The version of the entity the device was looking at when it acted. What a stale write is\njudged against; the server's answer is authoritative either way.",
+            "format": "int64"
+          },
+          "clientTs": {
+            "type": "string",
+            "description": "When it happened on the device, which is not when it arrived. The ordering a technician\nwould recognise, and what last-write-wins on free text is decided by.",
+            "format": "date-time"
+          }
+        },
+        "description": "One thing a technician did in the field: started a job, added a note, added a part,\nfinished. Queued on the device and pushed in batches (Document 2 §10)."
+      },
+      "SyncPushRequest": {
+        "required": [
+          "ops"
+        ],
+        "type": "object",
+        "properties": {
+          "ops": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncOp"
+            },
+            "description": "The operations, oldest first."
+          }
+        },
+        "description": "A device emptying its queue: everything it did since it last got through, in the order it\ndid it. The body of `POST /sync/push`."
+      },
       "UpdateCustomerRequest": {
         "required": [
           "name",
@@ -1222,6 +1336,9 @@
     },
     {
       "name": "Dispatch"
+    },
+    {
+      "name": "Sync"
     }
   ]
 }

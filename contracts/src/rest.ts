@@ -324,6 +324,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/sync/push": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PushSyncOps"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sync/pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PullSyncChanges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -462,6 +494,7 @@ export interface components {
          * @enum {unknown}
          */
         JobStatus: "Unscheduled" | "Scheduled" | "Dispatched" | "EnRoute" | "InProgress" | "Completed" | "Invoiced" | "Paid" | "Cancelled";
+        JsonElement: unknown;
         /**
          * @description What a billed line is for, as the clients see it.
          * @enum {unknown}
@@ -545,6 +578,46 @@ export interface components {
         SetSkillsRequest: {
             /** @description The complete list they should have afterwards. Empty makes them a trainee again. */
             skills: string[];
+        };
+        /** @description One thing a technician did in the field: started a job, added a note, added a part,
+         *     finished. Queued on the device and pushed in batches (Document 2 §10). */
+        SyncOp: {
+            /**
+             * Format: uuid
+             * @description The device's own identifier for this operation, and the idempotency key. A phone that
+             *     pushes, loses signal, and pushes again sends the same id, which is how the server knows
+             *     not to apply it twice.
+             */
+            id: string;
+            /** @description What kind of thing it happened to — `"job"`, `"line_item"`. */
+            entity: string;
+            /**
+             * Format: uuid
+             * @description Which one.
+             */
+            entityId: string;
+            /** @description What was done — `"status_change"`, `"add_note"`. */
+            type: string;
+            /** @description The operation's own data, shaped by Type. */
+            payload: components["schemas"]["JsonElement"];
+            /**
+             * Format: int64
+             * @description The version of the entity the device was looking at when it acted. What a stale write is
+             *     judged against; the server's answer is authoritative either way.
+             */
+            baseVersion: number | string;
+            /**
+             * Format: date-time
+             * @description When it happened on the device, which is not when it arrived. The ordering a technician
+             *     would recognise, and what last-write-wins on free text is decided by.
+             */
+            clientTs: string;
+        };
+        /** @description A device emptying its queue: everything it did since it last got through, in the order it
+         *     did it. The body of `POST /sync/push`. */
+        SyncPushRequest: {
+            /** @description The operations, oldest first. */
+            ops: components["schemas"]["SyncOp"][];
         };
         /** @description The body of `PUT /customers/{id}`. */
         UpdateCustomerRequest: {
@@ -1126,6 +1199,48 @@ export interface operations {
         parameters: {
             query: {
                 day: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PushSyncOps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncPushRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+        };
+    };
+    PullSyncChanges: {
+        parameters: {
+            query: {
+                since: string;
             };
             header?: never;
             path?: never;

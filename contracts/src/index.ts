@@ -621,6 +621,53 @@ export const SyncConflictReason = {
 
 export type SyncConflictReason = (typeof SyncConflictReason)[keyof typeof SyncConflictReason];
 
+/** One line of what a job's work has taken, inside a `SyncJobPayload`. */
+export interface SyncJobLinePayload {
+  /** The line's identity within its job. */
+  readonly id: string;
+  /** Labour or a part. */
+  readonly kind: LineItemKind;
+  /** What it was. */
+  readonly description: string;
+  /** How many. */
+  readonly quantity: number;
+  /** What one costs, in dollars. */
+  readonly unitPrice: number;
+}
+
+/** A job, inside a `SyncChange` whose `Entity` is `"job"`. */
+export interface SyncJobPayload {
+  /** How far through its life it is — which buttons the app offers. */
+  readonly status: JobStatus;
+  /** How badly it needs doing. */
+  readonly priority: JobPriority;
+  /** What it takes to do it. */
+  readonly requiredSkill: string;
+  /** When the promised window opens. */
+  readonly windowStart: string;
+  /** When the promised window closes. */
+  readonly windowEnd: string;
+  /** How long the work should take. */
+  readonly estimatedDuration: string;
+  /** Where it is, for navigation. */
+  readonly latitude: number;
+  /** Where it is, for navigation. */
+  readonly longitude: number;
+  /** Who it is for. */
+  readonly customerName: string;
+  /** Where it is, for a human. */
+  readonly address: string;
+  /** What has been written about it, or `null` if nothing has. */
+  readonly notes: string | null;
+  /**
+   * When the notes were written. The device needs it to know whether its own unsent note would
+   * win — the same comparison the server will make.
+   */
+  readonly notesRecordedAt: string | null;
+  /** What the work has taken so far, in the order it was recorded. */
+  readonly lines: readonly SyncJobLinePayload[];
+}
+
 /**
  * One thing a technician did in the field: started a job, added a note, added a part, finished.
  * Queued on the device and pushed in batches (Document 2 §10).
@@ -693,6 +740,22 @@ export interface SyncPushResponse {
    * and a client that parses it is reading something it was not promised.
    */
   readonly cursor: string;
+}
+
+/**
+ * A planned stop, inside a `SyncChange` whose `Entity` is `"assignment"` — the same name a
+ * removed stop uses, so a client groups both under one vocabulary rather than switching between
+ * "stop" and "assignment" depending on whether the row still exists.
+ */
+export interface SyncStopPayload {
+  /** The work it is for. The device joins this to a `SyncJobPayload`. */
+  readonly jobId: string;
+  /** Where it falls in the day, counting from zero. */
+  readonly sequence: number;
+  /** When the technician is planned to start work. */
+  readonly scheduledStart: string;
+  /** Minutes of driving to get here from the previous stop. */
+  readonly travelMin: number;
 }
 
 // ---------------------------------------------------------------------------------------------

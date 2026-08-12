@@ -18,13 +18,19 @@ internal sealed class JwtTokenIssuer(JwtSigningOptions options) : ITokenIssuer
     {
         var expiresAt = DateTimeOffset.UtcNow.Add(options.Expiry);
 
-        var claims = new[]
+        var claims = new List<Claim>
         {
-            new Claim(JwtRegisteredClaimNames.Sub, user.Id.Value.ToString()),
-            new Claim(JwtRegisteredClaimNames.UniqueName, user.Username),
-            new Claim(AuthClaimTypes.Org, user.OrgId.Value.ToString()),
-            new Claim(AuthClaimTypes.Role, user.Role.ToString()),
+            new(JwtRegisteredClaimNames.Sub, user.Id.Value.ToString()),
+            new(JwtRegisteredClaimNames.UniqueName, user.Username),
+            new(AuthClaimTypes.Org, user.OrgId.Value.ToString()),
+            new(AuthClaimTypes.Role, user.Role.ToString()),
         };
+
+        // Only a technician's own login carries one — see AuthUser.TechnicianId's remarks.
+        if (user.TechnicianId is { } technician)
+        {
+            claims.Add(new Claim(AuthClaimTypes.Technician, technician.Value.ToString()));
+        }
 
         var credentials = new SigningCredentials(
             new SymmetricSecurityKey(Encoding.UTF8.GetBytes(options.SigningKey)),

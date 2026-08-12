@@ -42,16 +42,22 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     /// <param name="username">Looked up case-insensitively; must be unique across the store.</param>
     /// <param name="password">The plaintext password a test will post to <c>/auth/login</c>.</param>
     /// <param name="role">What they are allowed to do.</param>
+    /// <param name="technicianId">
+    /// Which <c>Technician</c> this login is, for a test that needs a real one behind a
+    /// <see cref="UserRole.Technician"/> token (step 50's sync endpoints). Ignored for the other
+    /// two roles.
+    /// </param>
     public async Task<AuthUser> SeedUserAsync(
         OrgId orgId,
         string username,
         string password,
-        UserRole role)
+        UserRole role,
+        TechnicianId? technicianId = null)
     {
         var hasher = Services.GetRequiredService<IPasswordHasher>();
         var users = Services.GetRequiredService<IUserStore>();
 
-        var user = new AuthUser(UserId.New(), orgId, username, hasher.Hash(password), role);
+        var user = new AuthUser(UserId.New(), orgId, username, hasher.Hash(password), role, technicianId);
         await users.AddAsync(user, CancellationToken.None).ConfigureAwait(false);
 
         return user;

@@ -13,6 +13,7 @@ using OpenDispatch.Api.Health;
 using OpenDispatch.Api.Invoicing;
 using OpenDispatch.Api.Jobs;
 using OpenDispatch.Api.Schedule;
+using OpenDispatch.Api.Sync;
 using OpenDispatch.Api.Technicians;
 using OpenDispatch.Api.Tenancy;
 using OpenDispatch.Application;
@@ -169,6 +170,7 @@ try
     app.MapDispatchEndpoints();
     app.MapInvoiceEndpoints();
     app.MapExportEndpoints();
+    app.MapSyncEndpoints();
 
     app.Run();
     return 0;
