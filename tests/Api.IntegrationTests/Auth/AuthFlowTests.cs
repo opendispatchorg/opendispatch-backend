@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
+using Microsoft.AspNetCore.Mvc;
 using OpenDispatch.Api.IntegrationTests.Fixtures;
 using OpenDispatch.Application.Auth;
 using OpenDispatch.Contracts.Auth;
@@ -59,6 +60,25 @@ public sealed class AuthFlowTests : IClassFixture<ApiFactory>
         using var response = await client.PostAsJsonAsync("/auth/login", new LoginRequest(username, password));
 
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
+    }
+
+    /// <summary>
+    /// The validation category through the real endpoint, not a temporary one — step 46's
+    /// mapping proven by the one handler that already fails this way for a real reason.
+    /// </summary>
+    [Fact]
+    public async Task LoginWithAnEmptyUsernameYieldsAValidationProblem()
+    {
+        using var client = _factory.CreateClient();
+
+        using var response = await client.PostAsJsonAsync("/auth/login", new LoginRequest(string.Empty, "anything"));
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+
+        var problem = await response.Content.ReadFromJsonAsync<ValidationProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Contains(nameof(LoginRequest.Username), problem.Errors.Keys);
     }
 
     [Fact]

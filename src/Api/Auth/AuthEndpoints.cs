@@ -1,6 +1,6 @@
 using MediatR;
+using OpenDispatch.Api.ErrorHandling;
 using OpenDispatch.Application.Auth.Login;
-using OpenDispatch.Application.Results;
 using OpenDispatch.Contracts.Auth;
 
 namespace OpenDispatch.Api.Auth;
@@ -39,19 +39,6 @@ public static class AuthEndpoints
             .Send(new LoginQuery(request.Username, request.Password), cancellationToken)
             .ConfigureAwait(false);
 
-        if (result.IsSuccess)
-        {
-            return Results.Ok(new LoginResponse(result.Value.Token, result.Value.ExpiresAt));
-        }
-
-        // TEMPORARY: removed in step 46, which builds the shared ErrorCategory -> status code
-        // table every controller uses. Login is the only endpoint before it, so a one-off
-        // mapping for this handler's two failure shapes is cheaper than building the general
-        // table for a single caller.
-        return result.Error is ValidationError validation
-            ? Results.ValidationProblem(validation.Failures.ToDictionary(
-                failure => failure.Key,
-                failure => failure.Value.ToArray()))
-            : Results.Unauthorized();
+        return result.ToHttpResult(token => Results.Ok(new LoginResponse(token.Token, token.ExpiresAt)));
     }
 }

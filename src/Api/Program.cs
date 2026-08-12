@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using Microsoft.IdentityModel.Tokens;
 using OpenDispatch.Api.Auth;
 using OpenDispatch.Api.Configuration;
+using OpenDispatch.Api.ErrorHandling;
 using OpenDispatch.Api.Health;
 using OpenDispatch.Api.Tenancy;
 using OpenDispatch.Application;
@@ -112,9 +113,23 @@ try
         return Task.CompletedTask;
     }));
 
+    // Consistent, typed error responses (Document 3, step 46): ProblemDetails formatting for
+    // everything that produces one — the exception handler below, Results.Problem/
+    // ValidationProblem in ResultHttpMapping, and the framework's own (malformed body, no
+    // matching route) failures — from the one registration.
+    builder.Services.AddProblemDetails();
+    builder.Services.AddExceptionHandler<UnhandledExceptionHandler>();
+
     var app = builder.Build();
 
     app.UseSerilogRequestLogging();
+
+    // After request logging, so a request that ends in an unhandled exception is still logged
+    // as a request (with the 500 UnhandledExceptionHandler leaves behind) rather than logged
+    // twice — once by the exception it caught, once by the response it wrote. See
+    // UnhandledExceptionHandler's remarks for the ordering argument. Before everything else, so
+    // it catches an exception from any of it — including auth and tenant resolution.
+    app.UseExceptionHandler();
 
     // Authentication before authorization before tenant resolution, all three before any
     // endpoint: an anonymous or wrong-role caller is rejected before routing hands the request
@@ -136,6 +151,7 @@ try
     app.MapHealthEndpoint();
     app.MapAuthEndpoints();
     app.MapTenancyTestEndpoints();
+    app.MapErrorMappingTestEndpoints();
 
     app.Run();
     return 0;
