@@ -48,13 +48,22 @@ public sealed class Job : AggregateRoot
     /// buttons in order anyway, and buys the offline-sync endpoint the tightest possible
     /// rule for judging what a stale phone is allowed to do to a job.
     /// </para>
+    /// <para>
+    /// The path is linear <em>forwards</em> and has exactly one way back: planned work can return
+    /// to <see cref="JobStatus.Unscheduled"/>. That is not a stage being skipped, it is a plan
+    /// being withdrawn — the optimiser could not fit work it had placed, so the stop is deleted
+    /// and the job goes back to waiting. Without the row, the job keeps a status saying it is
+    /// planned while nothing is planned for it, which is the board telling a dispatcher something
+    /// false. Nothing comes back from <see cref="JobStatus.EnRoute"/> onward: once a technician
+    /// has set off, the day belongs to them.
+    /// </para>
     /// </remarks>
     private static readonly FrozenDictionary<JobStatus, IReadOnlySet<JobStatus>> Allowed =
         new Dictionary<JobStatus, JobStatus[]>
         {
             [JobStatus.Unscheduled] = [JobStatus.Scheduled, JobStatus.Cancelled],
-            [JobStatus.Scheduled] = [JobStatus.Dispatched, JobStatus.Cancelled],
-            [JobStatus.Dispatched] = [JobStatus.EnRoute, JobStatus.Cancelled],
+            [JobStatus.Scheduled] = [JobStatus.Dispatched, JobStatus.Cancelled, JobStatus.Unscheduled],
+            [JobStatus.Dispatched] = [JobStatus.EnRoute, JobStatus.Cancelled, JobStatus.Unscheduled],
             [JobStatus.EnRoute] = [JobStatus.InProgress, JobStatus.Cancelled],
             [JobStatus.InProgress] = [JobStatus.Completed, JobStatus.Cancelled],
             [JobStatus.Completed] = [JobStatus.Invoiced],
@@ -360,6 +369,29 @@ public sealed class Job : AggregateRoot
     {
         Transition(JobStatus.Scheduled);
         Raise(new JobScheduled(Id));
+    }
+
+    /// <summary>
+    /// Takes the job back out of the day: it is demand again, waiting to be planned.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The optimiser's move, and nobody else's. Re-planning a day can leave work it can no longer
+    /// fit — a crew went home sick, an emergency took the afternoon — and the stop for that job is
+    /// deleted rather than left as a visit somebody is expected to drive to. This is the other half
+    /// of that: without it the job keeps saying it is <see cref="JobStatus.Scheduled"/> while
+    /// nothing is planned for it.
+    /// </para>
+    /// <para>
+    /// No request drives it. A dispatcher who wants work out of a day drags it or cancels it, and
+    /// the status-change endpoint refuses <see cref="JobStatus.Unscheduled"/> for that reason —
+    /// which is a statement about who acts, not about what the table allows.
+    /// </para>
+    /// </remarks>
+    public void Unschedule()
+    {
+        Transition(JobStatus.Unscheduled);
+        Raise(new JobUnscheduled(Id));
     }
 
     /// <summary>Sends the job to the technician's phone.</summary>

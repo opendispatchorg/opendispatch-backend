@@ -99,6 +99,40 @@ public sealed class DispatchBoardTests
     }
 
     /// <summary>
+    /// The board says how late a stop is rather than handing over the ingredients, and the number
+    /// is the domain's — <c>TimeWindow.LatenessOf</c>, the same method the optimiser charges
+    /// lateness with. A board that worked it out itself would be a second opinion of one promise.
+    /// </summary>
+    [Fact]
+    public async Task SaysHowLateAStopIsRatherThanLeavingItToBeDerived()
+    {
+        await using var services = BuildHost();
+        var sam = await ATechnicianAsync(services, "Sam Rivera");
+
+        var promisedEarly = new TimeWindow(MondayMorning, MondayMorning.AddHours(2));
+        var late = await ABookedJobAsync(
+            services, Slough, "Vance Refrigeration", "12 Bath Road", promised: promisedEarly);
+        var onTime = await ABookedJobAsync(
+            services, Croydon, "Ivy Fabrication", "3 Mill Lane", promised: promisedEarly);
+
+        // Ninety minutes past the promise, and inside it.
+        await Send(services, new AssignJobCommand(late, sam, MondayMorning.AddHours(3.5)));
+        await Send(services, new AssignJobCommand(onTime, sam, MondayMorning.AddHours(1)));
+
+        var board = await Board(services);
+        var lane = Assert.Single(board.Routes, route => route.TechnicianId == sam);
+
+        Assert.Equal(
+            TimeSpan.FromMinutes(90),
+            Assert.Single(lane.Stops, stop => stop.Job.JobId == late).LateBy);
+
+        // Zero rather than negative: a technician who turns up early is not late by minus an hour.
+        Assert.Equal(
+            TimeSpan.Zero,
+            Assert.Single(lane.Stops, stop => stop.Job.JobId == onTime).LateBy);
+    }
+
+    /// <summary>
     /// Two organizations with real days of their own, drawn through one read model that never
     /// mentions a tenant: the filter is on the model, not in the query.
     /// </summary>
@@ -268,7 +302,8 @@ public sealed class DispatchBoardTests
         string customerName,
         string address,
         string skill = "hvac",
-        OrgId? actingAs = null)
+        OrgId? actingAs = null,
+        TimeWindow? promised = null)
     {
         var customer = await Send(services, new CreateCustomerCommand(customerName, null, null), actingAs);
         var location = await Send(services, new AddServiceLocationCommand(
@@ -283,8 +318,8 @@ public sealed class DispatchBoardTests
             location.Value,
             skill,
             JobPriority.Normal,
-            Day.Start,
-            Day.End,
+            (promised ?? Day).Start,
+            (promised ?? Day).End,
             TimeSpan.FromHours(1)), actingAs);
 
         return job.Value;

@@ -121,25 +121,23 @@ public sealed class ObjectiveEvaluator
 
         foreach (var stop in stops)
         {
-            // Measured at the start of the work rather than its end: the promise was that
-            // somebody would turn up between these hours, and a job that starts inside its
-            // window and overruns has been kept.
-            var late = stop.Start - _jobs[stop.JobId].Window.End;
-            if (late > TimeSpan.Zero)
-            {
-                lateMinutes += late.TotalMinutes;
-            }
+            // The rule is the window's, not this evaluator's — measured at the start of the work
+            // rather than its end, and stated once because the board colours a block by the same
+            // question. Two opinions of one promise is a dispatcher looking at a stop the optimiser
+            // thought was on time, marked late.
+            lateMinutes += _jobs[stop.JobId].Window.LatenessOf(stop.Start).TotalMinutes;
         }
 
         // Work finishing inside the shift is a hard constraint, so the only way to still be
         // out past the end of one is the drive home — which is exactly the overtime a
-        // technician notices and gets paid for.
-        var lateHome = RouteTimer.HomeAgain(technician, stops, _distances) - technician.Shift.End;
+        // technician notices and gets paid for. The same arithmetic against a different promise,
+        // so it asks the same method.
+        var lateHome = technician.Shift.LatenessOf(RouteTimer.HomeAgain(technician, stops, _distances));
 
         return new Cost(
             Travel: weights.Travel * RouteTimer.TravelMinutes(technician, stops, _distances),
             Lateness: weights.Lateness * lateMinutes,
-            Overtime: weights.Overtime * (lateHome > TimeSpan.Zero ? lateHome.TotalMinutes : 0d),
+            Overtime: weights.Overtime * lateHome.TotalMinutes,
             Unassigned: 0d);
     }
 

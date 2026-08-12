@@ -117,15 +117,48 @@ internal sealed class PushOpsHandler(
             return Result.Failure(JobErrors.NotFound(id));
         }
 
+        var observedAt = Observed(op.ClientTs);
+
         return op.Type switch
         {
-            FieldOps.StatusChange => ChangeStatus(job, op),
-            FieldOps.AddNote => RecordNotes(job, op),
-            _ => RecordLine(job, op),
+            FieldOps.StatusChange => ChangeStatus(job, op, observedAt),
+            FieldOps.AddNote => RecordNotes(job, op, observedAt),
+            _ => RecordLine(job, op, observedAt),
         };
     }
 
-    private static Result ChangeStatus(Job job, PushedOp op)
+    /// <summary>
+    /// When an operation happened, as far as this server will believe: what the device said, or now,
+    /// whichever is earlier.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>A device may be late. It may not be from the future.</strong> Free text is
+    /// last-write-wins by the writer's own clock (Document 2 §10), which is right — a technician who
+    /// wrote a note in a basement at nine wrote it at nine, whatever time it reaches the server. But
+    /// the same rule hands a phone whose clock is a day fast every conflict it will ever have, until
+    /// that date passes, and nothing anywhere reports it. The symptom is the office's note quietly
+    /// losing to a stale one.
+    /// </para>
+    /// <para>
+    /// Clamping is the smallest answer that keeps the honest half: a late device still wins nothing
+    /// it should not, and a fast one is reduced to "now", which is the worst it could have been
+    /// telling the truth about. It is deliberately not a rejection — an operation is not wrong
+    /// because the phone that recorded it has the wrong date, and refusing it would lose real work.
+    /// </para>
+    /// <para>
+    /// What the device actually said is still recorded, raw, on the op-log row. A clamped log would
+    /// hide the broken clock rather than being the one place it can be found.
+    /// </para>
+    /// </remarks>
+    private DateTimeOffset Observed(DateTimeOffset claimed)
+    {
+        var now = clock.UtcNow;
+
+        return claimed < now ? claimed : now;
+    }
+
+    private Result ChangeStatus(Job job, PushedOp op, DateTimeOffset observedAt)
     {
         var read = OpPayloads.ReadStatusChange(op.Payload);
 
@@ -153,13 +186,14 @@ internal sealed class PushOpsHandler(
 
         // The device's own clock, not the server's: work finished in a basement at two and
         // reported at six finished at two. Falling back to when it says the operation happened
-        // rather than to now, for the same reason.
-        drive(job, wanted.CompletedAt ?? op.ClientTs);
+        // rather than to now, for the same reason — and clamped either way, because a completion
+        // dated tomorrow is the same broken clock arriving by a different field.
+        drive(job, wanted.CompletedAt is { } finished ? Observed(finished) : observedAt);
 
         return Result.Success();
     }
 
-    private static Result RecordNotes(Job job, PushedOp op)
+    private static Result RecordNotes(Job job, PushedOp op, DateTimeOffset observedAt)
     {
         var read = OpPayloads.ReadNote(op.Payload);
 
@@ -171,15 +205,15 @@ internal sealed class PushOpsHandler(
         // Last-write-wins, asked of the domain rather than decided here, and reported before it is
         // attempted so that losing carries its own code — a superseded note is not a malformed
         // one, and a device should be able to tell the difference without reading English.
-        if (!job.CanRecordNotes(op.ClientTs))
+        if (!job.CanRecordNotes(observedAt))
         {
             return Result.Failure(SyncErrors.NotesSuperseded(job.NotesRecordedAt!.Value));
         }
 
-        return Refusable(op, () => job.RecordNotes(read.Value!, op.ClientTs));
+        return Refusable(op, () => job.RecordNotes(read.Value!, observedAt));
     }
 
-    private static Result RecordLine(Job job, PushedOp op)
+    private static Result RecordLine(Job job, PushedOp op, DateTimeOffset observedAt)
     {
         var read = OpPayloads.ReadLine(op.Payload);
 
@@ -192,7 +226,7 @@ internal sealed class PushOpsHandler(
 
         return Refusable(
             op,
-            () => job.RecordLine(line.Kind, line.Description, line.Quantity, line.UnitPrice, op.ClientTs));
+            () => job.RecordLine(line.Kind, line.Description, line.Quantity, line.UnitPrice, observedAt));
     }
 
     /// <summary>
@@ -226,6 +260,11 @@ internal sealed class PushOpsHandler(
         }
     }
 
+    /// <remarks>
+    /// The <em>raw</em> <c>ClientTs</c> goes in, not the clamped instant the domain was given. The
+    /// log is what the device said; clamping it here would hide the one piece of evidence that a
+    /// phone's clock is wrong, which is the only place anybody could ever find out.
+    /// </remarks>
     private SyncOpRecord Recorded(PushedOp op, TechnicianId technician) =>
         SyncOpRecord.Applied(
             op.Id,

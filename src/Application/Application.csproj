@@ -11,7 +11,11 @@
       library.
 
       What the pin costs: no upstream fixes. If that ever matters, the replacement is a small
-      in-house mediator over these same ICommand/IQuery markers, not a version bump.
+      in-house mediator over these same ICommand/IQuery markers, not a version bump — and it has to
+      supply the notification seam too, which is what step 31 built IDomainEventHandler on.
+
+      Reviewed and kept deliberately rather than inherited: staying here trades upstream fixes for
+      the promise in Document 1 that somebody can build a product on this without a licence bill.
     -->
     <PackageReference Include="MediatR" Version="12.5.0" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />

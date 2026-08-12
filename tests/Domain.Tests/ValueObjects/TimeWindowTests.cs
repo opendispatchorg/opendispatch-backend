@@ -50,6 +50,41 @@ public sealed class TimeWindowTests
         Assert.Equal(expected, b.Overlaps(a));
     }
 
+    /// <summary>
+    /// The rule two things depend on: the engine charges for lateness in its objective, and the
+    /// board colours a block by it. Stated once here so a stop the optimiser priced as on time
+    /// cannot be drawn late.
+    /// </summary>
+    [Theory]
+    [InlineData(9d, 11d, 8d, 0d)]     // before the window even opens: early, not late
+    [InlineData(9d, 11d, 9d, 0d)]     // exactly on the promise
+    [InlineData(9d, 11d, 10.5d, 0d)]  // inside it
+    [InlineData(9d, 11d, 11d, 0d)]    // half-open: beginning as it closes is late by nothing
+    [InlineData(9d, 11d, 11.5d, 30d)] // half an hour past
+    [InlineData(9d, 11d, 15d, 240d)]  // four hours past
+    public void LatenessIsMeasuredFromTheCloseOfTheWindow(
+        double start, double end, double began, double expectedMinutes)
+    {
+        var promised = Hours(start, end);
+
+        Assert.Equal(
+            TimeSpan.FromMinutes(expectedMinutes),
+            promised.LatenessOf(Hours(began, began).Start));
+    }
+
+    /// <summary>
+    /// A job that begins inside its window and overruns has kept the promise: the customer was
+    /// told when somebody would turn up, not when they would leave.
+    /// </summary>
+    [Fact]
+    public void WorkThatBeginsInsideTheWindowIsNeverLateHoweverLongItRuns()
+    {
+        var promised = Hours(9, 11);
+
+        // Started at 10:55 and still going at midnight.
+        Assert.Equal(TimeSpan.Zero, promised.LatenessOf(Hours(10.9166667, 11).Start));
+    }
+
     [Fact]
     public void OverlapsComparesAbsoluteInstantsNotWallClockTime()
     {

@@ -17,7 +17,9 @@ namespace OpenDispatch.Application.Jobs.ChangeJobStatus;
 /// It is deliberately narrower than <see cref="Job.AllowedTransitions"/>, and the gap is the
 /// interesting part. <c>Invoiced</c> and <c>Paid</c> are legal moves that no actor makes: they are
 /// consequences of invoicing (step 40), which will drive them through the invoice aggregate.
-/// <c>Unscheduled</c> is where a job starts and nothing returns to it. So the exported transition
+/// <c>Unscheduled</c> is where a job starts, and the optimiser is the only thing that puts one back
+/// there — withdrawing a plan it can no longer keep, which is not a button anybody presses. So the
+/// exported transition
 /// table is not wrong to include them — a client offering an "invoice" button because
 /// <c>canTransition</c> said yes is a client bug — but this request refuses them, and says so as a
 /// malformed request rather than as a conflict, because it is the request that is wrong and not

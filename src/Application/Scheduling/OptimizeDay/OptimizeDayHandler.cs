@@ -141,6 +141,16 @@ internal sealed class OptimizeDayHandler(
             {
                 assignments.Remove(orphan);
             }
+
+            // The other half of dropping the stop. A job whose plan has been withdrawn is demand
+            // again, and saying so is what keeps the board honest: without it the job sits in the
+            // unassigned pile still labelled Scheduled, which is the one thing on that screen that
+            // would be false. Only work that was planned has anything to withdraw — a job that was
+            // already waiting is left alone.
+            if (byId[dropped].Status is JobStatus.Scheduled or JobStatus.Dispatched)
+            {
+                byId[dropped].Unschedule();
+            }
         }
 
         return new OptimizedDay(planned, solution.Unassigned, solution.Cost);

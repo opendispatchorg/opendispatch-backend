@@ -29,6 +29,7 @@ public sealed class DomainEventCatalogTests
         nameof(JobEnRoute),
         nameof(JobInProgress),
         nameof(JobScheduled),
+        nameof(JobUnscheduled),
     ];
 
     [Fact]
@@ -88,6 +89,12 @@ public sealed class DomainEventCatalogTests
         var calledOff = JobBuilder.Any().Build();
         calledOff.Cancel();
         raised.AddRange(calledOff.DomainEvents);
+
+        // The one move that goes backwards: work the optimiser had placed and can no longer fit.
+        var withdrawn = JobBuilder.Any().Build();
+        withdrawn.Schedule();
+        withdrawn.Unschedule();
+        raised.AddRange(withdrawn.DomainEvents);
 
         var stop = AssignmentBuilder.Any().Build();
         stop.Reassign(TechnicianId.New());

@@ -229,6 +229,91 @@ public sealed class PushOpsTests
         Assert.Equal("Office: customer rang.", Saved(slice).Notes);
     }
 
+    /// <summary>
+    /// The hole last-write-wins leaves open: a phone whose clock is a day fast would beat every
+    /// other writer until that date passed, and nothing would report it. An operation from the
+    /// future is believed as far as "now" and no further.
+    /// </summary>
+    [Fact]
+    public async Task RefusesToBelieveAnOperationFromTheFuture()
+    {
+        await using var slice = SliceHost.Sync();
+        var job = await ADispatchedJob(slice);
+        slice.Clock.UtcNow = MondayMorning.AddHours(4);
+
+        // The office writes now; the phone claims tomorrow.
+        await slice.Send(new PushOpsCommand(Technician, [Note(job, "Office: rang ahead.", slice.Clock.UtcNow)]));
+
+        var fromTheFuture = Note(job, "Nobody home.", slice.Clock.UtcNow.AddDays(1));
+        var pushed = await slice.Send(new PushOpsCommand(Technician, [fromTheFuture]));
+
+        // Clamped to now, which loses the tie against the note already recorded at now — so the
+        // fast clock wins nothing rather than everything.
+        Assert.Equal(SyncErrors.NotesSupersededCode, Assert.Single(pushed.Value.Conflicts).Error.Code);
+        Assert.Equal("Office: rang ahead.", Saved(slice).Notes);
+    }
+
+    /// <summary>
+    /// The honest half of the rule, unchanged: a technician who wrote a note in a basement at nine
+    /// wrote it at nine, whatever time it reaches the server.
+    /// </summary>
+    [Fact]
+    public async Task BelievesAnOperationFromThePast()
+    {
+        await using var slice = SliceHost.Sync();
+        var job = await ADispatchedJob(slice);
+        slice.Clock.UtcNow = MondayMorning.AddHours(9);
+
+        await slice.Send(new PushOpsCommand(Technician, [Note(job, "In the crawlspace.", MondayMorning)]));
+
+        var worked = Saved(slice);
+        Assert.Equal("In the crawlspace.", worked.Notes);
+        Assert.Equal(MondayMorning, worked.NotesRecordedAt);
+    }
+
+    /// <summary>
+    /// The clamp applies to what the domain is told, not to what the log records. A row that had
+    /// been clamped would hide the broken clock instead of being the one place it can be found.
+    /// </summary>
+    [Fact]
+    public async Task RecordsWhatTheDeviceClaimedEvenWhenItIsNotBelieved()
+    {
+        await using var slice = SliceHost.Sync();
+        var job = await ADispatchedJob(slice);
+        slice.Clock.UtcNow = MondayMorning;
+        var tomorrow = MondayMorning.AddDays(1);
+
+        await slice.Send(new PushOpsCommand(Technician, [Note(job, "Ahead of itself.", tomorrow)]));
+
+        Assert.Equal(tomorrow, Assert.Single(slice.Store<SyncOpRecord>().Saved).ClientTs);
+        Assert.Equal(MondayMorning, Saved(slice).NotesRecordedAt);
+    }
+
+    /// <summary>
+    /// A completion dated tomorrow is the same broken clock arriving by a different field, so the
+    /// payload's own instant is clamped too — otherwise the work lands in the future on the
+    /// invoice and in every number the day is measured by.
+    /// </summary>
+    [Fact]
+    public async Task RefusesToBelieveWorkFinishedInTheFuture()
+    {
+        await using var slice = SliceHost.Sync();
+        var job = await AJobInProgress(slice);
+        slice.Clock.UtcNow = MondayMorning.AddHours(3);
+
+        await slice.Send(new PushOpsCommand(
+            Technician,
+            [
+                Op(job, FieldOps.StatusChange, $$"""
+                    {"status":"Completed","completedAt":"{{MondayMorning.AddDays(1):O}}"}
+                    """, MondayMorning.AddHours(2)),
+            ]));
+
+        Assert.Equal(
+            slice.Clock.UtcNow,
+            Assert.IsType<JobCompleted>(Saved(slice).DomainEvents[^1]).OccurredAt);
+    }
+
     [Fact]
     public async Task KeepsANoteWrittenAfterTheOneItAlreadyHolds()
     {

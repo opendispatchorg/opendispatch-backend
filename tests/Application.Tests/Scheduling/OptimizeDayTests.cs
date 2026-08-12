@@ -9,6 +9,7 @@ using OpenDispatch.Application.Technicians.CreateTechnician;
 using OpenDispatch.Application.Technicians.SetSkills;
 using OpenDispatch.Application.Tests.Fakes;
 using OpenDispatch.Domain.Assignments;
+using OpenDispatch.Domain.Events;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.ValueObjects;
@@ -151,8 +152,13 @@ public sealed class OptimizeDayTests
     /// The only deletion in the system, and the reason the port has a <c>Remove</c>: an orphaned
     /// stop would show on the board as work somebody is expected to drive to.
     /// </summary>
+    /// <remarks>
+    /// The job goes back to being demand at the same time, which is the other half of withdrawing
+    /// a plan. Without it the board shows the job in the unassigned pile still labelled
+    /// <c>Scheduled</c> — the one thing on that screen that would be false.
+    /// </remarks>
     [Fact]
-    public async Task DropsTheStopOfAJobItCanNoLongerPlace()
+    public async Task DropsTheStopOfAJobItCanNoLongerPlaceAndPutsTheJobBackInThePile()
     {
         await using var slice = SliceHost.Dispatching();
         var technician = await ATechnician(slice);
@@ -167,6 +173,51 @@ public sealed class OptimizeDayTests
 
         Assert.Equal(job, Assert.Single(optimized.Value.Unassigned));
         Assert.Empty(slice.Store<Assignment>().Saved);
+
+        var withdrawn = Assert.Single(slice.Store<Job>().Saved, saved => saved.Id == job);
+        Assert.Equal(JobStatus.Unscheduled, withdrawn.Status);
+        Assert.IsType<JobUnscheduled>(withdrawn.DomainEvents[^1]);
+    }
+
+    /// <summary>
+    /// The same, from a job that had already been sent to a phone. It is the case worth naming:
+    /// the technician holding it is told by step 43's pull, which reports the stop as gone — so
+    /// the status and the phone agree rather than the job insisting it is planned.
+    /// </summary>
+    [Fact]
+    public async Task WithdrawsWorkEvenAfterItHasReachedAPhone()
+    {
+        await using var slice = SliceHost.Dispatching();
+        var technician = await ATechnician(slice);
+        var job = await ABookedJob(slice, Slough);
+        await slice.Send(new AssignJobCommand(job, technician, MondayMorning.AddHours(1)));
+        await slice.Send(new ChangeJobStatusCommand(job, JobStatus.Dispatched));
+
+        await slice.Send(new SetSkillsCommand(technician, ["plumbing"]));
+
+        await Optimize(slice);
+
+        Assert.Equal(
+            JobStatus.Unscheduled,
+            Assert.Single(slice.Store<Job>().Saved, saved => saved.Id == job).Status);
+    }
+
+    /// <summary>
+    /// A job that was never planned has no plan to withdraw, so nothing announces anything about
+    /// it — the optimiser simply could not place it this time either.
+    /// </summary>
+    [Fact]
+    public async Task SaysNothingAboutWorkThatWasAlreadyWaiting()
+    {
+        await using var slice = SliceHost.Dispatching();
+        await ATechnician(slice);
+        var gas = await ABookedJob(slice, Croydon, skill: "gas safe");
+
+        await Optimize(slice);
+
+        var waiting = Assert.Single(slice.Store<Job>().Saved, saved => saved.Id == gas);
+        Assert.Equal(JobStatus.Unscheduled, waiting.Status);
+        Assert.Empty(waiting.DomainEvents);
     }
 
     [Fact]

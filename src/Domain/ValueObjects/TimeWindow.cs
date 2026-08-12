@@ -39,4 +39,31 @@ public readonly record struct TimeWindow(DateTimeOffset Start, DateTimeOffset En
     /// windows do not overlap.
     /// </summary>
     public bool Overlaps(TimeWindow other) => Start < other.End && other.Start < End;
+
+    /// <summary>
+    /// How late something beginning at <paramref name="start"/> is against this window. Zero when
+    /// it begins before the window closes.
+    /// </summary>
+    /// <param name="start">When the thing actually begins.</param>
+    /// <remarks>
+    /// <para>
+    /// <strong>Lateness is measured at the start, not the end.</strong> A technician who begins a
+    /// job inside the promised window has kept the promise, however long the work then runs — the
+    /// customer was told when somebody would be there, not when they would leave. The same rule
+    /// prices a shift: a route is in overtime by how far past the shift's close the technician gets
+    /// home.
+    /// </para>
+    /// <para>
+    /// It lives here because two things need the same answer and must not each invent one. The
+    /// engine charges for it in the objective function, and the board colours a block by it — and
+    /// a dispatcher looking at a block the optimiser considered on time, marked late, would be
+    /// looking at two opinions of one promise. Stating it on the window rather than on
+    /// <c>Job</c> is what lets the shift use it too.
+    /// </para>
+    /// <para>
+    /// The window is half-open, so beginning exactly as it closes is late by nothing rather than
+    /// late by an instant — the same boundary <see cref="Overlaps"/> uses.
+    /// </para>
+    /// </remarks>
+    public TimeSpan LatenessOf(DateTimeOffset start) => start > End ? start - End : TimeSpan.Zero;
 }

@@ -259,8 +259,8 @@ export interface SyncPushResponse {
  */
 export const jobTransitions: Readonly<Record<JobStatus, readonly JobStatus[]>> = {
   Unscheduled: ['Scheduled', 'Cancelled'],
-  Scheduled: ['Dispatched', 'Cancelled'],
-  Dispatched: ['EnRoute', 'Cancelled'],
+  Scheduled: ['Unscheduled', 'Dispatched', 'Cancelled'],
+  Dispatched: ['Unscheduled', 'EnRoute', 'Cancelled'],
   EnRoute: ['InProgress', 'Cancelled'],
   InProgress: ['Completed', 'Cancelled'],
   Completed: ['Invoiced'],
