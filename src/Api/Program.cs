@@ -6,6 +6,7 @@ using Microsoft.IdentityModel.Tokens;
 using OpenDispatch.Api.Auth;
 using OpenDispatch.Api.Configuration;
 using OpenDispatch.Api.Health;
+using OpenDispatch.Api.Tenancy;
 using OpenDispatch.Application;
 using OpenDispatch.Application.Auth;
 using OpenDispatch.Infrastructure;
@@ -115,12 +116,14 @@ try
 
     app.UseSerilogRequestLogging();
 
-    // Authentication before authorization, both before any endpoint: an anonymous or
-    // wrong-role caller is rejected by this pair before routing hands the request to a
-    // handler, which is what step 45's tenant middleware (reading the org claim this pair
-    // has already validated) will slot in beneath.
+    // Authentication before authorization before tenant resolution, all three before any
+    // endpoint: an anonymous or wrong-role caller is rejected before routing hands the request
+    // to a handler, and a caller who passed both of those but carries no valid org claim
+    // (Document 2 §8, step 45) never reaches one either — nothing below this point may read
+    // tenant-scoped data without ITenantContext already knowing whose it is.
     app.UseAuthentication();
     app.UseAuthorization();
+    app.UseTenantResolution();
 
     // Served for a developer poking at a running host. The document the clients are generated
     // from is the one exported at build time, so there is nothing to gain from enumerating the
@@ -132,6 +135,7 @@ try
 
     app.MapHealthEndpoint();
     app.MapAuthEndpoints();
+    app.MapTenancyTestEndpoints();
 
     app.Run();
     return 0;

@@ -17,12 +17,12 @@ namespace OpenDispatch.Api.IntegrationTests.Auth;
 /// request against a real host.
 /// </summary>
 /// <remarks>
-/// No <see cref="PostgresFixture"/>: the minimal user store is an in-memory singleton
-/// (<c>InMemoryUserStore</c>), so nothing here touches a database — the same reason
-/// <c>HealthEndpointTests</c> needs none. It shares <see cref="ApiHostCollectionDefinition"/>
-/// with that class instead, for the reason stated there.
+/// The minimal user store is an in-memory singleton (<c>InMemoryUserStore</c>), so nothing here
+/// touches a database — but it shares <see cref="PostgresCollectionDefinition"/> with
+/// <c>HealthEndpointTests</c> anyway, because both boot a real host; see that collection's
+/// remarks for why.
 /// </remarks>
-[Collection(ApiHostCollectionDefinition.Name)]
+[Collection(PostgresCollectionDefinition.Name)]
 [Trait(TestCategories.Name, TestCategories.Integration)]
 public sealed class AuthFlowTests : IClassFixture<ApiFactory>
 {
