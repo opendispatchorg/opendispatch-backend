@@ -31,7 +31,7 @@ internal sealed class UnhandledExceptionHandler(
         CancellationToken cancellationToken)
     {
         UnhandledExceptionHandlerLog.Unhandled(
-            logger, exception, httpContext.Request.Method, httpContext.Request.Path);
+            logger, exception, httpContext.Request.Method, httpContext.Request.Path, httpContext.TraceIdentifier);
 
         httpContext.Response.StatusCode = StatusCodes.Status500InternalServerError;
 

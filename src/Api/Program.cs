@@ -167,7 +167,14 @@ try
     // everything that produces one — the exception handler below, Results.Problem/
     // ValidationProblem in ResultHttpMapping, and the framework's own (malformed body, no
     // matching route) failures — from the one registration.
-    builder.Services.AddProblemDetails();
+    //
+    // CustomizeProblemDetails is the one hook every one of those paths already funnels through,
+    // so a traceId on every failure response (step 46's own "no owner" gap, closed here) costs
+    // one line rather than one per call site. On its own this is half a fix: see
+    // UseSerilogRequestLogging below for the other half — the same id landing somewhere a human
+    // can actually grep for it.
+    builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
+        context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier);
     builder.Services.AddExceptionHandler<UnhandledExceptionHandler>();
 
     // The real-time dispatch board (Document 2 §9, step 51). Scoped, not singleton: it reads
@@ -178,7 +185,24 @@ try
 
     var app = builder.Build();
 
-    app.UseSerilogRequestLogging();
+    // NotFound/Conflict/Unauthorized/Validation log nothing of their own beyond this one
+    // request-summary line, so it is what has to carry the traceId AddProblemDetails above puts
+    // on a failure response, or that id has nothing server-side to correlate against.
+    //
+    // EnrichDiagnosticContext alone is not enough: it attaches TraceId to the LogEvent as a
+    // structured property, but the default Console sink (appsettings.json's only configured
+    // sink, unconfigured further) only renders a message template's own tokens — verified by
+    // actually running the host and reading real console output, which showed the enrichment
+    // taking effect on the LogEvent but nothing extra in the printed line. MessageTemplate is
+    // what the line itself is built from, so TraceId has to be named there too, the same fix
+    // already applied to UnhandledExceptionHandlerLog's own template just below.
+    app.UseSerilogRequestLogging(options =>
+    {
+        options.MessageTemplate =
+            "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms (trace {TraceId})";
+        options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
+            diagnosticContext.Set("TraceId", httpContext.TraceIdentifier);
+    });
 
     // After request logging, so a request that ends in an unhandled exception is still logged
     // as a request (with the 500 UnhandledExceptionHandler leaves behind) rather than logged

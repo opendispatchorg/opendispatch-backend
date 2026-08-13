@@ -47,6 +47,7 @@ public sealed class ErrorMappingFlowTests : IClassFixture<ApiFactory>
         Assert.NotNull(problem);
         Assert.Equal(StatusCodes.Status404NotFound, problem.Status);
         Assert.Equal(CustomerErrors.NotFoundCode, problem.Extensions["code"]?.ToString());
+        AssertCarriesATraceId(problem);
     }
 
     /// <summary>
@@ -72,5 +73,18 @@ public sealed class ErrorMappingFlowTests : IClassFixture<ApiFactory>
         var problem = JsonSerializer.Deserialize<ProblemDetails>(body, JsonSerializerOptions.Web);
         Assert.NotNull(problem);
         Assert.Equal(StatusCodes.Status500InternalServerError, problem.Status);
+        AssertCarriesATraceId(problem);
+    }
+
+    /// <summary>
+    /// Both facts above go through a different path to a ProblemDetails response — one a
+    /// <c>Result</c> mapped, one a raw exception the handler caught — so asserting this on both
+    /// is what actually proves <c>CustomizeProblemDetails</c> (Program.cs) covers every path
+    /// rather than merely the one it happened to be written against.
+    /// </summary>
+    private static void AssertCarriesATraceId(ProblemDetails problem)
+    {
+        Assert.True(problem.Extensions.TryGetValue("traceId", out var traceId), "no traceId extension.");
+        Assert.False(string.IsNullOrWhiteSpace(traceId?.ToString()));
     }
 }

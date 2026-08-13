@@ -9,6 +9,7 @@ namespace OpenDispatch.Api.ErrorHandling;
 /// </remarks>
 internal static partial class UnhandledExceptionHandlerLog
 {
-    [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception on {Method} {Path}")]
-    internal static partial void Unhandled(ILogger logger, Exception exception, string method, string path);
+    [LoggerMessage(Level = LogLevel.Error, Message = "Unhandled exception on {Method} {Path} (trace {TraceId})")]
+    internal static partial void Unhandled(
+        ILogger logger, Exception exception, string method, string path, string traceId);
 }
