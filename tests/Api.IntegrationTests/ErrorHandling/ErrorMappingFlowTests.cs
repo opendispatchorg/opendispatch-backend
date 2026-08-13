@@ -16,11 +16,20 @@ namespace OpenDispatch.Api.IntegrationTests.ErrorHandling;
 /// <c>Result</c>, and a bug — against the real host (Document 3, step 46).
 /// </summary>
 /// <remarks>
+/// <para>
 /// The validation and unauthorized categories have their own tests already, through the real
 /// login endpoint (<c>AuthFlowTests</c>). <c>NotFound</c> now has one too — <c>GET
 /// /customers/{id}</c>, step 47's, replacing the temporary endpoint this file used before real
 /// endpoints existed to prove it. <c>Conflict</c> still has no test of its own here; step 47's
 /// own flow tests are where it first gets one, through <c>AssignJob</c>/<c>ChangeJobStatus</c>.
+/// </para>
+/// <para>
+/// That <c>NotFound</c> test reads through a repository, so this class points the host at the
+/// shared container. It did not until step 52's follow-up — a missing row and an unreachable
+/// database are both "no customer came back" to a test that only checks the status code, which is
+/// what let this one pass for five steps against whatever the developer's own <c>docker
+/// compose</c> happened to be serving. See <c>DECISIONS.local.md</c>.
+/// </para>
 /// </remarks>
 [Collection(PostgresCollectionDefinition.Name)]
 [Trait(TestCategories.Name, TestCategories.Integration)]
@@ -28,7 +37,11 @@ public sealed class ErrorMappingFlowTests : IClassFixture<ApiFactory>
 {
     private readonly ApiFactory _factory;
 
-    public ErrorMappingFlowTests(ApiFactory factory) => _factory = factory;
+    public ErrorMappingFlowTests(ApiFactory factory, PostgresFixture postgres)
+    {
+        _factory = factory;
+        _factory.ConnectionString = postgres.ConnectionString;
+    }
 
     [Fact]
     public async Task ANotFoundResultYieldsAProblemDetailsResponse()

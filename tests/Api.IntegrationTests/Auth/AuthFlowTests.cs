@@ -18,10 +18,20 @@ namespace OpenDispatch.Api.IntegrationTests.Auth;
 /// request against a real host.
 /// </summary>
 /// <remarks>
-/// The minimal user store is an in-memory singleton (<c>InMemoryUserStore</c>), so nothing here
-/// touches a database — but it shares <see cref="PostgresCollectionDefinition"/> with
-/// <c>HealthEndpointTests</c> anyway, because both boot a real host; see that collection's
-/// remarks for why.
+/// <para>
+/// Login itself needs no database — the minimal user store is an in-memory singleton
+/// (<c>InMemoryUserStore</c>) — but <see cref="AProtectedEndpointAcceptsTheRoleItAsksFor"/> does:
+/// proving a policy <em>admits</em> the right role means letting the request through to a handler
+/// that really writes a technician. So this class points the host at the shared container like
+/// every other <see cref="ApiFactory"/> class does, rather than leaving
+/// <see cref="ApiFactory.ConnectionString"/> unset.
+/// </para>
+/// <para>
+/// It did leave it unset until step 52's follow-up, which is how these tests spent steps 47–52
+/// quietly talking to whatever happened to be listening on the developer's own
+/// <c>docker compose</c> port instead of to a container of their own — green on a machine with
+/// that database running, a 500 on any that had none. See <c>DECISIONS.local.md</c>.
+/// </para>
 /// </remarks>
 [Collection(PostgresCollectionDefinition.Name)]
 [Trait(TestCategories.Name, TestCategories.Integration)]
@@ -31,7 +41,11 @@ public sealed class AuthFlowTests : IClassFixture<ApiFactory>
 
     private readonly ApiFactory _factory;
 
-    public AuthFlowTests(ApiFactory factory) => _factory = factory;
+    public AuthFlowTests(ApiFactory factory, PostgresFixture postgres)
+    {
+        _factory = factory;
+        _factory.ConnectionString = postgres.ConnectionString;
+    }
 
     [Fact]
     public async Task LoginWithTheRightPasswordReturnsAToken()

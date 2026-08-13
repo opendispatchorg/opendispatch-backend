@@ -22,14 +22,38 @@ namespace OpenDispatch.Api.IntegrationTests.Fixtures;
 public sealed class ApiFactory : WebApplicationFactory<Program>
 {
     /// <summary>
-    /// Points the host at a database, typically the shared <see cref="PostgresFixture"/>
-    /// container. Leave null for endpoints that never touch one.
+    /// Where a host with no <see cref="ConnectionString"/> is pointed instead of at whatever
+    /// <c>appsettings.json</c> names.
     /// </summary>
     /// <remarks>
+    /// <c>.invalid</c> never resolves, by RFC 2606, so a test that reaches a database without
+    /// having asked for one fails against a host that does not exist rather than against the
+    /// developer's own <c>docker compose</c> database — which is exactly what
+    /// <c>appsettings.json</c>'s <c>Host=localhost;Port=5433</c> would otherwise hand it. The
+    /// name is the error message: it shows up verbatim in the Npgsql failure.
+    /// </remarks>
+    private const string NoDatabaseRequested =
+        "Host=api-factory-connection-string-not-set.invalid;Database=none;Username=none;Password=none";
+
+    /// <summary>
+    /// Points the host at a database, typically the shared <see cref="PostgresFixture"/>
+    /// container. Leave null only for endpoints that never touch one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
     /// Set this before the first <c>CreateClient()</c> call: that is what builds the host,
     /// and configuration is read once during the build. A settable property rather than a
     /// constructor parameter because xunit requires a class fixture to expose exactly one
     /// public constructor.
+    /// </para>
+    /// <para>
+    /// Leaving it null is not "no database" — it is <see cref="NoDatabaseRequested"/>, a host
+    /// that cannot resolve. Before step 52's follow-up, null meant falling through to
+    /// <c>appsettings.json</c>, so a class that forgot to set this silently used the developer's
+    /// own compose database: green wherever that happened to be running, and a 500 on CI, which
+    /// is precisely how <c>AuthFlowTests</c> and <c>ErrorMappingFlowTests</c> went five steps
+    /// without anyone noticing they had never been pointed anywhere.
+    /// </para>
     /// </remarks>
     public string? ConnectionString { get; set; }
 
@@ -67,15 +91,13 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment("Testing");
 
-        if (ConnectionString is null)
-        {
-            return;
-        }
-
+        // Always overridden, never left to fall through: appsettings.json names a real host
+        // (localhost:5433, the compose database a developer runs `make up` for), and a test that
+        // reached it would be reading and writing real local data while looking like it passed.
         builder.ConfigureAppConfiguration((_, configuration) =>
             configuration.AddInMemoryCollection(new Dictionary<string, string?>
             {
-                ["Database:ConnectionString"] = ConnectionString,
+                ["Database:ConnectionString"] = ConnectionString ?? NoDatabaseRequested,
             }));
     }
 }
