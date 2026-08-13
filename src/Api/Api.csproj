@@ -38,6 +38,13 @@
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
+    <!--
+      JWT bearer auth (Document 2 §7, step 44). Not part of the Microsoft.AspNetCore.App shared
+      framework this Sdk already references — unlike cookie auth, the JWT handler has always
+      shipped as its own package because of the Microsoft.IdentityModel.* dependency chain it
+      carries.
+    -->
+    <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
   </ItemGroup>
 
   <ItemGroup>

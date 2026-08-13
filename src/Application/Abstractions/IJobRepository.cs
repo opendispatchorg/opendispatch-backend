@@ -9,10 +9,13 @@ namespace OpenDispatch.Application.Abstractions;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Three methods, and each one is here because a named later step cannot be written without
-/// it. There is no <c>Update</c>, no <c>Save</c>, and no query that is merely plausible: the
-/// point of a port is to say exactly what the application needs, so that the day someone
-/// needs something else, the need is visible in a diff.
+/// Four methods, and each one is here because a named step cannot be written without it —
+/// <see cref="ListAsync"/> is step 47's, added when <c>GET /jobs</c> needed something
+/// <see cref="ListSchedulableAsync"/> could not answer (it is scoped to a horizon and to the
+/// statuses still worth planning; a reader wants everything). There is no <c>Update</c>, no
+/// <c>Save</c>, and no query that is merely plausible: the point of a port is to say exactly
+/// what the application needs, so that the day someone needs something else, the need is
+/// visible in a diff.
 /// </para>
 /// <para>
 /// Nothing here takes an <c>OrgId</c>. Tenant scope is ambient — the persistence layer
@@ -34,6 +37,14 @@ public interface IJobRepository
     /// Stages a newly booked job. It is written when the unit of work is saved, not here.
     /// </summary>
     void Add(Job job);
+
+    /// <summary>
+    /// Fetches every job in the tenant, for a reader rather than the scheduler — step 47's
+    /// <c>GET /jobs</c>. Unpaged, following <c>ICustomerRepository.ListAsync</c>: the same
+    /// "will not age well" note applies, and the same answer when it stops fitting is a
+    /// projection through a read model, not parameters bolted onto this.
+    /// </summary>
+    Task<IReadOnlyList<Job>> ListAsync(CancellationToken ct);
 
     /// <summary>
     /// Fetches the work the scheduler is allowed to plan over a horizon — everything the

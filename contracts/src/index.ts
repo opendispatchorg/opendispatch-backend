@@ -15,6 +15,40 @@
 // OpenDispatch.Contracts
 // ---------------------------------------------------------------------------------------------
 
+/** What a technician captured, as the clients see it. */
+export const AttachmentKind = {
+  /** A picture of the site, the fault, or the finished work. */
+  Photo: 'Photo',
+  /** The customer's signature, captured on the technician's screen. */
+  Signature: 'Signature',
+} as const;
+
+export type AttachmentKind = (typeof AttachmentKind)[keyof typeof AttachmentKind];
+
+/** Whether an invoice has been settled, as the clients see it. */
+export const InvoiceStatus = {
+  /** Raised but not settled. */
+  Draft: 'Draft',
+  /** Settled. Terminal. */
+  Paid: 'Paid',
+} as const;
+
+export type InvoiceStatus = (typeof InvoiceStatus)[keyof typeof InvoiceStatus];
+
+/** How badly a job needs doing, as the clients see it. */
+export const JobPriority = {
+  /** Can wait. Slipping it to another day costs little. */
+  Low: 'Low',
+  /** Ordinary booked work. */
+  Normal: 'Normal',
+  /** Wants doing today. */
+  High: 'High',
+  /** No heat, no water, no power. Bump whatever it takes. */
+  Emergency: 'Emergency',
+} as const;
+
+export type JobPriority = (typeof JobPriority)[keyof typeof JobPriority];
+
 /** Where a job has got to in its life, as the clients see it. */
 export const JobStatus = {
   /** Booked, but nobody is going to it yet. */
@@ -38,6 +72,16 @@ export const JobStatus = {
 } as const;
 
 export type JobStatus = (typeof JobStatus)[keyof typeof JobStatus];
+
+/** What a billed line is for, as the clients see it. */
+export const LineItemKind = {
+  /** Time on the job, billed by the hour. */
+  Labor: 'Labor',
+  /** Something fitted or supplied, billed by the unit. */
+  Part: 'Part',
+} as const;
+
+export type LineItemKind = (typeof LineItemKind)[keyof typeof LineItemKind];
 
 // ---------------------------------------------------------------------------------------------
 // OpenDispatch.Contracts.Board
@@ -121,37 +165,6 @@ export interface TechnicianMoved {
 // OpenDispatch.Contracts.Sync
 // ---------------------------------------------------------------------------------------------
 
-/** One entity as the server currently holds it, sent to a device that is behind. */
-export interface SyncChange {
-  /** What kind of thing this is — the same vocabulary an operation uses. */
-  readonly entity: string;
-  /** Which one. */
-  readonly entityId: string;
-  /** Its concurrency stamp as the server holds it. */
-  readonly version: number;
-  /**
-   * The entity as the client should now hold it, or `null` when `deleted` is set — the two
-   * always agree.
-   */
-  readonly state: unknown;
-  /**
-   * The entity is gone from this device's world: cancelled, or a stop re-optimised onto
-   * somebody else's day. Removal has to be sayable, because a phone that is never told simply
-   * keeps the stop and drives to it.
-   */
-  readonly deleted: boolean;
-}
-
-/** An operation the server would not apply, and why. */
-export interface SyncConflict {
-  /** Which operation, by the id the device gave it. */
-  readonly opId: string;
-  /** What kind of refusal it was, for the client to branch on. */
-  readonly reason: SyncConflictReason;
-  /** Why, in terms fit to show the technician holding the phone. */
-  readonly message: string;
-}
-
 /** The kinds of refusal a pushed operation can meet. */
 export const SyncConflictReason = {
   /**
@@ -174,78 +187,67 @@ export const SyncConflictReason = {
 
 export type SyncConflictReason = (typeof SyncConflictReason)[keyof typeof SyncConflictReason];
 
-/**
- * One thing a technician did in the field: started a job, added a note, added a part, finished.
- * Queued on the device and pushed in batches (Document 2 §10).
- */
-export interface SyncOp {
-  /**
-   * The device's own identifier for this operation, and the idempotency key. A phone that
-   * pushes, loses signal, and pushes again sends the same id, which is how the server knows not
-   * to apply it twice.
-   */
+/** One line of what a job's work has taken, inside a `SyncJobPayload`. */
+export interface SyncJobLinePayload {
+  /** The line's identity within its job. */
   readonly id: string;
-  /** What kind of thing it happened to — `"job"`, `"line_item"`. */
-  readonly entity: string;
-  /** Which one. */
-  readonly entityId: string;
-  /** What was done — `"status_change"`, `"add_note"`. */
-  readonly type: string;
-  /** The operation's own data, shaped by `type`. */
-  readonly payload: unknown;
+  /** Labour or a part. */
+  readonly kind: LineItemKind;
+  /** What it was. */
+  readonly description: string;
+  /** How many. */
+  readonly quantity: number;
+  /** What one costs, in dollars. */
+  readonly unitPrice: number;
+}
+
+/** A job, inside a `SyncChange` whose `Entity` is `"job"`. */
+export interface SyncJobPayload {
+  /** How far through its life it is — which buttons the app offers. */
+  readonly status: JobStatus;
+  /** How badly it needs doing. */
+  readonly priority: JobPriority;
+  /** What it takes to do it. */
+  readonly requiredSkill: string;
+  /** When the promised window opens. */
+  readonly windowStart: string;
+  /** When the promised window closes. */
+  readonly windowEnd: string;
+  /** How long the work should take. */
+  readonly estimatedDuration: string;
+  /** Where it is, for navigation. */
+  readonly latitude: number;
+  /** Where it is, for navigation. */
+  readonly longitude: number;
+  /** Who it is for. */
+  readonly customerName: string;
+  /** Where it is, for a human. */
+  readonly address: string;
+  /** What has been written about it, or `null` if nothing has. */
+  readonly notes: string | null;
   /**
-   * The version of the entity the device was looking at when it acted. What a stale write is
-   * judged against; the server's answer is authoritative either way.
+   * When the notes were written. The device needs it to know whether its own unsent note would
+   * win — the same comparison the server will make.
    */
-  readonly baseVersion: number;
-  /**
-   * When it happened on the device, which is not when it arrived. The ordering a technician
-   * would recognise, and what last-write-wins on free text is decided by.
-   */
-  readonly clientTs: string;
+  readonly notesRecordedAt: string | null;
+  /** What the work has taken so far, in the order it was recorded. */
+  readonly lines: readonly SyncJobLinePayload[];
 }
 
 /**
- * Everything that changed in a device's world since the cursor it asked with, and where it now
- * stands. The body of `GET /sync/pull?since={cursor}`.
+ * A planned stop, inside a `SyncChange` whose `Entity` is `"assignment"` — the same name a
+ * removed stop uses, so a client groups both under one vocabulary rather than switching between
+ * "stop" and "assignment" depending on whether the row still exists.
  */
-export interface SyncPullResponse {
-  /** The entities that moved, as the server now holds them. */
-  readonly changes: readonly SyncChange[];
-  /**
-   * The watermark to ask with next time. Opaque — the shape of the server's bookmark is not
-   * part of the contract.
-   */
-  readonly cursor: string;
-}
-
-/**
- * A device emptying its queue: everything it did since it last got through, in the order it did
- * it. The body of `POST /sync/push`.
- */
-export interface SyncPushRequest {
-  /** The operations, oldest first. */
-  readonly ops: readonly SyncOp[];
-}
-
-/**
- * What the server made of a pushed batch. Authoritative: the device rebases onto this rather
- * than keeping its own opinion (Document 2 §10).
- */
-export interface SyncPushResponse {
-  /**
-   * The ops that landed, by id. An op the server had already applied is reported here too: from
-   * the device's point of view a re-sent operation that is already in effect succeeded, and
-   * telling it otherwise would leave it queueing the op forever.
-   */
-  readonly applied: readonly string[];
-  /** The ops that were refused, each with a reason fit to show a technician. */
-  readonly conflicts: readonly SyncConflict[];
-  /**
-   * Where the device now stands in the change stream. Opaque — it is the server's watermark,
-   * and a client that parses it is reading something it was not promised.
-   */
-  readonly cursor: string;
+export interface SyncStopPayload {
+  /** The work it is for. The device joins this to a `SyncJobPayload`. */
+  readonly jobId: string;
+  /** Where it falls in the day, counting from zero. */
+  readonly sequence: number;
+  /** When the technician is planned to start work. */
+  readonly scheduledStart: string;
+  /** Minutes of driving to get here from the previous stop. */
+  readonly travelMin: number;
 }
 
 // ---------------------------------------------------------------------------------------------

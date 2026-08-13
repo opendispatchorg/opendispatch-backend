@@ -35,4 +35,13 @@ public interface IAttachmentRepository
     /// be readable for the length of a transaction.
     /// </summary>
     void Add(Attachment attachment);
+
+    /// <summary>
+    /// Fetches every attachment's metadata in the tenant, unpaged — step 50b's <c>GET /export</c>
+    /// entry, following <see cref="ICustomerRepository.ListAsync"/>: business records a shop is
+    /// entitled to take with it, not a display list a page has to render. Content itself is not
+    /// included — a caller wanting bytes goes through <see cref="IAttachmentStorage"/> by the
+    /// returned attachment's <c>StorageKey</c>.
+    /// </summary>
+    Task<IReadOnlyList<Attachment>> ListAsync(CancellationToken ct);
 }

@@ -11,6 +11,11 @@ namespace OpenDispatch.Api.IntegrationTests;
 /// binding, startup validation and routing end to end rather than calling the endpoint
 /// delegate directly.
 /// </summary>
+/// <remarks>
+/// Touches no database, but shares <see cref="PostgresCollectionDefinition"/> anyway — see its
+/// remarks — because it boots a real host the same way <c>AuthFlowTests</c> does.
+/// </remarks>
+[Collection(PostgresCollectionDefinition.Name)]
 [Trait(TestCategories.Name, TestCategories.Integration)]
 public sealed class HealthEndpointTests : IClassFixture<ApiFactory>
 {

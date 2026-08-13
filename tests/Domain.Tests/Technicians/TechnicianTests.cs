@@ -1,4 +1,5 @@
 using OpenDispatch.Domain.Common;
+using OpenDispatch.Domain.ValueObjects;
 using OpenDispatch.TestSupport;
 using OpenDispatch.TestSupport.Builders;
 
@@ -186,5 +187,36 @@ public sealed class TechnicianTests
     public void RejectsABlankSkillAtCreation()
     {
         Assert.Throws<DomainException>(() => TechnicianBuilder.Any().Skilled("hvac", "  ").Build());
+    }
+
+    [Fact]
+    public void RenamingTrimsTheNewName()
+    {
+        var technician = TechnicianBuilder.Any().Build();
+
+        technician.Rename("  Alice Vance  ");
+
+        Assert.Equal("Alice Vance", technician.Name);
+    }
+
+    [Theory]
+    [InlineData("")]
+    [InlineData("   ")]
+    public void RenamingToNothingIsRefused(string name)
+    {
+        var technician = TechnicianBuilder.Any().Build();
+
+        Assert.Throws<DomainException>(() => technician.Rename(name));
+    }
+
+    [Fact]
+    public void MovingTheHomeBaseReplacesIt()
+    {
+        var technician = TechnicianBuilder.Any().BasedAt(new GeoPoint(51.5074d, -0.1278d)).Build();
+        var moved = new GeoPoint(51.51d, -0.12d);
+
+        technician.SetHomeBase(moved);
+
+        Assert.Equal(moved, technician.HomeBase);
     }
 }

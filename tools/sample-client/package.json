@@ -1,0 +1,11 @@
+{
+  "name": "opendispatch-contracts-sample-client",
+  "version": "0.0.0",
+  "private": true,
+  "description": "Proves @opendispatch/contracts compiles for a real importer, resolved through the package's own package.json rather than a relative path into contracts/src. Not shipped, not part of the contract itself — see tools/README.md.",
+  "license": "Apache-2.0",
+  "devDependencies": {
+    "@opendispatch/contracts": "file:../../contracts",
+    "typescript": "5.9.3"
+  }
+}

@@ -2,9 +2,15 @@ CONFIGURATION ?= Debug
 WATCH_PROJECT ?= tests/Domain.Tests
 
 # The generated @opendispatch/contracts package. Everything under it is output: it is deleted
-# and rebuilt by gen-contracts, and committed so the clients can consume it by path or git
-# reference until publishing is configured.
+# and rebuilt by gen-contracts, and committed both so it can be diffed for drift and because the
+# published tarball (npm publish, from this same directory) is exactly what is checked out here
+# — nothing is assembled specially for a release that CI has not already verified.
 CONTRACTS := contracts
+
+# A throwaway npm project that depends on $(CONTRACTS) the way a real client repository would —
+# through its own package.json, not a relative path into its src/. Proves the package's own
+# `exports`/`types` fields resolve, which compiling contracts/src/*.ts directly cannot.
+SAMPLE_CLIENT := tools/sample-client
 
 # Where the build-time OpenAPI export lands. The file name comes from the project name, which
 # the generation targets do not let us set — hence the copy rather than a direct write.
@@ -14,7 +20,8 @@ OPENAPI_EXPORT := src/Api/obj/openapi/Api.json
 # the Api host's configuration, so every `dotnet ef` command needs both projects.
 EF := dotnet ef --project src/Infrastructure --startup-project src/Api
 
-.PHONY: up run migrate migration test test-fast test-watch gen-contracts check-contracts
+.PHONY: up run migrate migration test test-fast test-watch gen-contracts check-contracts \
+	check-contracts-sample publish-contracts
 
 ## up: start Postgres/PostGIS via docker compose
 up:
@@ -90,3 +97,23 @@ check-contracts: gen-contracts
 		exit 1; \
 	fi
 	@echo "check-contracts: $(CONTRACTS)/ matches the sources it is generated from"
+
+## check-contracts-sample: prove a real importer compiles against $(CONTRACTS) (Document 3, step 52)
+##
+## `npm install` on a file: dependency resolves through the package's own package.json —
+## its `exports` map and `types` field — the same mechanism a registry install uses, just
+## without a registry. gen-contracts' own tsc invocation compiles contracts/src/*.ts directly
+## and cannot catch a broken exports entry or a missing types field; this can.
+check-contracts-sample: gen-contracts
+	npm install --prefix $(SAMPLE_CLIENT) --no-audit --no-fund
+	npm exec --prefix $(SAMPLE_CLIENT) -- tsc --noEmit -p $(SAMPLE_CLIENT)/tsconfig.json
+	@echo "check-contracts-sample: a sample client import compiles against $(CONTRACTS)"
+
+## publish-contracts: publish $(CONTRACTS) to the npm registry (Document 3, step 52)
+##
+## Needs registry auth this repository does not itself hold — an .npmrc or NPM_TOKEN a release
+## actually has. Refuses to publish anything gen-contracts has not just regenerated and
+## check-contracts has not just confirmed matches what is committed, so a version can never ship
+## something other than what CI already reviewed.
+publish-contracts: check-contracts
+	npm publish $(CONTRACTS)

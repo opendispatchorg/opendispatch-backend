@@ -2,7 +2,6 @@ using MediatR;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Jobs;
 using OpenDispatch.Application.Results;
-using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Invoices;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.ValueObjects;
@@ -35,9 +34,9 @@ internal sealed class GenerateInvoiceHandler(
     IInvoiceRepository invoices,
     IClock clock,
     ITenantContext tenant)
-    : IRequestHandler<GenerateInvoiceCommand, Result<InvoiceId>>
+    : IRequestHandler<GenerateInvoiceCommand, Result<InvoiceSummary>>
 {
-    public async Task<Result<InvoiceId>> Handle(
+    public async Task<Result<InvoiceSummary>> Handle(
         GenerateInvoiceCommand command,
         CancellationToken cancellationToken)
     {
@@ -45,12 +44,12 @@ internal sealed class GenerateInvoiceHandler(
 
         if (job is null)
         {
-            return Result.Failure<InvoiceId>(JobErrors.NotFound(command.JobId));
+            return Result.Failure<InvoiceSummary>(JobErrors.NotFound(command.JobId));
         }
 
         if (job.Status is not JobStatus.Completed)
         {
-            return Result.Failure<InvoiceId>(InvoiceErrors.JobNotCompleted(job.Status));
+            return Result.Failure<InvoiceSummary>(InvoiceErrors.JobNotCompleted(job.Status));
         }
 
         var invoice = Invoice.CreateFromJob(tenant.OrgId, job.Id, clock.UtcNow);
@@ -67,6 +66,19 @@ internal sealed class GenerateInvoiceHandler(
         invoices.Add(invoice);
         job.MarkInvoiced();
 
-        return Result.Success(invoice.Id);
+        return Result.Success(Project(invoice));
     }
+
+    /// <summary>
+    /// Projects the invoice this same call just built, so the caller sees the total the domain
+    /// actually computed rather than a second, separately-rounded copy of it.
+    /// </summary>
+    private static InvoiceSummary Project(Invoice invoice) => new(
+        invoice.Id,
+        invoice.JobId,
+        invoice.Status,
+        invoice.Issued,
+        [.. invoice.Lines.Select(line => new InvoiceLineSummary(
+            line.Kind, line.Description, line.Quantity, line.UnitPrice, line.LineTotal))],
+        invoice.Total);
 }

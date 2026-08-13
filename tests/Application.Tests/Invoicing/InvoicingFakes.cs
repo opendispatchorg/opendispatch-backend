@@ -17,6 +17,10 @@ internal sealed class FakeInvoiceRepository(FakeStore<Invoice> store, ITenantCon
         Task.FromResult(store.Owned(tenant.OrgId).FirstOrDefault(invoice => invoice.Id == id));
 
     public void Add(Invoice invoice) => store.Stage(invoice);
+
+    public Task<IReadOnlyList<Invoice>> ListAsync(CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Invoice>>(
+            [.. store.Owned(tenant.OrgId).OrderBy(invoice => invoice.Issued).ThenBy(invoice => invoice.Id.Value)]);
 }
 
 /// <summary>

@@ -19,3 +19,13 @@ contract change nobody made.
 
 It lives outside `src/` deliberately: a `node_modules` inside a C# project directory is
 something MSBuild has to be told to ignore, forever.
+
+## sample-client
+
+`sample-client/` is a second, separate node project: a throwaway consumer of
+`@opendispatch/contracts` that depends on it the way a real client repository does — through
+the package's own `package.json` (`exports`, `types`), resolved by `npm install`, not a
+relative path into `contracts/src`. `make check-contracts-sample` runs it. This is what the
+direct `tsc contracts/src/index.ts contracts/src/rest.ts` invocation inside `gen-contracts`
+itself cannot prove: that a broken `exports` entry or a missing `types` field would still fail
+here even though the source files themselves compile.

@@ -56,6 +56,21 @@ public sealed class PostgresFixture : IAsyncLifetime
         // registration supplies.
         _services = TestHost.Over(this).BuildServiceProvider();
         _scope = _services.CreateScope();
+
+        // NewContext below hands out DbContextOptions built once, here — which bakes in the one
+        // DomainEventInterceptor (and, through it, the one IPublisher) this scope resolved, reused
+        // by every context NewContext ever creates rather than a fresh one per call. A domain
+        // event a raw NewContext save raises is therefore always published through *this* scope's
+        // services, step 51's BoardNotifications among them — and BoardNotifications reads
+        // ITenantContext to re-fetch the aggregate it is about to announce. Giving this scope's
+        // TestTenantContext a tenant, even one no test's rows are ever under, is what keeps that
+        // read from throwing "this test did not say which tenant it was acting as"; the mismatch
+        // then reads as "no such job for this tenant," which is a silent no-op here (nothing
+        // asserts a raw NewContext save pushes a board event) rather than a fixture-wide crash the
+        // day any domain-event handler first needed a tenant-scoped port. Real requests never hit
+        // this seam: every AppDbContext outside a test is resolved through DI per request, with
+        // TenantResolutionMiddleware behind it.
+        _scope.ServiceProvider.GetRequiredService<TestTenantContext>().ActAs(OrgId.New());
         _options = _scope.ServiceProvider.GetRequiredService<DbContextOptions<AppDbContext>>();
 
         // Enables the PostGIS extension too — that is part of the migration, not a favour the

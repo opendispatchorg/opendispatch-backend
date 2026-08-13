@@ -1,6 +1,7 @@
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Infrastructure.Attachments;
+using OpenDispatch.Infrastructure.Auth;
 using OpenDispatch.Infrastructure.Payments;
 using OpenDispatch.Infrastructure.Persistence;
 using OpenDispatch.Infrastructure.Time;
@@ -34,13 +35,22 @@ public static class InfrastructureRegistration
     /// <param name="attachmentRoot">
     /// Reads the directory attachment content is stored under, once the container is built.
     /// </param>
+    /// <param name="jwtSigningOptions">
+    /// Reads the JWT signing key, issuer, audience and expiry once the container is built.
+    /// </param>
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
         Func<IServiceProvider, string> connectionString,
-        Func<IServiceProvider, string> attachmentRoot) =>
+        Func<IServiceProvider, string> attachmentRoot,
+        Func<IServiceProvider, JwtSigningOptions> jwtSigningOptions) =>
         services
             .AddPersistence(connectionString)
             .AddSystemClock()
+
+            // The minimal user store, password hasher and JWT issuer (Document 2 §7, step 44).
+            // Auth has no database of its own yet — see InMemoryUserStore's remarks — so it asks
+            // for nothing from persistence and sits beside it rather than inside AddPersistence.
+            .AddAuth(jwtSigningOptions)
 
             // Photographs and signatures on a local disk, which is the whole answer for a shop
             // hosting this itself (Document 1). A bucket adapter is one class beside it and this

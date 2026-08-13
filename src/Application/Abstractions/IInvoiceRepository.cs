@@ -23,4 +23,11 @@ public interface IInvoiceRepository
 
     /// <summary>Stages a newly raised invoice.</summary>
     void Add(Invoice invoice);
+
+    /// <summary>
+    /// Fetches every invoice in the tenant, with their lines — step 49's <c>GET /export</c>.
+    /// Unpaged, following <see cref="ICustomerRepository.ListAsync"/>: the billing history is
+    /// business data a shop owns, not a display list a page has to render.
+    /// </summary>
+    Task<IReadOnlyList<Invoice>> ListAsync(CancellationToken ct);
 }

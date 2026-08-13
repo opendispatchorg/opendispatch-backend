@@ -3,6 +3,7 @@ using OpenDispatch.Application;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Infrastructure;
+using OpenDispatch.Infrastructure.Auth;
 
 namespace OpenDispatch.Api.IntegrationTests.Fixtures;
 
@@ -33,11 +34,23 @@ internal static class TestHost
         new ServiceCollection()
             .AddLogging()
             .AddApplication()
-            .AddInfrastructure(_ => postgres.ConnectionString, _ => postgres.AttachmentRoot)
+            .AddInfrastructure(
+                _ => postgres.ConnectionString,
+                _ => postgres.AttachmentRoot,
+                // None of these tests are about auth, so the signing key only has to satisfy
+                // JwtTokenIssuer's constructor — nothing here issues or reads a real token.
+                _ => new JwtSigningOptions(
+                    "test-host-signing-key-not-for-production-use-ever",
+                    "opendispatch-tests",
+                    "opendispatch-tests",
+                    TimeSpan.FromHours(1)))
             // Last, so it replaces the real tenant context: nothing resolves one from a
             // principal until step 45.
             .AddScoped<TestTenantContext>()
-            .AddScoped<ITenantContext>(provider => provider.GetRequiredService<TestTenantContext>());
+            .AddScoped<ITenantContext>(provider => provider.GetRequiredService<TestTenantContext>())
+            // The real adapter lives in Api and needs a running host (step 51); this satisfies
+            // BoardNotifications' unconditional subscription without one.
+            .AddScoped<IBoardNotifier, NoOpBoardNotifier>();
 
     /// <summary>A scope acting as one organization — one request's worth of services.</summary>
     public static IServiceScope ActingAs(this ServiceProvider services, OrgId tenant)

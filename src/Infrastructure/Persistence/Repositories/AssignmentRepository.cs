@@ -60,4 +60,11 @@ internal sealed class AssignmentRepository(AppDbContext context, IClock clock) :
             .OrderBy(assignment => assignment.ScheduledStart)
             .ThenBy(assignment => assignment.Id)
             .ToListAsync(ct);
+
+    /// <remarks>By scheduled start, the same order the horizon-scoped read uses.</remarks>
+    public async Task<IReadOnlyList<Assignment>> ListAsync(CancellationToken ct) =>
+        await context.Assignments
+            .OrderBy(assignment => assignment.ScheduledStart)
+            .ThenBy(assignment => assignment.Id)
+            .ToListAsync(ct);
 }

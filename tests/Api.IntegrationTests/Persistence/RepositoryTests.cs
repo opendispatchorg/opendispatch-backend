@@ -99,18 +99,18 @@ public sealed class RepositoryTests
     [Fact]
     public async Task ListsOnlySchedulableJobsWhoseWindowMeetsTheHorizon()
     {
-        var inside = Booked( Day.Start.AddHours(1), Day.Start.AddHours(3));
-        var alsoInside = Booked( Day.Start.AddHours(2), Day.Start.AddHours(4));
+        var inside = Booked(Day.Start.AddHours(1), Day.Start.AddHours(3));
+        var alsoInside = Booked(Day.Start.AddHours(2), Day.Start.AddHours(4));
         alsoInside.Schedule();
         alsoInside.Dispatch();
-        var underWay = Booked( Day.Start.AddHours(1), Day.Start.AddHours(3));
+        var underWay = Booked(Day.Start.AddHours(1), Day.Start.AddHours(3));
         underWay.Schedule();
         underWay.Dispatch();
         underWay.MarkEnRoute();
-        var cancelled = Booked( Day.Start.AddHours(1), Day.Start.AddHours(3));
+        var cancelled = Booked(Day.Start.AddHours(1), Day.Start.AddHours(3));
         cancelled.Cancel();
-        var touchingTheOpening = Booked( Day.Start.AddHours(-2), Day.Start);
-        var afterTheClose = Booked( Day.End, Day.End.AddHours(2));
+        var touchingTheOpening = Booked(Day.Start.AddHours(-2), Day.Start);
+        var afterTheClose = Booked(Day.End, Day.End.AddHours(2));
 
         await using (var write = _postgres.NewContext(_tenant))
         {
@@ -129,9 +129,9 @@ public sealed class RepositoryTests
     [Fact]
     public async Task ListsThePlanInTheHorizonInTheOrderItIsDriven()
     {
-        var second = Planned( Day.Start.AddHours(4));
-        var first = Planned( Day.Start.AddHours(1));
-        var tomorrow = Planned( Day.End.AddHours(2));
+        var second = Planned(Day.Start.AddHours(4));
+        var first = Planned(Day.Start.AddHours(1));
+        var tomorrow = Planned(Day.End.AddHours(2));
 
         await using (var write = _postgres.NewContext(_tenant))
         {

@@ -23,9 +23,21 @@ try
 {
     var contracts = typeof(SyncOp).Assembly;
 
+    // Everything OpenAPI already describes is left to rest.ts (Document 3, step 52) — every
+    // record and class this assembly exports whose bare name is already a components/schemas
+    // entry. Enums and static-constant classes (JobStatus, BoardEvents, ...) are never
+    // filtered: they are shared vocabulary a non-REST shape in this same file can still refer
+    // to (JobUpdated.Status is a JobStatus; SyncJobPayload.Status too), and TypeScriptEmitter
+    // only resolves a reference to another type if that type is in the set it was handed —
+    // dropping JobStatus here would break the very shapes this filter exists to keep.
+    var restDescribed = OpenApiSchemaNames.FromOutputDirectory(output);
+    var typescriptTypes = contracts.GetExportedTypes()
+        .Where(type => type.IsEnum || (type.IsAbstract && type.IsSealed) || !restDescribed.Contains(type.Name))
+        .ToArray();
+
     // The wire shapes, then the one rule that travels with them. Both land in the same file
     // because the transition table is expressed in JobStatus and reads as a footnote to it.
-    var typescript = TypeScriptEmitter.Emit(contracts, XmlDocumentation.ForAssembly(contracts))
+    var typescript = TypeScriptEmitter.Emit(typescriptTypes, XmlDocumentation.ForAssembly(contracts))
         + JobTransitionsEmitter.Emit(Job.AllowedTransitions);
 
     Directory.CreateDirectory(Path.Combine(output, "src"));

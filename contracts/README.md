@@ -30,18 +30,15 @@ canTransition(job.status, 'InProgress');
 
 ## Depending on it
 
-There is no registry release yet. With the backend checked out beside the client repo:
+Published under this name — no path or git reference needed:
 
 ```json
 {
   "dependencies": {
-    "@opendispatch/contracts": "file:../opendispatch-backend/contracts"
+    "@opendispatch/contracts": "^0.1.0"
   }
 }
 ```
-
-npm cannot install a subdirectory of a git repository, so a client that does not sit
-beside the backend wants a submodule or a CI checkout pointing at this same path.
 
 The package ships TypeScript source rather than compiled output, which most of it being
 types makes reasonable — but `BoardEvents`, `jobTransitions` and `canTransition` are real

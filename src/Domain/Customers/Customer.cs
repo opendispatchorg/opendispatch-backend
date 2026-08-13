@@ -82,4 +82,31 @@ public sealed class Customer : AggregateRoot
             throw new DomainException($"This customer has no service location {locationId.Value}.");
         }
     }
+
+    /// <summary>Corrects a location already on their books.</summary>
+    /// <exception cref="DomainException">
+    /// They have no such location, or the correction leaves it with no label or no address.
+    /// </exception>
+    public void UpdateLocation(ServiceLocationId locationId, string label, string address, GeoPoint point)
+    {
+        var location = _locations.Find(candidate => candidate.Id == locationId)
+            ?? throw new DomainException($"This customer has no service location {locationId.Value}.");
+
+        location.Update(label, address, point);
+    }
+
+    /// <summary>Corrects their name.</summary>
+    /// <exception cref="DomainException">The customer would have no name.</exception>
+    public void Rename(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new DomainException("A customer must have a name.");
+        }
+
+        Name = name.Trim();
+    }
+
+    /// <summary>Replaces how to reach them.</summary>
+    public void SetContact(ContactInfo contact) => Contact = contact;
 }

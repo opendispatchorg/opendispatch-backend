@@ -41,6 +41,10 @@ public record Error(string Code, string Message, ErrorCategory Category)
     public static Error Conflict(string code, string message) =>
         new(code, message, ErrorCategory.Conflict);
 
+    /// <summary>The caller's credentials do not check out.</summary>
+    public static Error Unauthorized(string code, string message) =>
+        new(code, message, ErrorCategory.Unauthorized);
+
     // There is deliberately no Validation factory here. A validation failure is produced in one
     // place — ValidationBehavior — and always as a ValidationError, so an error of that category
     // always says which fields were wrong. A second way to make one would be a way to make one

@@ -25,7 +25,7 @@ namespace OpenDispatch.Application.Invoicing.GenerateInvoice;
 /// </para>
 /// </remarks>
 public sealed record GenerateInvoiceCommand(JobId JobId, IReadOnlyList<InvoiceLine> Lines)
-    : ICommand<InvoiceId>;
+    : ICommand<InvoiceSummary>;
 
 /// <summary>
 /// One line to bill.

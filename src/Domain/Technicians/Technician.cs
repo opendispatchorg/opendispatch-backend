@@ -148,6 +148,21 @@ public sealed class Technician : AggregateRoot
     /// <summary>Replaces the hours they are available over the planning horizon.</summary>
     public void SetShift(TimeWindow shift) => Shift = shift;
 
+    /// <summary>Corrects their name.</summary>
+    /// <exception cref="DomainException">The technician would have no name.</exception>
+    public void Rename(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name))
+        {
+            throw new DomainException("A technician must have a name.");
+        }
+
+        Name = name.Trim();
+    }
+
+    /// <summary>Moves where their day starts and ends.</summary>
+    public void SetHomeBase(GeoPoint homeBase) => HomeBase = homeBase;
+
     /// <summary>
     /// Whether they can take work of this kind. The hard constraint the scheduler checks
     /// before it will put a job on this technician's day.

@@ -59,4 +59,12 @@ public interface IAssignmentRepository
     /// The <c>horizon</c> is the stretch of time being planned.
     /// </remarks>
     Task<IReadOnlyList<Assignment>> ListInHorizonAsync(TimeWindow horizon, CancellationToken ct);
+
+    /// <summary>
+    /// Fetches every assignment in the tenant, unbounded — step 49's <c>GET /export</c>, which
+    /// wants the whole plan rather than a horizon's worth of it. Unpaged, following
+    /// <see cref="ICustomerRepository.ListAsync"/>: business data a shop is entitled to take with
+    /// it, not a display list a page has to render.
+    /// </summary>
+    Task<IReadOnlyList<Assignment>> ListAsync(CancellationToken ct);
 }

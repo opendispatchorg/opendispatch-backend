@@ -20,14 +20,1192 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/auth/login": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["Login"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/{id}/invoice": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["GenerateInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/invoices/{id}/pay": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PayInvoice"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ExportTenant"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/{id}/attachments": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["UploadAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListCustomers"];
+        put?: never;
+        post: operations["CreateCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetCustomer"];
+        put: operations["UpdateCustomer"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/{id}/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AddServiceLocation"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/{id}/locations/{locationId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["UpdateServiceLocation"];
+        post?: never;
+        delete: operations["RemoveServiceLocation"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/technicians": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListTechnicians"];
+        put?: never;
+        post: operations["CreateTechnician"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/technicians/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetTechnician"];
+        put: operations["UpdateTechnician"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/technicians/{id}/skills": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["SetTechnicianSkills"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/technicians/{id}/shift": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put: operations["SetTechnicianShift"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["ListJobs"];
+        put?: never;
+        post: operations["CreateJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/{id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetJob"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/{id}/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["ChangeJobStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/jobs/{id}/assign": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["AssignJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedule/optimize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["OptimizeSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedule/insert": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["InsertScheduleJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/dispatch/board": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetDispatchBoard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sync/push": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["PushSyncOps"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/sync/pull": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["PullSyncChanges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** @description The body of `POST /jobs/{id}/assign`. */
+        AssignJobRequest: {
+            /**
+             * Format: uuid
+             * @description Whose day it goes on.
+             */
+            technicianId: string;
+            /**
+             * Format: date-time
+             * @description When they are planned to arrive.
+             */
+            scheduledStart: string;
+        };
+        /** @description What a successful `POST /jobs/{id}/assign` returns. */
+        AssignJobResponse: {
+            /**
+             * Format: uuid
+             * @description The identity of the stop it created or moved — the board has just drawn it.
+             */
+            assignmentId: string;
+        };
+        /** @description One stop, as it appears in `GET /export`. */
+        AssignmentExport: {
+            /**
+             * Format: uuid
+             * @description The stop's identity.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The job being planned.
+             */
+            jobId: string;
+            /**
+             * Format: uuid
+             * @description Whose day it sits on.
+             */
+            technicianId: string;
+            /**
+             * Format: int32
+             * @description Where it falls in the technician's run, counting from zero.
+             */
+            sequence: number | string;
+            /**
+             * Format: date-time
+             * @description When the technician is planned to start work.
+             */
+            scheduledStart: string;
+            /**
+             * Format: double
+             * @description Minutes of driving to reach this stop from the previous one.
+             */
+            travelMin: number | string;
+        };
+        /** @description One captured photo or signature's metadata, as it appears in `GET /export`. */
+        AttachmentExport: {
+            /**
+             * Format: uuid
+             * @description The device's own id for the capture.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The job it was captured against.
+             */
+            jobId: string;
+            /** @description Photograph or signature. */
+            kind: components["schemas"]["AttachmentKind"];
+            /** @description The handle its bytes are stored under. */
+            serverId: string;
+            /**
+             * Format: date-time
+             * @description When it was captured, by the device's clock.
+             */
+            createdAt: string;
+        };
+        /**
+         * @description What a technician captured, as the clients see it.
+         * @enum {unknown}
+         */
+        AttachmentKind: "Photo" | "Signature";
+        /** @description A job as the board shows it, over REST — the snapshot half of JobUpdated's delta. */
+        BoardJobResponse: {
+            /**
+             * Format: uuid
+             * @description Which job.
+             */
+            jobId: string;
+            /** @description How far through its life it is — what colours the block. */
+            status: components["schemas"]["JobStatus"];
+            /** @description How badly it needs doing. */
+            priority: components["schemas"]["JobPriority"];
+            /** @description What a technician needs to take it. */
+            requiredSkill: string;
+            /**
+             * Format: date-time
+             * @description When the promised window opens.
+             */
+            windowStart: string;
+            /**
+             * Format: date-time
+             * @description When the promised window closes.
+             */
+            windowEnd: string;
+            /** @description How long the work should take — the width of the block. */
+            estimatedDuration: string;
+            /**
+             * Format: double
+             * @description Where it is, in decimal degrees.
+             */
+            latitude: number | string;
+            /**
+             * Format: double
+             * @description Where it is, in decimal degrees.
+             */
+            longitude: number | string;
+            /** @description Who it is for. */
+            customerName: string;
+            /** @description Where it is, for a human. */
+            address: string;
+        };
+        /** @description One technician's day, as it appears on the board over REST: a lane and a line on the map. */
+        BoardRouteResponse: {
+            /**
+             * Format: uuid
+             * @description Whose day it is.
+             */
+            technicianId: string;
+            /** @description Their name, as the lane is labelled. */
+            name: string;
+            /** @description What they are qualified for. Here for the same reason it is on the projection this mirrors: a
+             *     manual assignment may put work on somebody who does not hold the job's skill, and the board is
+             *     what shows the mismatch. */
+            skills: string[];
+            /**
+             * Format: date-time
+             * @description When their working hours begin.
+             */
+            shiftStart: string;
+            /**
+             * Format: date-time
+             * @description When their working hours end.
+             */
+            shiftEnd: string;
+            /**
+             * Format: double
+             * @description Where the day starts and ends, in decimal degrees.
+             */
+            homeLat: number | string;
+            /**
+             * Format: double
+             * @description Where the day starts and ends, in decimal degrees.
+             */
+            homeLng: number | string;
+            /** @description Their run, in sequence order. */
+            stops: components["schemas"]["BoardStopResponse"][];
+        };
+        /** @description A planned visit, as it appears on a technician's lane over REST. */
+        BoardStopResponse: {
+            /**
+             * Format: uuid
+             * @description The stop's own identity — what a drag on the board reschedules.
+             */
+            assignmentId: string;
+            /**
+             * Format: int32
+             * @description Where it falls in the technician's run, counting from zero.
+             */
+            sequence: number | string;
+            /**
+             * Format: date-time
+             * @description When the technician is planned to start work.
+             */
+            scheduledStart: string;
+            /**
+             * Format: double
+             * @description Minutes of driving to get here from the previous stop.
+             */
+            travelMin: number | string;
+            /** @description How far past the promised window the work is planned to begin, or zero when it begins inside it. */
+            lateBy: string;
+            /** @description What the visit is for. */
+            job: components["schemas"]["BoardJobResponse"];
+        };
+        /** @description The body of `POST /jobs/{id}/status`. */
+        ChangeJobStatusRequest: {
+            /** @description Where the job should be. */
+            status: components["schemas"]["JobStatus"];
+            /**
+             * Format: date-time
+             * @description When the work actually finished. Only read when Status is
+             *     JobStatus.Completed; when it is omitted the server asks its own clock.
+             */
+            completedAt?: null | string;
+        };
+        /** @description The body of `POST /customers`. */
+        CreateCustomerRequest: {
+            /** @description Their name, personal or trading. */
+            name: string;
+            /** @description An email address, or `null` if there isn't one. */
+            email: null | string;
+            /** @description A phone number, or `null` if there isn't one. */
+            phone: null | string;
+        };
+        /** @description The body of `POST /jobs/{id}/invoice`. The job comes from the route. */
+        CreateInvoiceRequest: {
+            /** @description What to charge for — time on the job, and parts fitted. */
+            lines: components["schemas"]["InvoiceLineRequest"][];
+        };
+        /** @description The body of `POST /jobs`. */
+        CreateJobRequest: {
+            /**
+             * Format: uuid
+             * @description Whose work it is.
+             */
+            customerId: string;
+            /**
+             * Format: uuid
+             * @description Which of that customer's service locations it happens at.
+             */
+            locationId: string;
+            /** @description The skill a technician must have to take it. */
+            requiredSkill: string;
+            /** @description How badly it needs doing. */
+            priority: components["schemas"]["JobPriority"];
+            /**
+             * Format: date-time
+             * @description When the promised window opens.
+             */
+            windowStart: string;
+            /**
+             * Format: date-time
+             * @description When the promised window closes.
+             */
+            windowEnd: string;
+            /** @description How long the work should take once a technician is on site. */
+            estimatedDuration: string;
+        };
+        /** @description What a successful `POST /jobs` returns. */
+        CreateJobResponse: {
+            /**
+             * Format: uuid
+             * @description The identity of the job it created.
+             */
+            id: string;
+        };
+        /** @description The body of `POST /technicians`. */
+        CreateTechnicianRequest: {
+            /** @description Their name, as it appears on the dispatch board. */
+            name: string;
+            /** @description What they are qualified to work on. Empty is allowed — a trainee simply matches no skilled job. */
+            skills: string[];
+            /**
+             * Format: date-time
+             * @description When their working hours open.
+             */
+            shiftStart: string;
+            /**
+             * Format: date-time
+             * @description When their working hours close.
+             */
+            shiftEnd: string;
+            /**
+             * Format: double
+             * @description Their home base, in decimal degrees between -90 and 90.
+             */
+            latitude: number | string;
+            /**
+             * Format: double
+             * @description Their home base, in decimal degrees between -180 and 180.
+             */
+            longitude: number | string;
+        };
+        /** @description One customer, as the clients see them: who they are, how to reach them, and where they want work done. */
+        CustomerResponse: {
+            /**
+             * Format: uuid
+             * @description Their identity.
+             */
+            id: string;
+            /** @description Their name, personal or trading. */
+            name: string;
+            /** @description Their email address, or `null` if there isn't one. */
+            email: null | string;
+            /** @description Their phone number, or `null` if there isn't one. */
+            phone: null | string;
+            /** @description The places they want work done, in the order they were added. */
+            locations: components["schemas"]["ServiceLocationResponse"][];
+        };
+        /** @description A customer as `GET /customers` lists them: enough to recognise and to reach, and nothing else. */
+        CustomerSummaryResponse: {
+            /**
+             * Format: uuid
+             * @description Their identity, which is what a caller picks them by.
+             */
+            id: string;
+            /** @description Their name, personal or trading. */
+            name: string;
+            /** @description Their email address, or `null` if there isn't one. */
+            email: null | string;
+            /** @description Their phone number, or `null` if there isn't one. */
+            phone: null | string;
+        };
+        /** @description The response from `GET /dispatch/board?day=`: a snapshot of the day. */
+        DispatchBoardResponse: {
+            /**
+             * Format: date-time
+             * @description The instant the requested day opens, UTC.
+             */
+            dayStart: string;
+            /**
+             * Format: date-time
+             * @description The instant the requested day closes, UTC.
+             */
+            dayEnd: string;
+            /** @description One run per technician, each ordered by sequence. Technicians with nothing on are present and empty. */
+            routes: components["schemas"]["BoardRouteResponse"][];
+            /** @description Jobs promised inside the day that no technician has been given. */
+            unassigned: components["schemas"]["BoardJobResponse"][];
+        };
+        /** @description The whole of a tenant's business data — the response from `GET /export`, Document 1's
+         *     anti-lock-in feature: "your customers, your jobs, your data — on software you control." */
+        ExportResponse: {
+            /** @description Every customer, with their service locations. */
+            customers: components["schemas"]["CustomerResponse"][];
+            /** @description Every job, whatever its status. */
+            jobs: components["schemas"]["JobResponse"][];
+            /** @description The plan: every stop, whichever technician it is on. */
+            assignments: components["schemas"]["AssignmentExport"][];
+            /** @description Every bill raised, with its lines and whether it is settled. */
+            invoices: components["schemas"]["InvoiceResponse"][];
+            /** @description Every photo and signature captured, by metadata — not their bytes. */
+            attachments: components["schemas"]["AttachmentExport"][];
+        };
         /** @description The payload returned by `GET /health`. */
         HealthResponse: {
             status: string;
             service: string;
+        };
+        /** Format: binary */
+        IFormFile: string;
+        /** @description The body of `POST /schedule/insert`: an emergency, named by the job it is for. */
+        InsertJobRequest: {
+            /**
+             * Format: uuid
+             * @description The work that has just come in.
+             */
+            jobId: string;
+        };
+        /** @description The response from `POST /schedule/insert`: where the emergency went. */
+        InsertJobResponse: {
+            /**
+             * Format: uuid
+             * @description The stop that now exists for it.
+             */
+            assignmentId: string;
+            /**
+             * Format: uuid
+             * @description Whose day it landed on.
+             */
+            technicianId: string;
+            /**
+             * Format: date-time
+             * @description When the work is planned to start.
+             */
+            scheduledStart: string;
+            /**
+             * Format: int32
+             * @description Where it falls in that technician's run, counting from zero.
+             */
+            sequence: number | string;
+            /**
+             * Format: int32
+             * @description How many of that technician's other stops had to move along to make room. Zero when the job
+             *     went on the end of a day.
+             */
+            displaced: number | string;
+        };
+        /** @description One line to bill, as submitted to `POST /jobs/{id}/invoice`. */
+        InvoiceLineRequest: {
+            /** @description Labour or a part. */
+            kind: components["schemas"]["LineItemKind"];
+            /** @description What it says on the invoice. */
+            description: string;
+            /**
+             * Format: double
+             * @description How many — hours for labour, units for parts. Fractions are ordinary.
+             */
+            quantity: number | string;
+            /**
+             * Format: double
+             * @description The price of one, in whole currency units (dollars, not cents). Negative for a discount.
+             */
+            unitPrice: number | string;
+        };
+        /** @description One billed line, as the clients see it. */
+        InvoiceLineResponse: {
+            /** @description Labour or a part. */
+            kind: components["schemas"]["LineItemKind"];
+            /** @description What it says on the invoice. */
+            description: string;
+            /**
+             * Format: double
+             * @description How many — hours for labour, units for parts.
+             */
+            quantity: number | string;
+            /**
+             * Format: double
+             * @description The price of one, in dollars. Negative for a discount.
+             */
+            unitPrice: number | string;
+            /**
+             * Format: double
+             * @description What this line adds to the invoice, in dollars.
+             */
+            lineTotal: number | string;
+        };
+        /** @description One invoice, as the clients see it — the response from `POST /jobs/{id}/invoice`, and the
+         *     shape every invoice takes in `GET /export`. */
+        InvoiceResponse: {
+            /**
+             * Format: uuid
+             * @description Its identity.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The job it bills.
+             */
+            jobId: string;
+            /** @description Whether it has been settled. */
+            status: components["schemas"]["InvoiceStatus"];
+            /**
+             * Format: date-time
+             * @description When it was raised.
+             */
+            issued: string;
+            /** @description What it bills for, in the order the lines were added. */
+            lines: components["schemas"]["InvoiceLineResponse"][];
+            /**
+             * Format: double
+             * @description What is owed, in dollars.
+             */
+            total: number | string;
+        };
+        /**
+         * @description Whether an invoice has been settled, as the clients see it.
+         * @enum {unknown}
+         */
+        InvoiceStatus: "Draft" | "Paid";
+        /**
+         * @description How badly a job needs doing, as the clients see it.
+         * @enum {unknown}
+         */
+        JobPriority: "Low" | "Normal" | "High" | "Emergency";
+        /** @description One job, as the clients see it: the demand, and nothing about the plan. */
+        JobResponse: {
+            /**
+             * Format: uuid
+             * @description Its identity.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description Whose work it is.
+             */
+            customerId: string;
+            /**
+             * Format: uuid
+             * @description Which of that customer's service locations it happens at.
+             */
+            locationId: string;
+            /**
+             * Format: double
+             * @description Where it is, in decimal degrees.
+             */
+            latitude: number | string;
+            /**
+             * Format: double
+             * @description Where it is, in decimal degrees.
+             */
+            longitude: number | string;
+            /** @description The skill a technician must have to take it. */
+            requiredSkill: string;
+            /** @description How badly it needs doing. */
+            priority: components["schemas"]["JobPriority"];
+            /**
+             * Format: date-time
+             * @description When the promised window opens.
+             */
+            windowStart: string;
+            /**
+             * Format: date-time
+             * @description When the promised window closes.
+             */
+            windowEnd: string;
+            /** @description How long the work should take once a technician is on site. */
+            estimatedDuration: string;
+            /** @description How far through its life the job is. */
+            status: components["schemas"]["JobStatus"];
+            /** @description What a technician wrote about it, or `null` if nobody has. */
+            notes: null | string;
+        };
+        /**
+         * @description Where a job has got to in its life, as the clients see it.
+         * @enum {unknown}
+         */
+        JobStatus: "Unscheduled" | "Scheduled" | "Dispatched" | "EnRoute" | "InProgress" | "Completed" | "Invoiced" | "Paid" | "Cancelled";
+        JsonElement: unknown;
+        /**
+         * @description What a billed line is for, as the clients see it.
+         * @enum {unknown}
+         */
+        LineItemKind: "Labor" | "Part";
+        /** @description The body of `POST /auth/login`. */
+        LoginRequest: {
+            /** @description Whoever is asking. */
+            username: string;
+            /** @description Proof it is them. */
+            password: string;
+        };
+        /** @description What a successful `POST /auth/login` returns. */
+        LoginResponse: {
+            /** @description The bearer token — send it as `Authorization: Bearer {Token}`. */
+            token: string;
+            /**
+             * Format: date-time
+             * @description When the token stops being accepted.
+             */
+            expiresAt: string;
+        };
+        /** @description What a good schedule is worth, as a caller states it. Optional on OptimizeScheduleRequest. */
+        ObjectiveWeightsRequest: {
+            /**
+             * Format: double
+             * @description Cost of one minute of driving. The unit the other three are quoted in.
+             */
+            travel: number | string;
+            /**
+             * Format: double
+             * @description Cost of one minute past a job's promised window.
+             */
+            lateness: number | string;
+            /**
+             * Format: double
+             * @description Cost of one minute worked past the end of a technician's shift.
+             */
+            overtime: number | string;
+            /**
+             * Format: double
+             * @description Cost of leaving a job undone, per unit of its priority.
+             */
+            unassigned: number | string;
+        };
+        /** @description The body of `POST /schedule/optimize`. */
+        OptimizeScheduleRequest: {
+            /**
+             * Format: date-time
+             * @description When the horizon to re-plan opens.
+             */
+            from: string;
+            /**
+             * Format: date-time
+             * @description When it closes. Never earlier than From.
+             */
+            to: string;
+            weights?: null | components["schemas"]["ObjectiveWeightsRequest"];
+        };
+        /** @description The response from `POST /schedule/optimize`: what the optimiser did. */
+        OptimizeScheduleResponse: {
+            /**
+             * Format: int32
+             * @description How many stops the day now has.
+             */
+            planned: number | string;
+            /** @description The jobs no technician could take. Not a failure — see the remarks on `OptimizedDay`. */
+            unassigned: string[];
+            /**
+             * Format: double
+             * @description What the plan scores under the weights it was given. Only comparable against another response
+             *     for the same horizon under the same weights.
+             */
+            cost: number | string;
+        };
+        ProblemDetails: {
+            type?: null | string;
+            title?: null | string;
+            /** Format: int32 */
+            status?: null | number | string;
+            detail?: null | string;
+            instance?: null | string;
+        };
+        /** @description The body of `POST /customers/{id}/locations` and `PUT .../locations/{locationId}`. */
+        ServiceLocationRequest: {
+            /** @description What the customer calls it — "Home", "Unit 4", "the Croydon branch". */
+            label: string;
+            /** @description The postal address a technician would be given. */
+            address: string;
+            /**
+             * Format: double
+             * @description Where it is, in decimal degrees between -90 and 90.
+             */
+            latitude: number | string;
+            /**
+             * Format: double
+             * @description Where it is, in decimal degrees between -180 and 180.
+             */
+            longitude: number | string;
+        };
+        /** @description One of a customer's service locations, as the clients see it. */
+        ServiceLocationResponse: {
+            /**
+             * Format: uuid
+             * @description The identity a job points at.
+             */
+            id: string;
+            /** @description What the customer calls it. */
+            label: string;
+            /** @description The postal address a technician would be given. */
+            address: string;
+            /**
+             * Format: double
+             * @description Where it is, in decimal degrees.
+             */
+            latitude: number | string;
+            /**
+             * Format: double
+             * @description Where it is, in decimal degrees.
+             */
+            longitude: number | string;
+        };
+        /** @description The body of `PUT /technicians/{id}/shift`. */
+        SetShiftRequest: {
+            /**
+             * Format: date-time
+             * @description When their working hours open.
+             */
+            start: string;
+            /**
+             * Format: date-time
+             * @description When their working hours close.
+             */
+            end: string;
+        };
+        /** @description The body of `PUT /technicians/{id}/skills`. */
+        SetSkillsRequest: {
+            /** @description The complete list they should have afterwards. Empty makes them a trainee again. */
+            skills: string[];
+        };
+        /** @description One entity as the server currently holds it, sent to a device that is behind. */
+        SyncChange: {
+            /** @description What kind of thing this is — the same vocabulary an operation uses. */
+            entity: string;
+            /**
+             * Format: uuid
+             * @description Which one.
+             */
+            entityId: string;
+            /**
+             * Format: int64
+             * @description Its concurrency stamp as the server holds it.
+             */
+            version: number | string;
+            state: null | components["schemas"]["JsonElement"];
+            /** @description The entity is gone from this device's world: cancelled, or a stop re-optimised onto
+             *     somebody else's day. Removal has to be sayable, because a phone that is never told simply
+             *     keeps the stop and drives to it. */
+            deleted: boolean;
+        };
+        /** @description An operation the server would not apply, and why. */
+        SyncConflict: {
+            /**
+             * Format: uuid
+             * @description Which operation, by the id the device gave it.
+             */
+            opId: string;
+            /** @description What kind of refusal it was, for the client to branch on. */
+            reason: components["schemas"]["SyncConflictReason"];
+            /** @description Why, in terms fit to show the technician holding the phone. */
+            message: string;
+        };
+        /**
+         * @description The kinds of refusal a pushed operation can meet.
+         * @enum {unknown}
+         */
+        SyncConflictReason: "IllegalTransition" | "VersionConflict" | "Unsupported";
+        /** @description One thing a technician did in the field: started a job, added a note, added a part,
+         *     finished. Queued on the device and pushed in batches (Document 2 §10). */
+        SyncOp: {
+            /**
+             * Format: uuid
+             * @description The device's own identifier for this operation, and the idempotency key. A phone that
+             *     pushes, loses signal, and pushes again sends the same id, which is how the server knows
+             *     not to apply it twice.
+             */
+            id: string;
+            /** @description What kind of thing it happened to — `"job"`, `"line_item"`. */
+            entity: string;
+            /**
+             * Format: uuid
+             * @description Which one.
+             */
+            entityId: string;
+            /** @description What was done — `"status_change"`, `"add_note"`. */
+            type: string;
+            /** @description The operation's own data, shaped by Type. */
+            payload: components["schemas"]["JsonElement"];
+            /**
+             * Format: int64
+             * @description The version of the entity the device was looking at when it acted. What a stale write is
+             *     judged against; the server's answer is authoritative either way.
+             */
+            baseVersion: number | string;
+            /**
+             * Format: date-time
+             * @description When it happened on the device, which is not when it arrived. The ordering a technician
+             *     would recognise, and what last-write-wins on free text is decided by.
+             */
+            clientTs: string;
+        };
+        /** @description Everything that changed in a device's world since the cursor it asked with, and where it
+         *     now stands. The body of `GET /sync/pull?since={cursor}`. */
+        SyncPullResponse: {
+            /** @description The entities that moved, as the server now holds them. */
+            changes: components["schemas"]["SyncChange"][];
+            /** @description The watermark to ask with next time. Opaque — the shape of the server's bookmark is not
+             *     part of the contract. */
+            cursor: string;
+        };
+        /** @description A device emptying its queue: everything it did since it last got through, in the order it
+         *     did it. The body of `POST /sync/push`. */
+        SyncPushRequest: {
+            /** @description The operations, oldest first. */
+            ops: components["schemas"]["SyncOp"][];
+        };
+        /** @description What the server made of a pushed batch. Authoritative: the device rebases onto this rather
+         *     than keeping its own opinion (Document 2 §10). */
+        SyncPushResponse: {
+            /** @description The ops that landed, by id. An op the server had already applied is reported here too:
+             *     from the device's point of view a re-sent operation that is already in effect succeeded,
+             *     and telling it otherwise would leave it queueing the op forever. */
+            applied: string[];
+            /** @description The ops that were refused, each with a reason fit to show a technician. */
+            conflicts: components["schemas"]["SyncConflict"][];
+            /** @description Where the device now stands in the change stream. Opaque — it is the server's watermark,
+             *     and a client that parses it is reading something it was not promised. */
+            cursor: string;
+        };
+        /** @description One technician, as the clients see them. */
+        TechnicianResponse: {
+            /**
+             * Format: uuid
+             * @description Their identity.
+             */
+            id: string;
+            /** @description Their name, as it appears on the dispatch board. */
+            name: string;
+            /** @description What they are qualified to work on, alphabetically. */
+            skills: string[];
+            /**
+             * Format: date-time
+             * @description When their working hours open.
+             */
+            shiftStart: string;
+            /**
+             * Format: date-time
+             * @description When their working hours close.
+             */
+            shiftEnd: string;
+            /**
+             * Format: double
+             * @description Their home base, in decimal degrees.
+             */
+            latitude: number | string;
+            /**
+             * Format: double
+             * @description Their home base, in decimal degrees.
+             */
+            longitude: number | string;
+        };
+        /** @description The body of `PUT /customers/{id}`. */
+        UpdateCustomerRequest: {
+            /** @description Their name, personal or trading. */
+            name: string;
+            /** @description An email address, or `null` if there isn't one. */
+            email: null | string;
+            /** @description A phone number, or `null` if there isn't one. */
+            phone: null | string;
+        };
+        /** @description The body of `PUT /technicians/{id}` — everything SetSkillsRequest and
+         *     SetShiftRequest do not own. */
+        UpdateTechnicianRequest: {
+            /** @description Their name, as it appears on the dispatch board. */
+            name: string;
+            /**
+             * Format: double
+             * @description Their home base, in decimal degrees between -90 and 90.
+             */
+            latitude: number | string;
+            /**
+             * Format: double
+             * @description Their home base, in decimal degrees between -180 and 180.
+             */
+            longitude: number | string;
+        };
+        /** @description The metadata half of `POST /jobs/{id}/attachments` — the multipart form's fields beside the
+         *     binary itself. */
+        UploadAttachmentRequest: {
+            /**
+             * Format: uuid
+             * @description The id the device generated for the capture — the idempotency key.
+             */
+            attachmentId: string;
+            /**
+             * Format: uuid
+             * @description The job it was captured against. Carried here as the build text names it, but the route's own
+             *     `{id}` is what the endpoint actually acts on — the same convention every other
+             *     `/jobs/{id}/...` route in this API already follows, of not trusting a body to restate an id
+             *     the URL already carries. The two are checked against each other; a mismatch is refused rather
+             *     than silently resolved one way.
+             */
+            jobId: string;
+            /** @description Photograph or signature. */
+            kind: components["schemas"]["AttachmentKind"];
+        };
+        /** @description The response from `POST /jobs/{id}/attachments`. */
+        UploadAttachmentResponse: {
+            /** @description The handle the server holds this content under. Opaque — a client stores it and does not parse
+             *     it, the same register as a sync cursor. */
+            serverId: string;
         };
     };
     responses: never;
@@ -54,6 +1232,931 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    Login: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["LoginRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GenerateInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateInvoiceRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InvoiceResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    PayInvoice: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ExportTenant: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ExportResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UploadAttachment: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["UploadAttachmentRequest"] & {
+                    file: components["schemas"]["IFormFile"];
+                };
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadAttachmentResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListCustomers: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerSummaryResponse"][];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateCustomerRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerSummaryResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CustomerResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateCustomerRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AddServiceLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceLocationRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ServiceLocationResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateServiceLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                locationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ServiceLocationRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RemoveServiceLocation: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+                locationId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListTechnicians: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TechnicianResponse"][];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateTechnician: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateTechnicianRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TechnicianResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetTechnician: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TechnicianResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    UpdateTechnician: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTechnicianRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    SetTechnicianSkills: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetSkillsRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    SetTechnicianShift: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetShiftRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListJobs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResponse"][];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    CreateJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateJobRequest"];
+            };
+        };
+        responses: {
+            /** @description Created */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreateJobResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["JobResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ChangeJobStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangeJobStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    AssignJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AssignJobRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AssignJobResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    OptimizeSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OptimizeScheduleRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OptimizeScheduleResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    InsertScheduleJob: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["InsertJobRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InsertJobResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetDispatchBoard: {
+        parameters: {
+            query: {
+                day: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DispatchBoardResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    PushSyncOps: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SyncPushRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncPushResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    PullSyncChanges: {
+        parameters: {
+            query: {
+                since: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SyncPullResponse"];
+                };
+            };
+            /** @description Unauthorized */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
                 };
             };
         };
