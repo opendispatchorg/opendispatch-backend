@@ -441,4 +441,11 @@ opendispatch-03-backend-build-plan.md
 
 # Attachment content written by a locally-run host. The default Attachments:Root is relative,
 # so `make run` puts photographs and signatures under the Api project; they are data, not source.
-src/Api/attachments/
+# Hyphenated on purpose, not "attachments": on a case-insensitive filesystem (macOS's default),
+# git's own case-insensitive matching (core.ignorecase) made that name collide with the *source*
+# folder src/Api/Attachments/ and silently drop AttachmentEndpoints.cs from every commit since
+# step 50b — never caught locally (builds don't consult git), only visible as a namespace CI
+# could not resolve on Linux's case-sensitive checkout. A name no C# namespace can ever be
+# (hyphens are not legal in one) cannot collide with a source folder regardless of filesystem
+# case-sensitivity, which a second, differently-cased word still could.
+src/Api/attachment-storage/
