@@ -14,6 +14,7 @@ using OpenDispatch.Api.Export;
 using OpenDispatch.Api.Health;
 using OpenDispatch.Api.Invoicing;
 using OpenDispatch.Api.Jobs;
+using OpenDispatch.Api.OpenApi;
 using OpenDispatch.Api.Schedule;
 using OpenDispatch.Api.Sync;
 using OpenDispatch.Api.Technicians;
@@ -138,17 +139,29 @@ try
     // The REST half of the API contract (Document 2 §11). The same registration serves the
     // document at /openapi/v1.json for a running host and feeds the build-time export that
     // `make gen-contracts` turns into TypeScript.
-    builder.Services.AddOpenApi(options => options.AddDocumentTransformer((document, _, _) =>
+    builder.Services.AddOpenApi(options =>
     {
-        // The default title is the assembly name, which reads like an implementation detail
-        // in a document three repositories generate their clients from.
-        document.Info.Title = "OpenDispatch";
-        document.Info.Description =
-            "The REST half of the OpenDispatch API contract. SignalR board events and the "
-            + "offline-sync payloads are not describable here; they live in @opendispatch/contracts.";
+        options.AddDocumentTransformer((document, _, _) =>
+        {
+            // The default title is the assembly name, which reads like an implementation detail
+            // in a document three repositories generate their clients from.
+            document.Info.Title = "OpenDispatch";
+            document.Info.Description =
+                "The REST half of the OpenDispatch API contract. SignalR board events and the "
+                + "offline-sync payloads are not describable here; they live in @opendispatch/contracts.";
 
-        return Task.CompletedTask;
-    }));
+            return Task.CompletedTask;
+        });
+
+        // Document 3, step 52: every route needs a bearer token except the two a client can
+        // reach without one already (login, health) — see OpenApiSecurity's own remarks.
+        options.AddBearerSecurityScheme();
+
+        // Document 3, step 52: every route can fail, and every failure is shaped the same way
+        // — see OpenApiErrorResponses' own remarks for why this is one document transformer
+        // rather than per-route metadata.
+        options.AddDefaultErrorResponse();
+    });
 
     // Consistent, typed error responses (Document 3, step 46): ProblemDetails formatting for
     // everything that produces one — the exception handler below, Results.Problem/

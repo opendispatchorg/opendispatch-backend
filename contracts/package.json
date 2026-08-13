@@ -1,7 +1,6 @@
 {
   "name": "@opendispatch/contracts",
-  "version": "0.0.0",
-  "private": true,
+  "version": "0.1.0",
   "description": "Shared OpenDispatch wire types: SignalR board events, offline-sync payloads, and the generated REST surface.",
   "license": "Apache-2.0",
   "type": "module",
@@ -14,5 +13,8 @@
     "src",
     "openapi.json"
   ],
-  "sideEffects": false
+  "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  }
 }

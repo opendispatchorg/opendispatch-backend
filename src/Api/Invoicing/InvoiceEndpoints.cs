@@ -29,12 +29,14 @@ public static class InvoiceEndpoints
         endpoints.MapPost("/jobs/{id:guid}/invoice", InvoiceAsync)
             .RequireAuthorization(AuthPolicies.AdminOnly)
             .WithTags("Invoicing")
-            .WithName("GenerateInvoice");
+            .WithName("GenerateInvoice")
+            .Produces<InvoiceResponse>(StatusCodes.Status201Created);
 
         endpoints.MapPost("/invoices/{id:guid}/pay", PayAsync)
             .RequireAuthorization(AuthPolicies.AdminOnly)
             .WithTags("Invoicing")
-            .WithName("PayInvoice");
+            .WithName("PayInvoice")
+            .Produces(StatusCodes.Status204NoContent);
 
         return endpoints;
     }

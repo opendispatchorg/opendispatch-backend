@@ -12,9 +12,14 @@ namespace OpenDispatch.Contracts.CodeGen;
 /// </para>
 /// <para>
 /// Two entry points rather than one barrel, because the two halves come from different places
-/// and will eventually name the same things: a REST DTO carrying a <c>JobStatus</c> makes
-/// OpenAPI emit its own copy, and a single flat re-export would then have two. The root is the
-/// C#-sourced surface; <c>/rest</c> is whatever the OpenAPI document currently describes.
+/// and, before step 52, named the same things far more than either needed to: any REST DTO
+/// declared in C# was swept into the root entry point too, even though the OpenAPI half already
+/// described it. The root now holds only what OpenAPI cannot — SignalR events, the opaque sync
+/// payloads' typed shapes, and the enums both halves still legitimately share (a REST DTO
+/// carrying a <c>JobStatus</c> makes OpenAPI emit its own copy of that one small type, which a
+/// single flat re-export would still collide on — the reason for two entry points at all,
+/// narrower now than it used to be). <c>/rest</c> is whatever the OpenAPI document currently
+/// describes; see <see cref="OpenApiSchemaNames"/> for how the root avoids repeating it.
 /// </para>
 /// </remarks>
 public static class PackageManifest
@@ -22,19 +27,30 @@ public static class PackageManifest
     /// <summary>The package name both client repositories depend on.</summary>
     public const string Name = "@opendispatch/contracts";
 
+    /// <summary>The version every published release starts numbering from.</summary>
+    /// <remarks>
+    /// Bumped by hand, in this one place, when a release is actually cut — <c>make
+    /// gen-contracts</c> has no way to know whether a change is a breaking one, an addition, or
+    /// a fix, so it does not guess at semver on a caller's behalf. <c>0.x</c> until the contract
+    /// itself has shipped a stable major version: every consumer today is still inside this same
+    /// monorepo's own client repositories, not an external integrator who needs the stability
+    /// promise <c>1.0.0</c> makes.
+    /// </remarks>
+    public const string Version = "0.1.0";
+
     /// <summary><c>package.json</c>, as JSON text.</summary>
     /// <remarks>
-    /// <c>private</c> and version <c>0.0.0</c> because there is no registry release: the
-    /// clients depend on this directory by path, which needs no version and must not be
-    /// published by accident.
+    /// Not <c>private</c>, and a real version (Document 3, step 52) — the TEMPORARY path/git
+    /// reference step 23 documented is exactly what a real, installable release makes
+    /// unnecessary. <c>publishConfig.access</c> is <c>public</c> because a scoped package name
+    /// (<c>@opendispatch/...</c>) defaults to a paid private publish otherwise; nothing about
+    /// this package is meant to be paid for or hidden.
     /// </remarks>
-    // TEMPORARY: replaced by published package in step 52.
     public static string Json =>
-        """
+        $$"""
         {
           "name": "@opendispatch/contracts",
-          "version": "0.0.0",
-          "private": true,
+          "version": "{{Version}}",
           "description": "Shared OpenDispatch wire types: SignalR board events, offline-sync payloads, and the generated REST surface.",
           "license": "Apache-2.0",
           "type": "module",
@@ -47,14 +63,17 @@ public static class PackageManifest
             "src",
             "openapi.json"
           ],
-          "sideEffects": false
+          "sideEffects": false,
+          "publishConfig": {
+            "access": "public"
+          }
         }
 
         """.ReplaceLineEndings("\n");
 
     /// <summary><c>README.md</c>, as Markdown text.</summary>
     public static string Readme =>
-        """
+        $$"""
         # @opendispatch/contracts
 
         The API contract the OpenDispatch backend owns and the web and mobile clients consume.
@@ -87,18 +106,15 @@ public static class PackageManifest
 
         ## Depending on it
 
-        There is no registry release yet. With the backend checked out beside the client repo:
+        Published under this name — no path or git reference needed:
 
         ```json
         {
           "dependencies": {
-            "@opendispatch/contracts": "file:../opendispatch-backend/contracts"
+            "@opendispatch/contracts": "^{{Version}}"
           }
         }
         ```
-
-        npm cannot install a subdirectory of a git repository, so a client that does not sit
-        beside the backend wants a submodule or a CI checkout pointing at this same path.
 
         The package ships TypeScript source rather than compiled output, which most of it being
         types makes reasonable — but `BoardEvents`, `jobTransitions` and `canTransition` are real

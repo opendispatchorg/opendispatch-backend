@@ -26,8 +26,10 @@ public static class ScheduleEndpoints
             .RequireAuthorization(AuthPolicies.AdminOrDispatcher)
             .WithTags("Schedule");
 
-        schedule.MapPost("/optimize", OptimizeAsync).WithName("OptimizeSchedule");
-        schedule.MapPost("/insert", InsertAsync).WithName("InsertScheduleJob");
+        schedule.MapPost("/optimize", OptimizeAsync).WithName("OptimizeSchedule")
+            .Produces<OptimizeScheduleResponse>();
+        schedule.MapPost("/insert", InsertAsync).WithName("InsertScheduleJob")
+            .Produces<InsertJobResponse>();
 
         return endpoints;
     }

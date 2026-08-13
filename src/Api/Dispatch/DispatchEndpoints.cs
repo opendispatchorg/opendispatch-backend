@@ -20,7 +20,8 @@ public static class DispatchEndpoints
             .RequireAuthorization(AuthPolicies.AdminOrDispatcher)
             .WithTags("Dispatch");
 
-        dispatch.MapGet("/board", GetBoardAsync).WithName("GetDispatchBoard");
+        dispatch.MapGet("/board", GetBoardAsync).WithName("GetDispatchBoard")
+            .Produces<DispatchBoardResponse>();
 
         return endpoints;
     }

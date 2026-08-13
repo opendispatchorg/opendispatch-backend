@@ -82,7 +82,9 @@ jobs:
           # the compiler that produces the rest.
           node-version: '24'
           cache: npm
-          cache-dependency-path: tools/package-lock.json
+          cache-dependency-path: |
+            tools/package-lock.json
+            tools/sample-client/package-lock.json
 
       - name: Cache NuGet packages
         uses: actions/cache@v6
@@ -96,3 +98,61 @@ jobs:
       # target a developer runs locally, so a failure here is reproducible in one command.
       - name: Regenerate and diff
         run: make check-contracts
+
+      # Document 3, step 52's other Test: a sample client, resolving the package the way a
+      # real client repository would (through package.json, not a relative path into src/),
+      # still compiles. gen-contracts' own tsc invocation cannot catch a broken exports entry
+      # or a missing types field; this can.
+      - name: Sample client compiles against the package
+        run: make check-contracts-sample
+
+  # Publishes @opendispatch/contracts to the npm registry. Gated on a deliberate tag rather
+  # than every push to main — regenerating and diffing on every push is the right amount of
+  # checking for a change that might not be release-worthy yet, and publishing is a decision a
+  # person makes by cutting contracts-vX.Y.Z, not something every merge should do on its own.
+  #
+  # Needs an NPM_TOKEN this repository does not itself hold — an npm automation token for
+  # whoever owns the @opendispatch org, added as a repository secret. Until that secret exists
+  # this job fails at the one step that needs it rather than silently doing nothing, which is
+  # the honest state for a job step 52 configures the *shape* of without being able to exercise
+  # it end to end in this environment.
+  publish-contracts:
+    name: Publish contracts package
+    needs: [build-and-test, contract-drift]
+    if: startsWith(github.ref, 'refs/tags/contracts-v')
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v6
+        with:
+          global-json-file: global.json
+
+      - name: Set up Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: '24'
+          registry-url: 'https://registry.npmjs.org'
+          cache: npm
+          cache-dependency-path: tools/package-lock.json
+
+      - name: Cache NuGet packages
+        uses: actions/cache@v6
+        with:
+          path: ~/.nuget/packages
+          key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props', 'global.json') }}
+          restore-keys: |
+            nuget-${{ runner.os }}-
+
+      # Refuses to publish anything that is not freshly regenerated and drift-free — see the
+      # Makefile target's own comment.
+      - name: Publish
+        run: make publish-contracts
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}

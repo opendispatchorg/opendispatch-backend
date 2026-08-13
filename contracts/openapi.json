@@ -22,6 +22,16 @@
                 }
               }
             }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -44,7 +54,24 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/LoginResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
         }
       }
@@ -77,10 +104,32 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InvoiceResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/invoices/{id}/pay": {
@@ -101,10 +150,25 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/export": {
@@ -115,9 +179,31 @@
         "operationId": "ExportTenant",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ExportResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/jobs/{id}/attachments": {
@@ -165,9 +251,31 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/UploadAttachmentResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/customers": {
@@ -187,10 +295,32 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerSummaryResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "get": {
         "tags": [
@@ -199,9 +329,34 @@
         "operationId": "ListCustomers",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/CustomerSummaryResponse"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/customers/{id}": {
@@ -223,9 +378,31 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CustomerResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "put": {
         "tags": [
@@ -254,10 +431,25 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/customers/{id}/locations": {
@@ -288,10 +480,32 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ServiceLocationResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/customers/{id}/locations/{locationId}": {
@@ -331,10 +545,25 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "delete": {
         "tags": [
@@ -362,10 +591,25 @@
           }
         ],
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/technicians": {
@@ -376,9 +620,34 @@
         "operationId": "ListTechnicians",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/TechnicianResponse"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "post": {
         "tags": [
@@ -396,10 +665,32 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechnicianResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/technicians/{id}": {
@@ -421,9 +712,31 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TechnicianResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "put": {
         "tags": [
@@ -452,10 +765,25 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/technicians/{id}/skills": {
@@ -486,10 +814,25 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/technicians/{id}/shift": {
@@ -520,10 +863,25 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/jobs": {
@@ -543,10 +901,32 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "201": {
+            "description": "Created",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CreateJobResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       },
       "get": {
         "tags": [
@@ -555,9 +935,34 @@
         "operationId": "ListJobs",
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/JobResponse"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/jobs/{id}": {
@@ -579,9 +984,31 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/JobResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/jobs/{id}/status": {
@@ -612,10 +1039,25 @@
           "required": true
         },
         "responses": {
-          "200": {
-            "description": "OK"
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/jobs/{id}/assign": {
@@ -647,9 +1089,31 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/AssignJobResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/schedule/optimize": {
@@ -670,9 +1134,31 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/OptimizeScheduleResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/schedule/insert": {
@@ -693,9 +1179,31 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/InsertJobResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/dispatch/board": {
@@ -717,9 +1225,31 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DispatchBoardResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/sync/push": {
@@ -740,9 +1270,34 @@
         },
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncPushResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/sync/pull": {
@@ -763,9 +1318,34 @@
         ],
         "responses": {
           "200": {
-            "description": "OK"
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SyncPullResponse"
+                }
+              }
+            }
+          },
+          "401": {
+            "description": "Unauthorized"
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
           }
-        }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     }
   },
@@ -791,12 +1371,309 @@
         },
         "description": "The body of `POST /jobs/{id}/assign`."
       },
+      "AssignJobResponse": {
+        "required": [
+          "assignmentId"
+        ],
+        "type": "object",
+        "properties": {
+          "assignmentId": {
+            "type": "string",
+            "description": "The identity of the stop it created or moved — the board has just drawn it.",
+            "format": "uuid"
+          }
+        },
+        "description": "What a successful `POST /jobs/{id}/assign` returns."
+      },
+      "AssignmentExport": {
+        "required": [
+          "id",
+          "jobId",
+          "technicianId",
+          "sequence",
+          "scheduledStart",
+          "travelMin"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The stop's identity.",
+            "format": "uuid"
+          },
+          "jobId": {
+            "type": "string",
+            "description": "The job being planned.",
+            "format": "uuid"
+          },
+          "technicianId": {
+            "type": "string",
+            "description": "Whose day it sits on.",
+            "format": "uuid"
+          },
+          "sequence": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Where it falls in the technician's run, counting from zero.",
+            "format": "int32"
+          },
+          "scheduledStart": {
+            "type": "string",
+            "description": "When the technician is planned to start work.",
+            "format": "date-time"
+          },
+          "travelMin": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Minutes of driving to reach this stop from the previous one.",
+            "format": "double"
+          }
+        },
+        "description": "One stop, as it appears in `GET /export`."
+      },
+      "AttachmentExport": {
+        "required": [
+          "id",
+          "jobId",
+          "kind",
+          "serverId",
+          "createdAt"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The device's own id for the capture.",
+            "format": "uuid"
+          },
+          "jobId": {
+            "type": "string",
+            "description": "The job it was captured against.",
+            "format": "uuid"
+          },
+          "kind": {
+            "description": "Photograph or signature.",
+            "$ref": "#/components/schemas/AttachmentKind"
+          },
+          "serverId": {
+            "type": "string",
+            "description": "The handle its bytes are stored under."
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When it was captured, by the device's clock.",
+            "format": "date-time"
+          }
+        },
+        "description": "One captured photo or signature's metadata, as it appears in `GET /export`."
+      },
       "AttachmentKind": {
         "enum": [
           "Photo",
           "Signature"
         ],
         "description": "What a technician captured, as the clients see it."
+      },
+      "BoardJobResponse": {
+        "required": [
+          "jobId",
+          "status",
+          "priority",
+          "requiredSkill",
+          "windowStart",
+          "windowEnd",
+          "estimatedDuration",
+          "latitude",
+          "longitude",
+          "customerName",
+          "address"
+        ],
+        "type": "object",
+        "properties": {
+          "jobId": {
+            "type": "string",
+            "description": "Which job.",
+            "format": "uuid"
+          },
+          "status": {
+            "description": "How far through its life it is — what colours the block.",
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "priority": {
+            "description": "How badly it needs doing.",
+            "$ref": "#/components/schemas/JobPriority"
+          },
+          "requiredSkill": {
+            "type": "string",
+            "description": "What a technician needs to take it."
+          },
+          "windowStart": {
+            "type": "string",
+            "description": "When the promised window opens.",
+            "format": "date-time"
+          },
+          "windowEnd": {
+            "type": "string",
+            "description": "When the promised window closes.",
+            "format": "date-time"
+          },
+          "estimatedDuration": {
+            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": "string",
+            "description": "How long the work should take — the width of the block."
+          },
+          "latitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Where it is, in decimal degrees.",
+            "format": "double"
+          },
+          "longitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Where it is, in decimal degrees.",
+            "format": "double"
+          },
+          "customerName": {
+            "type": "string",
+            "description": "Who it is for."
+          },
+          "address": {
+            "type": "string",
+            "description": "Where it is, for a human."
+          }
+        },
+        "description": "A job as the board shows it, over REST — the snapshot half of JobUpdated's delta."
+      },
+      "BoardRouteResponse": {
+        "required": [
+          "technicianId",
+          "name",
+          "skills",
+          "shiftStart",
+          "shiftEnd",
+          "homeLat",
+          "homeLng",
+          "stops"
+        ],
+        "type": "object",
+        "properties": {
+          "technicianId": {
+            "type": "string",
+            "description": "Whose day it is.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Their name, as the lane is labelled."
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What they are qualified for. Here for the same reason it is on the projection this mirrors: a\nmanual assignment may put work on somebody who does not hold the job's skill, and the board is\nwhat shows the mismatch."
+          },
+          "shiftStart": {
+            "type": "string",
+            "description": "When their working hours begin.",
+            "format": "date-time"
+          },
+          "shiftEnd": {
+            "type": "string",
+            "description": "When their working hours end.",
+            "format": "date-time"
+          },
+          "homeLat": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Where the day starts and ends, in decimal degrees.",
+            "format": "double"
+          },
+          "homeLng": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Where the day starts and ends, in decimal degrees.",
+            "format": "double"
+          },
+          "stops": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoardStopResponse"
+            },
+            "description": "Their run, in sequence order."
+          }
+        },
+        "description": "One technician's day, as it appears on the board over REST: a lane and a line on the map."
+      },
+      "BoardStopResponse": {
+        "required": [
+          "assignmentId",
+          "sequence",
+          "scheduledStart",
+          "travelMin",
+          "lateBy",
+          "job"
+        ],
+        "type": "object",
+        "properties": {
+          "assignmentId": {
+            "type": "string",
+            "description": "The stop's own identity — what a drag on the board reschedules.",
+            "format": "uuid"
+          },
+          "sequence": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Where it falls in the technician's run, counting from zero.",
+            "format": "int32"
+          },
+          "scheduledStart": {
+            "type": "string",
+            "description": "When the technician is planned to start work.",
+            "format": "date-time"
+          },
+          "travelMin": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Minutes of driving to get here from the previous stop.",
+            "format": "double"
+          },
+          "lateBy": {
+            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": "string",
+            "description": "How far past the promised window the work is planned to begin, or zero when it begins inside it."
+          },
+          "job": {
+            "description": "What the visit is for.",
+            "$ref": "#/components/schemas/BoardJobResponse"
+          }
+        },
+        "description": "A planned visit, as it appears on a technician's lane over REST."
       },
       "ChangeJobStatusRequest": {
         "required": [
@@ -912,6 +1789,20 @@
         },
         "description": "The body of `POST /jobs`."
       },
+      "CreateJobResponse": {
+        "required": [
+          "id"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identity of the job it created.",
+            "format": "uuid"
+          }
+        },
+        "description": "What a successful `POST /jobs` returns."
+      },
       "CreateTechnicianRequest": {
         "required": [
           "name",
@@ -965,6 +1856,168 @@
         },
         "description": "The body of `POST /technicians`."
       },
+      "CustomerResponse": {
+        "required": [
+          "id",
+          "name",
+          "email",
+          "phone",
+          "locations"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Their identity.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Their name, personal or trading."
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Their email address, or `null` if there isn't one."
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Their phone number, or `null` if there isn't one."
+          },
+          "locations": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/ServiceLocationResponse"
+            },
+            "description": "The places they want work done, in the order they were added."
+          }
+        },
+        "description": "One customer, as the clients see them: who they are, how to reach them, and where they want work done."
+      },
+      "CustomerSummaryResponse": {
+        "required": [
+          "id",
+          "name",
+          "email",
+          "phone"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Their identity, which is what a caller picks them by.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Their name, personal or trading."
+          },
+          "email": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Their email address, or `null` if there isn't one."
+          },
+          "phone": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "Their phone number, or `null` if there isn't one."
+          }
+        },
+        "description": "A customer as `GET /customers` lists them: enough to recognise and to reach, and nothing else."
+      },
+      "DispatchBoardResponse": {
+        "required": [
+          "dayStart",
+          "dayEnd",
+          "routes",
+          "unassigned"
+        ],
+        "type": "object",
+        "properties": {
+          "dayStart": {
+            "type": "string",
+            "description": "The instant the requested day opens, UTC.",
+            "format": "date-time"
+          },
+          "dayEnd": {
+            "type": "string",
+            "description": "The instant the requested day closes, UTC.",
+            "format": "date-time"
+          },
+          "routes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoardRouteResponse"
+            },
+            "description": "One run per technician, each ordered by sequence. Technicians with nothing on are present and empty."
+          },
+          "unassigned": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/BoardJobResponse"
+            },
+            "description": "Jobs promised inside the day that no technician has been given."
+          }
+        },
+        "description": "The response from `GET /dispatch/board?day=`: a snapshot of the day."
+      },
+      "ExportResponse": {
+        "required": [
+          "customers",
+          "jobs",
+          "assignments",
+          "invoices",
+          "attachments"
+        ],
+        "type": "object",
+        "properties": {
+          "customers": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerResponse"
+            },
+            "description": "Every customer, with their service locations."
+          },
+          "jobs": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobResponse"
+            },
+            "description": "Every job, whatever its status."
+          },
+          "assignments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AssignmentExport"
+            },
+            "description": "The plan: every stop, whichever technician it is on."
+          },
+          "invoices": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceResponse"
+            },
+            "description": "Every bill raised, with its lines and whether it is settled."
+          },
+          "attachments": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/AttachmentExport"
+            },
+            "description": "Every photo and signature captured, by metadata — not their bytes."
+          }
+        },
+        "description": "The whole of a tenant's business data — the response from `GET /export`, Document 1's\nanti-lock-in feature: \"your customers, your jobs, your data — on software you control.\""
+      },
       "HealthResponse": {
         "required": [
           "status",
@@ -998,6 +2051,52 @@
           }
         },
         "description": "The body of `POST /schedule/insert`: an emergency, named by the job it is for."
+      },
+      "InsertJobResponse": {
+        "required": [
+          "assignmentId",
+          "technicianId",
+          "scheduledStart",
+          "sequence",
+          "displaced"
+        ],
+        "type": "object",
+        "properties": {
+          "assignmentId": {
+            "type": "string",
+            "description": "The stop that now exists for it.",
+            "format": "uuid"
+          },
+          "technicianId": {
+            "type": "string",
+            "description": "Whose day it landed on.",
+            "format": "uuid"
+          },
+          "scheduledStart": {
+            "type": "string",
+            "description": "When the work is planned to start.",
+            "format": "date-time"
+          },
+          "sequence": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Where it falls in that technician's run, counting from zero.",
+            "format": "int32"
+          },
+          "displaced": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many of that technician's other stops had to move along to make room. Zero when the job\nwent on the end of a day.",
+            "format": "int32"
+          }
+        },
+        "description": "The response from `POST /schedule/insert`: where the emergency went."
       },
       "InvoiceLineRequest": {
         "required": [
@@ -1037,6 +2136,110 @@
         },
         "description": "One line to bill, as submitted to `POST /jobs/{id}/invoice`."
       },
+      "InvoiceLineResponse": {
+        "required": [
+          "kind",
+          "description",
+          "quantity",
+          "unitPrice",
+          "lineTotal"
+        ],
+        "type": "object",
+        "properties": {
+          "kind": {
+            "description": "Labour or a part.",
+            "$ref": "#/components/schemas/LineItemKind"
+          },
+          "description": {
+            "type": "string",
+            "description": "What it says on the invoice."
+          },
+          "quantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "How many — hours for labour, units for parts.",
+            "format": "double"
+          },
+          "unitPrice": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "The price of one, in dollars. Negative for a discount.",
+            "format": "double"
+          },
+          "lineTotal": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "What this line adds to the invoice, in dollars.",
+            "format": "double"
+          }
+        },
+        "description": "One billed line, as the clients see it."
+      },
+      "InvoiceResponse": {
+        "required": [
+          "id",
+          "jobId",
+          "status",
+          "issued",
+          "lines",
+          "total"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Its identity.",
+            "format": "uuid"
+          },
+          "jobId": {
+            "type": "string",
+            "description": "The job it bills.",
+            "format": "uuid"
+          },
+          "status": {
+            "description": "Whether it has been settled.",
+            "$ref": "#/components/schemas/InvoiceStatus"
+          },
+          "issued": {
+            "type": "string",
+            "description": "When it was raised.",
+            "format": "date-time"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/InvoiceLineResponse"
+            },
+            "description": "What it bills for, in the order the lines were added."
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "What is owed, in dollars.",
+            "format": "double"
+          }
+        },
+        "description": "One invoice, as the clients see it — the response from `POST /jobs/{id}/invoice`, and the\nshape every invoice takes in `GET /export`."
+      },
+      "InvoiceStatus": {
+        "enum": [
+          "Draft",
+          "Paid"
+        ],
+        "description": "Whether an invoice has been settled, as the clients see it."
+      },
       "JobPriority": {
         "enum": [
           "Low",
@@ -1045,6 +2248,93 @@
           "Emergency"
         ],
         "description": "How badly a job needs doing, as the clients see it."
+      },
+      "JobResponse": {
+        "required": [
+          "id",
+          "customerId",
+          "locationId",
+          "latitude",
+          "longitude",
+          "requiredSkill",
+          "priority",
+          "windowStart",
+          "windowEnd",
+          "estimatedDuration",
+          "status",
+          "notes"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Its identity.",
+            "format": "uuid"
+          },
+          "customerId": {
+            "type": "string",
+            "description": "Whose work it is.",
+            "format": "uuid"
+          },
+          "locationId": {
+            "type": "string",
+            "description": "Which of that customer's service locations it happens at.",
+            "format": "uuid"
+          },
+          "latitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Where it is, in decimal degrees.",
+            "format": "double"
+          },
+          "longitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Where it is, in decimal degrees.",
+            "format": "double"
+          },
+          "requiredSkill": {
+            "type": "string",
+            "description": "The skill a technician must have to take it."
+          },
+          "priority": {
+            "description": "How badly it needs doing.",
+            "$ref": "#/components/schemas/JobPriority"
+          },
+          "windowStart": {
+            "type": "string",
+            "description": "When the promised window opens.",
+            "format": "date-time"
+          },
+          "windowEnd": {
+            "type": "string",
+            "description": "When the promised window closes.",
+            "format": "date-time"
+          },
+          "estimatedDuration": {
+            "pattern": "^-?(\\d+\\.)?\\d{2}:\\d{2}:\\d{2}(\\.\\d{1,7})?$",
+            "type": "string",
+            "description": "How long the work should take once a technician is on site."
+          },
+          "status": {
+            "description": "How far through its life the job is.",
+            "$ref": "#/components/schemas/JobStatus"
+          },
+          "notes": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "What a technician wrote about it, or `null` if nobody has."
+          }
+        },
+        "description": "One job, as the clients see it: the demand, and nothing about the plan."
       },
       "JobStatus": {
         "enum": [
@@ -1085,6 +2375,25 @@
           }
         },
         "description": "The body of `POST /auth/login`."
+      },
+      "LoginResponse": {
+        "required": [
+          "token",
+          "expiresAt"
+        ],
+        "type": "object",
+        "properties": {
+          "token": {
+            "type": "string",
+            "description": "The bearer token — send it as `Authorization: Bearer {Token}`."
+          },
+          "expiresAt": {
+            "type": "string",
+            "description": "When the token stops being accepted.",
+            "format": "date-time"
+          }
+        },
+        "description": "What a successful `POST /auth/login` returns."
       },
       "ObjectiveWeightsRequest": {
         "required": [
@@ -1165,6 +2474,81 @@
         },
         "description": "The body of `POST /schedule/optimize`."
       },
+      "OptimizeScheduleResponse": {
+        "required": [
+          "planned",
+          "unassigned",
+          "cost"
+        ],
+        "type": "object",
+        "properties": {
+          "planned": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many stops the day now has.",
+            "format": "int32"
+          },
+          "unassigned": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The jobs no technician could take. Not a failure — see the remarks on `OptimizedDay`."
+          },
+          "cost": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "What the plan scores under the weights it was given. Only comparable against another response\nfor the same horizon under the same weights.",
+            "format": "double"
+          }
+        },
+        "description": "The response from `POST /schedule/optimize`: what the optimiser did."
+      },
+      "ProblemDetails": {
+        "type": "object",
+        "properties": {
+          "type": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "title": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "status": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "null",
+              "integer",
+              "string"
+            ],
+            "format": "int32"
+          },
+          "detail": {
+            "type": [
+              "null",
+              "string"
+            ]
+          },
+          "instance": {
+            "type": [
+              "null",
+              "string"
+            ]
+          }
+        }
+      },
       "ServiceLocationRequest": {
         "required": [
           "label",
@@ -1203,6 +2587,50 @@
         },
         "description": "The body of `POST /customers/{id}/locations` and `PUT .../locations/{locationId}`."
       },
+      "ServiceLocationResponse": {
+        "required": [
+          "id",
+          "label",
+          "address",
+          "latitude",
+          "longitude"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The identity a job points at.",
+            "format": "uuid"
+          },
+          "label": {
+            "type": "string",
+            "description": "What the customer calls it."
+          },
+          "address": {
+            "type": "string",
+            "description": "The postal address a technician would be given."
+          },
+          "latitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Where it is, in decimal degrees.",
+            "format": "double"
+          },
+          "longitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Where it is, in decimal degrees.",
+            "format": "double"
+          }
+        },
+        "description": "One of a customer's service locations, as the clients see it."
+      },
       "SetShiftRequest": {
         "required": [
           "start",
@@ -1238,6 +2666,84 @@
           }
         },
         "description": "The body of `PUT /technicians/{id}/skills`."
+      },
+      "SyncChange": {
+        "required": [
+          "entity",
+          "entityId",
+          "version",
+          "state",
+          "deleted"
+        ],
+        "type": "object",
+        "properties": {
+          "entity": {
+            "type": "string",
+            "description": "What kind of thing this is — the same vocabulary an operation uses."
+          },
+          "entityId": {
+            "type": "string",
+            "description": "Which one.",
+            "format": "uuid"
+          },
+          "version": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Its concurrency stamp as the server holds it.",
+            "format": "int64"
+          },
+          "state": {
+            "oneOf": [
+              {
+                "type": "null"
+              },
+              {
+                "description": "The entity as the client should now hold it, or `null` when\nDeleted is set — the two always agree.",
+                "$ref": "#/components/schemas/JsonElement"
+              }
+            ]
+          },
+          "deleted": {
+            "type": "boolean",
+            "description": "The entity is gone from this device's world: cancelled, or a stop re-optimised onto\nsomebody else's day. Removal has to be sayable, because a phone that is never told simply\nkeeps the stop and drives to it."
+          }
+        },
+        "description": "One entity as the server currently holds it, sent to a device that is behind."
+      },
+      "SyncConflict": {
+        "required": [
+          "opId",
+          "reason",
+          "message"
+        ],
+        "type": "object",
+        "properties": {
+          "opId": {
+            "type": "string",
+            "description": "Which operation, by the id the device gave it.",
+            "format": "uuid"
+          },
+          "reason": {
+            "description": "What kind of refusal it was, for the client to branch on.",
+            "$ref": "#/components/schemas/SyncConflictReason"
+          },
+          "message": {
+            "type": "string",
+            "description": "Why, in terms fit to show the technician holding the phone."
+          }
+        },
+        "description": "An operation the server would not apply, and why."
+      },
+      "SyncConflictReason": {
+        "enum": [
+          "IllegalTransition",
+          "VersionConflict",
+          "Unsupported"
+        ],
+        "description": "The kinds of refusal a pushed operation can meet."
       },
       "SyncOp": {
         "required": [
@@ -1290,6 +2796,27 @@
         },
         "description": "One thing a technician did in the field: started a job, added a note, added a part,\nfinished. Queued on the device and pushed in batches (Document 2 §10)."
       },
+      "SyncPullResponse": {
+        "required": [
+          "changes",
+          "cursor"
+        ],
+        "type": "object",
+        "properties": {
+          "changes": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncChange"
+            },
+            "description": "The entities that moved, as the server now holds them."
+          },
+          "cursor": {
+            "type": "string",
+            "description": "The watermark to ask with next time. Opaque — the shape of the server's bookmark is not\npart of the contract."
+          }
+        },
+        "description": "Everything that changed in a device's world since the cursor it asked with, and where it\nnow stands. The body of `GET /sync/pull?since={cursor}`."
+      },
       "SyncPushRequest": {
         "required": [
           "ops"
@@ -1305,6 +2832,95 @@
           }
         },
         "description": "A device emptying its queue: everything it did since it last got through, in the order it\ndid it. The body of `POST /sync/push`."
+      },
+      "SyncPushResponse": {
+        "required": [
+          "applied",
+          "conflicts",
+          "cursor"
+        ],
+        "type": "object",
+        "properties": {
+          "applied": {
+            "type": "array",
+            "items": {
+              "type": "string",
+              "format": "uuid"
+            },
+            "description": "The ops that landed, by id. An op the server had already applied is reported here too:\nfrom the device's point of view a re-sent operation that is already in effect succeeded,\nand telling it otherwise would leave it queueing the op forever."
+          },
+          "conflicts": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncConflict"
+            },
+            "description": "The ops that were refused, each with a reason fit to show a technician."
+          },
+          "cursor": {
+            "type": "string",
+            "description": "Where the device now stands in the change stream. Opaque — it is the server's watermark,\nand a client that parses it is reading something it was not promised."
+          }
+        },
+        "description": "What the server made of a pushed batch. Authoritative: the device rebases onto this rather\nthan keeping its own opinion (Document 2 §10)."
+      },
+      "TechnicianResponse": {
+        "required": [
+          "id",
+          "name",
+          "skills",
+          "shiftStart",
+          "shiftEnd",
+          "latitude",
+          "longitude"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "Their identity.",
+            "format": "uuid"
+          },
+          "name": {
+            "type": "string",
+            "description": "Their name, as it appears on the dispatch board."
+          },
+          "skills": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            },
+            "description": "What they are qualified to work on, alphabetically."
+          },
+          "shiftStart": {
+            "type": "string",
+            "description": "When their working hours open.",
+            "format": "date-time"
+          },
+          "shiftEnd": {
+            "type": "string",
+            "description": "When their working hours close.",
+            "format": "date-time"
+          },
+          "latitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Their home base, in decimal degrees.",
+            "format": "double"
+          },
+          "longitude": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?(?:[eE][+-]?\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "Their home base, in decimal degrees.",
+            "format": "double"
+          }
+        },
+        "description": "One technician, as the clients see them."
       },
       "UpdateCustomerRequest": {
         "required": [
@@ -1392,6 +3008,27 @@
           }
         },
         "description": "The metadata half of `POST /jobs/{id}/attachments` — the multipart form's fields beside the\nbinary itself."
+      },
+      "UploadAttachmentResponse": {
+        "required": [
+          "serverId"
+        ],
+        "type": "object",
+        "properties": {
+          "serverId": {
+            "type": "string",
+            "description": "The handle the server holds this content under. Opaque — a client stores it and does not parse\nit, the same register as a sync cursor."
+          }
+        },
+        "description": "The response from `POST /jobs/{id}/attachments`."
+      }
+    },
+    "securitySchemes": {
+      "Bearer": {
+        "type": "http",
+        "description": "The token POST /auth/login returns, sent as \"Authorization: Bearer <token>\".",
+        "scheme": "bearer",
+        "bearerFormat": "JWT"
       }
     }
   },

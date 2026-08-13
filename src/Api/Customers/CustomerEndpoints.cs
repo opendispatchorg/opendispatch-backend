@@ -31,16 +31,23 @@ public static class CustomerEndpoints
             .RequireAuthorization(AuthPolicies.AdminOrDispatcher)
             .WithTags("Customers");
 
-        customers.MapPost("/", CreateAsync).WithName("CreateCustomer");
-        customers.MapGet("/", ListAsync).WithName("ListCustomers");
-        customers.MapGet("/{id:guid}", GetAsync).WithName("GetCustomer");
-        customers.MapPut("/{id:guid}", UpdateAsync).WithName("UpdateCustomer");
+        customers.MapPost("/", CreateAsync).WithName("CreateCustomer")
+            .Produces<CustomerSummaryResponse>(StatusCodes.Status201Created);
+        customers.MapGet("/", ListAsync).WithName("ListCustomers")
+            .Produces<IEnumerable<CustomerSummaryResponse>>();
+        customers.MapGet("/{id:guid}", GetAsync).WithName("GetCustomer")
+            .Produces<CustomerResponse>();
+        customers.MapPut("/{id:guid}", UpdateAsync).WithName("UpdateCustomer")
+            .Produces(StatusCodes.Status204NoContent);
 
-        customers.MapPost("/{id:guid}/locations", AddLocationAsync).WithName("AddServiceLocation");
+        customers.MapPost("/{id:guid}/locations", AddLocationAsync).WithName("AddServiceLocation")
+            .Produces<ServiceLocationResponse>(StatusCodes.Status201Created);
         customers.MapPut("/{id:guid}/locations/{locationId:guid}", UpdateLocationAsync)
-            .WithName("UpdateServiceLocation");
+            .WithName("UpdateServiceLocation")
+            .Produces(StatusCodes.Status204NoContent);
         customers.MapDelete("/{id:guid}/locations/{locationId:guid}", RemoveLocationAsync)
-            .WithName("RemoveServiceLocation");
+            .WithName("RemoveServiceLocation")
+            .Produces(StatusCodes.Status204NoContent);
 
         return endpoints;
     }

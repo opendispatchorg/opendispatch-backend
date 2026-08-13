@@ -27,23 +27,29 @@ public static class TechnicianEndpoints
 
         technicians.MapGet("/", ListAsync)
             .RequireAuthorization(AuthPolicies.AdminOrDispatcher)
-            .WithName("ListTechnicians");
+            .WithName("ListTechnicians")
+            .Produces<IEnumerable<TechnicianResponse>>();
         technicians.MapGet("/{id:guid}", GetAsync)
             .RequireAuthorization(AuthPolicies.AdminOrDispatcher)
-            .WithName("GetTechnician");
+            .WithName("GetTechnician")
+            .Produces<TechnicianResponse>();
 
         technicians.MapPost("/", CreateAsync)
             .RequireAuthorization(AuthPolicies.AdminOnly)
-            .WithName("CreateTechnician");
+            .WithName("CreateTechnician")
+            .Produces<TechnicianResponse>(StatusCodes.Status201Created);
         technicians.MapPut("/{id:guid}", UpdateAsync)
             .RequireAuthorization(AuthPolicies.AdminOnly)
-            .WithName("UpdateTechnician");
+            .WithName("UpdateTechnician")
+            .Produces(StatusCodes.Status204NoContent);
         technicians.MapPut("/{id:guid}/skills", SetSkillsAsync)
             .RequireAuthorization(AuthPolicies.AdminOnly)
-            .WithName("SetTechnicianSkills");
+            .WithName("SetTechnicianSkills")
+            .Produces(StatusCodes.Status204NoContent);
         technicians.MapPut("/{id:guid}/shift", SetShiftAsync)
             .RequireAuthorization(AuthPolicies.AdminOnly)
-            .WithName("SetTechnicianShift");
+            .WithName("SetTechnicianShift")
+            .Produces(StatusCodes.Status204NoContent);
 
         return endpoints;
     }

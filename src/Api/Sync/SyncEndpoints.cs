@@ -32,8 +32,16 @@ public static class SyncEndpoints
             .RequireAuthorization(AuthPolicies.TechnicianOnly)
             .WithTags("Sync");
 
-        sync.MapPost("/push", PushAsync).WithName("PushSyncOps");
-        sync.MapGet("/pull", PullAsync).WithName("PullSyncChanges");
+        // Both routes also answer a bare, bodyless 401 when the token's own tech claim is
+        // missing or unparseable (TryGetTechnicianId) — ahead of the Result/Error machinery
+        // the shared "default" ProblemDetails response otherwise describes, so it is named
+        // explicitly here rather than left for that generic entry to (incorrectly) cover.
+        sync.MapPost("/push", PushAsync).WithName("PushSyncOps")
+            .Produces<SyncPushResponse>()
+            .Produces(StatusCodes.Status401Unauthorized);
+        sync.MapGet("/pull", PullAsync).WithName("PullSyncChanges")
+            .Produces<SyncPullResponse>()
+            .Produces(StatusCodes.Status401Unauthorized);
 
         return endpoints;
     }

@@ -38,11 +38,16 @@ public static class JobEndpoints
             .RequireAuthorization(AuthPolicies.AdminOrDispatcher)
             .WithTags("Jobs");
 
-        jobs.MapPost("/", CreateAsync).WithName("CreateJob");
-        jobs.MapGet("/", ListAsync).WithName("ListJobs");
-        jobs.MapGet("/{id:guid}", GetAsync).WithName("GetJob");
-        jobs.MapPost("/{id:guid}/status", ChangeStatusAsync).WithName("ChangeJobStatus");
-        jobs.MapPost("/{id:guid}/assign", AssignAsync).WithName("AssignJob");
+        jobs.MapPost("/", CreateAsync).WithName("CreateJob")
+            .Produces<CreateJobResponse>(StatusCodes.Status201Created);
+        jobs.MapGet("/", ListAsync).WithName("ListJobs")
+            .Produces<IEnumerable<JobResponse>>();
+        jobs.MapGet("/{id:guid}", GetAsync).WithName("GetJob")
+            .Produces<JobResponse>();
+        jobs.MapPost("/{id:guid}/status", ChangeStatusAsync).WithName("ChangeJobStatus")
+            .Produces(StatusCodes.Status204NoContent);
+        jobs.MapPost("/{id:guid}/assign", AssignAsync).WithName("AssignJob")
+            .Produces<AssignJobResponse>();
 
         return endpoints;
     }
@@ -62,7 +67,7 @@ public static class JobEndpoints
             request.EstimatedDuration);
         var result = await sender.Send(command, cancellationToken).ConfigureAwait(false);
 
-        return result.ToHttpResult(id => Results.Created($"/jobs/{id.Value}", new { id = id.Value }));
+        return result.ToHttpResult(id => Results.Created($"/jobs/{id.Value}", new CreateJobResponse(id.Value)));
     }
 
     private static async Task<IResult> ListAsync(ISender sender, CancellationToken cancellationToken)

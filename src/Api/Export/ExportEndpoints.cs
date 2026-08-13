@@ -31,7 +31,8 @@ public static class ExportEndpoints
         endpoints.MapGet("/export", ExportAsync)
             .RequireAuthorization(AuthPolicies.AdminOnly)
             .WithTags("Export")
-            .WithName("ExportTenant");
+            .WithName("ExportTenant")
+            .Produces<ExportResponse>();
 
         return endpoints;
     }

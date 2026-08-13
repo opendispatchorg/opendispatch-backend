@@ -14,7 +14,8 @@ public static class AuthEndpoints
     {
         endpoints.MapPost("/auth/login", LoginAsync)
             .WithName("Login")
-            .AllowAnonymous();
+            .AllowAnonymous()
+            .Produces<LoginResponse>();
 
         return endpoints;
     }
