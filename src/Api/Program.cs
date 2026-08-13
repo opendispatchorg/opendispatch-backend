@@ -14,6 +14,7 @@ using OpenDispatch.Api.Export;
 using OpenDispatch.Api.Health;
 using OpenDispatch.Api.Invoicing;
 using OpenDispatch.Api.Jobs;
+using OpenDispatch.Api.Observability;
 using OpenDispatch.Api.OpenApi;
 using OpenDispatch.Api.Schedule;
 using OpenDispatch.Api.Seeding;
@@ -186,6 +187,12 @@ try
     // one line rather than one per call site. On its own this is half a fix: see
     // UseSerilogRequestLogging below for the other half — the same id landing somewhere a human
     // can actually grep for it.
+    //
+    // The value is step 54's correlation id: UseCorrelationId sets TraceIdentifier, so a caller
+    // that sent X-Correlation-ID reads its own id back out of the failure body. The member keeps
+    // the name "traceId" — it is what ASP.NET Core itself puts on a ProblemDetails and what a
+    // client library expects to find — while the header and the log lines say "correlation". One
+    // value, and the value is what anybody actually greps for.
     builder.Services.AddProblemDetails(options => options.CustomizeProblemDetails = context =>
         context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier);
     builder.Services.AddExceptionHandler<UnhandledExceptionHandler>();
@@ -206,23 +213,32 @@ try
         return await SeedCommand.RunAsync(app).ConfigureAwait(false);
     }
 
+    // First in the pipeline (Document 3, step 54): everything below it — the request-summary line,
+    // the exception handler, every handler log line, and the traceId on a ProblemDetails body —
+    // reports the one id this establishes, and a caller that sent its own gets that one back.
+    app.UseCorrelationId();
+
     // NotFound/Conflict/Unauthorized/Validation log nothing of their own beyond this one
-    // request-summary line, so it is what has to carry the traceId AddProblemDetails above puts
-    // on a failure response, or that id has nothing server-side to correlate against.
+    // request-summary line, so it is what has to carry the id AddProblemDetails above puts on a
+    // failure response, or that id has nothing server-side to correlate against.
     //
-    // EnrichDiagnosticContext alone is not enough: it attaches TraceId to the LogEvent as a
-    // structured property, but the default Console sink (appsettings.json's only configured
-    // sink, unconfigured further) only renders a message template's own tokens — verified by
-    // actually running the host and reading real console output, which showed the enrichment
-    // taking effect on the LogEvent but nothing extra in the printed line. MessageTemplate is
-    // what the line itself is built from, so TraceId has to be named there too, the same fix
-    // already applied to UnhandledExceptionHandlerLog's own template just below.
+    // EnrichDiagnosticContext alone is not enough: it attaches the property to the LogEvent, but
+    // the default Console sink (appsettings.json's only configured sink, unconfigured further)
+    // only renders a message template's own tokens — verified by actually running the host and
+    // reading real console output, which showed the enrichment taking effect on the LogEvent but
+    // nothing extra in the printed line. MessageTemplate is what the line itself is built from, so
+    // the id has to be named there too, the same fix already applied to
+    // UnhandledExceptionHandlerLog's own template just below.
+    //
+    // It reads TraceIdentifier rather than the log context UseCorrelationId also pushes, so this
+    // line keeps working whatever a future reordering does to the middleware above it.
     app.UseSerilogRequestLogging(options =>
     {
         options.MessageTemplate =
-            "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms (trace {TraceId})";
+            "HTTP {RequestMethod} {RequestPath} responded {StatusCode} in {Elapsed:0.0000} ms "
+            + "(correlation {CorrelationId})";
         options.EnrichDiagnosticContext = (diagnosticContext, httpContext) =>
-            diagnosticContext.Set("TraceId", httpContext.TraceIdentifier);
+            diagnosticContext.Set(CorrelationIdMiddleware.LogPropertyName, httpContext.TraceIdentifier);
     });
 
     // After request logging, so a request that ends in an unhandled exception is still logged

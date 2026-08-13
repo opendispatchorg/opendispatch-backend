@@ -9,7 +9,7 @@
     "/health": {
       "get": {
         "tags": [
-          "OpenDispatch.Api"
+          "Health"
         ],
         "operationId": "Health",
         "responses": {
@@ -19,6 +19,76 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "HealthLive",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "HealthReady",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
                 }
               }
             }
@@ -2026,13 +2096,15 @@
         "type": "object",
         "properties": {
           "status": {
-            "type": "string"
+            "type": "string",
+            "description": "Always `healthy`: a host that could not answer would not answer."
           },
           "service": {
-            "type": "string"
+            "type": "string",
+            "description": "Which service replied, for a probe pointed at the wrong port."
           }
         },
-        "description": "The payload returned by `GET /health`."
+        "description": "The payload returned by `GET /health` and `GET /health/live`."
       },
       "IFormFile": {
         "type": "string",
@@ -2549,6 +2621,32 @@
           }
         }
       },
+      "ReadinessResponse": {
+        "required": [
+          "status",
+          "service",
+          "checks"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "`healthy`, `degraded` or `unhealthy` — the worst status among the checks."
+          },
+          "service": {
+            "type": "string",
+            "description": "Which service replied."
+          },
+          "checks": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Each registered check by name, with its own status. An operator reading a 503 needs to know\nwhich dependency is down; a single word makes them go and look."
+          }
+        },
+        "description": "The payload returned by `GET /health/ready`."
+      },
       "ServiceLocationRequest": {
         "required": [
           "label",
@@ -3034,7 +3132,7 @@
   },
   "tags": [
     {
-      "name": "OpenDispatch.Api"
+      "name": "Health"
     },
     {
       "name": "AuthEndpoints"

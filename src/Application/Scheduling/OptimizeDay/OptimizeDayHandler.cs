@@ -1,6 +1,8 @@
+using System.Diagnostics;
 using MediatR;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Jobs;
+using OpenDispatch.Application.Observability;
 using OpenDispatch.Application.Results;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.Technicians;
@@ -38,13 +40,19 @@ internal sealed class OptimizeDayHandler(
     ITechnicianRepository technicians,
     IAssignmentRepository assignments,
     IScheduler scheduler,
-    ITenantContext tenant)
+    ITenantContext tenant,
+    SchedulingMetrics metrics)
     : IRequestHandler<OptimizeDayCommand, Result<OptimizedDay>>
 {
     public async Task<Result<OptimizedDay>> Handle(
         OptimizeDayCommand command,
         CancellationToken cancellationToken)
     {
+        // Timed across the whole handler rather than around scheduler.Solve, because what grows
+        // with the day is not only the search: reading a hundred jobs and staging a hundred stops
+        // are part of what a dispatcher waits for. It stops short of the commit, which belongs to
+        // the transaction behavior above and is a database number rather than an engine one.
+        var started = Stopwatch.GetTimestamp();
         var horizon = new TimeWindow(command.From, command.To);
 
         // "Schedulable" is the domain's answer, not a status list written here: work that is
@@ -60,8 +68,14 @@ internal sealed class OptimizeDayHandler(
             SchedulingDefaults.Seed);
 
         var solution = scheduler.Solve(problem);
+        var optimized = await ApplyAsync(problem, solution, schedulable, cancellationToken).ConfigureAwait(false);
 
-        return Result.Success(await ApplyAsync(problem, solution, schedulable, cancellationToken).ConfigureAwait(false));
+        // Only a completed optimisation is recorded. A run that threw produced no plan and has no
+        // latency worth a percentile; LoggingBehavior above already reports that it threw and how
+        // long it ran before it did.
+        metrics.Optimized(Stopwatch.GetElapsedTime(started));
+
+        return Result.Success(optimized);
     }
 
     private static TechPlan ToPlan(Technician technician) =>

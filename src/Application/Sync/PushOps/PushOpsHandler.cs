@@ -2,6 +2,7 @@ using MediatR;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Jobs;
 using OpenDispatch.Application.Jobs.ChangeJobStatus;
+using OpenDispatch.Application.Observability;
 using OpenDispatch.Application.Results;
 using OpenDispatch.Domain.Common;
 using OpenDispatch.Domain.Identifiers;
@@ -46,7 +47,8 @@ internal sealed class PushOpsHandler(
     ISyncCursorSource cursors,
     IJobRepository jobs,
     ITenantContext tenant,
-    IClock clock)
+    IClock clock,
+    SyncMetrics metrics)
     : IRequestHandler<PushOpsCommand, Result<PushedBatch>>
 {
     public async Task<Result<PushedBatch>> Handle(PushOpsCommand command, CancellationToken cancellationToken)
@@ -84,12 +86,24 @@ internal sealed class PushOpsHandler(
                 // recorded would be answered from memory next time rather than re-judged against
                 // a job that may since have moved.
                 conflicts.Add(new SyncOpConflict(op.Id, outcome.Error!));
+
+                // The one refusal in this system that never reaches a log level or a status code
+                // — it rides inside a 200 — so this counter is the only place a client shipping
+                // operations this server cannot apply becomes visible (Document 3, step 54).
+                metrics.Conflicted(outcome.Error!.Code);
                 continue;
             }
 
             log.Add(Recorded(op, command.TechnicianId));
             applied.Add(op.Id);
         }
+
+        // Counted once for the batch rather than per operation: the number that matters is how
+        // much field work a push carried, and Add(n) is one measurement where n increments are
+        // n. Ops an earlier push had already applied are included, because they are what this
+        // device believes it did — undercounting them would make a phone stuck in a retry loop
+        // look idle.
+        metrics.Applied(applied.Count);
 
         // Taken before the batch commits, so it is at or below this transaction's own changes and
         // a pull with it returns them. That is deliberate: a device with a conflict is told what

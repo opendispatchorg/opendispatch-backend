@@ -92,6 +92,15 @@ public static class PersistenceRegistration
         // changes read against it have to come from one connection to describe one moment.
         services.AddScoped<ISyncChangeReader, SyncChangeReader>();
 
+        // Readiness (Document 3, step 54). Registered here rather than by the host for the same
+        // reason the context is: whether this deployment can serve traffic is a question about the
+        // database, and a composition root that has to remember to ask it is one that will
+        // eventually forget. The timeout is the probe's own guarantee — a health endpoint that
+        // hangs is worse than one that answers "no", because an orchestrator reads no answer at
+        // all as a host that has stopped responding and restarts it.
+        services.AddHealthChecks()
+            .AddCheck<DatabaseHealthCheck>(DatabaseHealthCheck.Name, timeout: TimeSpan.FromSeconds(5));
+
         return services;
     }
 }

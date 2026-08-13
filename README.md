@@ -65,6 +65,24 @@ make test           # everything, including container-backed integration tests
 make gen-contracts  # rebuild contracts/ - the @opendispatch/contracts package
 ```
 
+## Operating it
+
+Three things a deployment needs to watch this service, none of which assume a particular
+monitoring stack:
+
+| Surface | Where | What it says |
+|---|---|---|
+| Liveness | `GET /health`, `GET /health/live` | The process is up and serving. Checks nothing else, so a failure here means restart. |
+| Readiness | `GET /health/ready` | Every registered health check, database connectivity among them. 503 means take this host out of rotation and leave it alone — it recovers on its own. |
+| Correlation id | `X-Correlation-ID` request/response header | Sent by the caller or minted by the server; the same value lands in `traceId` on every error body and in every log line the request produces. |
+
+Metrics are published on the `OpenDispatch` meter (`System.Diagnostics.Metrics`) — optimize
+latency as `opendispatch.scheduling.optimize.duration`, and sync as
+`opendispatch.sync.ops.applied` / `opendispatch.sync.ops.conflicted` (tagged with the reason a
+field operation was refused, which is the one failure this API answers with a 200). Point an
+OpenTelemetry exporter or `dotnet-counters` at that meter name; no exporter is registered here,
+because which one to use is the deployment's decision.
+
 The schema lives in `src/Infrastructure/Persistence/Migrations` and is generated with
 `make migration NAME=AddSomething`. Integration tests apply the same migrations to a throwaway
 container, so a migration that will not apply from scratch fails the suite rather than a

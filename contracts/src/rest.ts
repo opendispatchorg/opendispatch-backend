@@ -20,6 +20,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/health/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["HealthLive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["HealthReady"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -710,9 +742,11 @@ export interface components {
             /** @description Every photo and signature captured, by metadata — not their bytes. */
             attachments: components["schemas"]["AttachmentExport"][];
         };
-        /** @description The payload returned by `GET /health`. */
+        /** @description The payload returned by `GET /health` and `GET /health/live`. */
         HealthResponse: {
+            /** @description Always `healthy`: a host that could not answer would not answer. */
             status: string;
+            /** @description Which service replied, for a probe pointed at the wrong port. */
             service: string;
         };
         /** Format: binary */
@@ -967,6 +1001,18 @@ export interface components {
             status?: null | number | string;
             detail?: null | string;
             instance?: null | string;
+        };
+        /** @description The payload returned by `GET /health/ready`. */
+        ReadinessResponse: {
+            /** @description `healthy`, `degraded` or `unhealthy` — the worst status among the checks. */
+            status: string;
+            /** @description Which service replied. */
+            service: string;
+            /** @description Each registered check by name, with its own status. An operator reading a 503 needs to know
+             *     which dependency is down; a single word makes them go and look. */
+            checks: {
+                [key: string]: string;
+            };
         };
         /** @description The body of `POST /customers/{id}/locations` and `PUT .../locations/{locationId}`. */
         ServiceLocationRequest: {
@@ -1232,6 +1278,73 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    HealthLive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    HealthReady: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadinessResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadinessResponse"];
                 };
             };
             /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */

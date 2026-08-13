@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Application.Behaviors;
+using OpenDispatch.Application.Observability;
 
 namespace OpenDispatch.Application;
 
@@ -52,6 +53,18 @@ public static class ApplicationRegistration
         services.AddValidatorsFromAssemblyContaining(
             typeof(ApplicationRegistration),
             includeInternalTypes: true);
+
+        // The instruments the handlers record on (Document 3, step 54). AddMetrics is called here
+        // rather than left to the host: a web host registers IMeterFactory for itself, but the
+        // integration harness composes this pipeline over a bare ServiceCollection, and a handler
+        // that cannot be resolved outside a web host is one whose measurements only exist in
+        // production. Both calls are idempotent, so a host that also asks for metrics gets one
+        // factory and one set of instruments.
+        //
+        // Singletons: an instrument is created once and recorded on from every request.
+        services.AddMetrics();
+        services.AddSingleton<SchedulingMetrics>();
+        services.AddSingleton<SyncMetrics>();
 
         return services;
     }

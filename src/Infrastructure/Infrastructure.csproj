@@ -31,6 +31,14 @@
       this explicitly.
     -->
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
+    <!--
+      Health checks (Document 3, step 54). The endpoints that serve them are ASP.NET Core's and
+      live in Api, which gets this through the shared framework; the check itself is a question
+      about the database, so it lives beside the context that answers it and needs the package
+      explicitly. Nothing here depends on a host: this package is the abstraction and the service,
+      not the middleware.
+    -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.10" />
   </ItemGroup>
 
   <ItemGroup>

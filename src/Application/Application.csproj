@@ -27,6 +27,14 @@
     -->
     <PackageReference Include="Microsoft.Extensions.Logging.Abstractions" Version="10.0.10" />
     <PackageReference Include="Microsoft.Extensions.DependencyInjection.Abstractions" Version="10.0.10" />
+    <!--
+      Metrics (Document 3, step 54). The instruments themselves need nothing — Meter and
+      IMeterFactory live in the runtime — but AddMetrics, which puts a factory in the container,
+      is this package. Not an abstractions package, and that is the exception worth naming: it
+      pulls in no host, no ASP.NET and no EF Core, so the dependency rule holds. A layer that may
+      not know what it is hosted by may still say what it measures.
+    -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics" Version="10.0.10" />
   </ItemGroup>
 
   <ItemGroup>
