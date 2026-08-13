@@ -20,7 +20,7 @@ OPENAPI_EXPORT := src/Api/obj/openapi/Api.json
 # the Api host's configuration, so every `dotnet ef` command needs both projects.
 EF := dotnet ef --project src/Infrastructure --startup-project src/Api
 
-.PHONY: up run migrate migration test test-fast test-watch gen-contracts check-contracts \
+.PHONY: up run migrate migration seed test test-fast test-watch gen-contracts check-contracts \
 	check-contracts-sample publish-contracts
 
 ## up: start Postgres/PostGIS via docker compose
@@ -49,6 +49,21 @@ migration:
 	@test -n "$(NAME)" || { echo "usage: make migration NAME=AddSomething" >&2; exit 1; }
 	dotnet tool restore
 	$(EF) migrations add $(NAME) --output-dir Persistence/Migrations
+
+## seed: load the dev demo dataset (needs `make up` and `make migrate` first)
+##
+## Re-runnable: it finds the demo organization by name and rewrites everything under it, so a demo
+## driven into a state you would rather undo costs one command rather than a dropped database.
+##
+## ASPNETCORE_ENVIRONMENT is deliberately not set here, and that is worth being precise about:
+## `dotnet run` applies src/Api/Properties/launchSettings.json, whose profile sets Development and
+## *overrides* any ambient value — so this target is always a development host, which is correct,
+## because a machine running `dotnet run` out of this working tree is one. launchSettings.json is
+## not part of publish output, so a deployed host has whatever its environment says, and there the
+## seeder refuses (exit 1, having written nothing). Setting the variable here would replace that
+## with a claim this Makefile made on the host's behalf.
+seed:
+	dotnet run --project src/Api -- seed
 
 ## test: everything - unit + integration (integration needs Docker running)
 test:

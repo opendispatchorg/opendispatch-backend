@@ -58,6 +58,7 @@ depend only on Application abstractions. See [Document 2 §2](claude%20docs/Open
 ```bash
 make up             # start Postgres/PostGIS
 make migrate        # apply EF migrations to it
+make seed           # load the demo dataset - Development hosts only
 make run            # serve the Api on http://localhost:5141
 make test-fast      # the Unit category only - pure, no I/O
 make test           # everything, including container-backed integration tests

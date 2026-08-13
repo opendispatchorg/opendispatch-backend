@@ -16,6 +16,7 @@ using OpenDispatch.Api.Invoicing;
 using OpenDispatch.Api.Jobs;
 using OpenDispatch.Api.OpenApi;
 using OpenDispatch.Api.Schedule;
+using OpenDispatch.Api.Seeding;
 using OpenDispatch.Api.Sync;
 using OpenDispatch.Api.Technicians;
 using OpenDispatch.Api.Tenancy;
@@ -24,6 +25,7 @@ using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Auth;
 using OpenDispatch.Infrastructure;
 using OpenDispatch.Infrastructure.Auth;
+using OpenDispatch.Infrastructure.Seeding;
 using Serilog;
 
 // Bootstrap logger, replaced by the configured pipeline once the host is built. It exists
@@ -66,6 +68,17 @@ try
                 jwt.Audience,
                 TimeSpan.FromMinutes(jwt.ExpiryMinutes));
         });
+
+    // The dev-only demo dataset (Document 3, step 53). Registers nothing outside Development, so
+    // the seeder is not merely refused on a production host — it is not there. The hosted service
+    // beside it establishes the demo logins this process will serve; see its own remarks for why
+    // that cannot be `make seed`'s job.
+    builder.Services.AddDemoSeeding(builder.Environment.EnvironmentName);
+
+    if (DemoSeeding.IsAllowedIn(builder.Environment.EnvironmentName))
+    {
+        builder.Services.AddHostedService<DemoLoginRegistrar>();
+    }
 
     // JWT bearer auth (Document 2 §7): the token OpenDispatch.Infrastructure.Auth.JwtTokenIssuer
     // writes is what this validates. Configured through the DI-resolving overload rather than a
@@ -184,6 +197,14 @@ try
     builder.Services.AddScoped<IBoardNotifier, SignalRBoardNotifier>();
 
     var app = builder.Build();
+
+    // `make seed` (Document 3, step 53). The host exists at this point but serves nothing: the
+    // seeder wants the configuration and the container, not a listener, so this returns before any
+    // middleware is wired and before app.Run() would start a hosted service or bind a port.
+    if (SeedCommand.Requested(args))
+    {
+        return await SeedCommand.RunAsync(app).ConfigureAwait(false);
+    }
 
     // NotFound/Conflict/Unauthorized/Validation log nothing of their own beyond this one
     // request-summary line, so it is what has to carry the traceId AddProblemDetails above puts
