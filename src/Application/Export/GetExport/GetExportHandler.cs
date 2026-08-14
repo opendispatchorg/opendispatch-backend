@@ -4,11 +4,13 @@ using OpenDispatch.Application.Customers.GetCustomer;
 using OpenDispatch.Application.Invoicing;
 using OpenDispatch.Application.Jobs;
 using OpenDispatch.Application.Results;
+using OpenDispatch.Application.Technicians.ListTechnicians;
 using OpenDispatch.Domain.Assignments;
 using OpenDispatch.Domain.Attachments;
 using OpenDispatch.Domain.Customers;
 using OpenDispatch.Domain.Invoices;
 using OpenDispatch.Domain.Jobs;
+using OpenDispatch.Domain.Technicians;
 
 namespace OpenDispatch.Application.Export.GetExport;
 
@@ -34,6 +36,7 @@ namespace OpenDispatch.Application.Export.GetExport;
 /// </para>
 /// </remarks>
 internal sealed class GetExportHandler(
+    ITechnicianRepository technicians,
     ICustomerRepository customers,
     IJobRepository jobs,
     IAssignmentRepository assignments,
@@ -48,12 +51,26 @@ internal sealed class GetExportHandler(
         // sequencing rule the old version obeyed still holds and is now the writer's: one context,
         // one operation at a time, so the streams are drained one after another rather than at once.
         return Task.FromResult(Result.Success(new TenantExport(
+            technicians.StreamAsync(cancellationToken).Select(ProjectTechnician),
             customers.StreamAsync(cancellationToken).Select(ProjectCustomer),
             jobs.StreamAsync(cancellationToken).Select(ProjectJob),
             assignments.StreamAsync(cancellationToken).Select(ProjectAssignment),
             invoices.StreamAsync(cancellationToken).Select(ProjectInvoice),
             attachments.StreamAsync(cancellationToken).Select(ProjectAttachment))));
     }
+
+    /// <remarks>
+    /// The same projection <c>GET /technicians</c> answers with, sorted skills and all: an export is
+    /// the shop's own records in the shapes the rest of the API already speaks.
+    /// </remarks>
+    private static TechnicianSummary ProjectTechnician(Technician technician) => new(
+        technician.Id,
+        technician.Name,
+        [.. technician.Skills.Order(StringComparer.OrdinalIgnoreCase)],
+        technician.Shift.Start,
+        technician.Shift.End,
+        technician.HomeBase.Lat,
+        technician.HomeBase.Lng);
 
     private static CustomerDetail ProjectCustomer(Customer customer) => new(
         customer.Id,

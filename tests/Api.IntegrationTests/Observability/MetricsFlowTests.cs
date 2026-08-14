@@ -1,18 +1,13 @@
 using System.Diagnostics.Metrics;
-using System.Text.Json;
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Diagnostics.Metrics.Testing;
 using OpenDispatch.Api.IntegrationTests.Fixtures;
 using OpenDispatch.Application.Customers.AddServiceLocation;
 using OpenDispatch.Application.Customers.CreateCustomer;
-using OpenDispatch.Application.Jobs;
-using OpenDispatch.Application.Jobs.ChangeJobStatus;
 using OpenDispatch.Application.Jobs.CreateJob;
 using OpenDispatch.Application.Observability;
 using OpenDispatch.Application.Scheduling.OptimizeDay;
-using OpenDispatch.Application.Sync;
-using OpenDispatch.Application.Sync.PushOps;
 using OpenDispatch.Application.Technicians.CreateTechnician;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Jobs;
@@ -73,45 +68,10 @@ public sealed class MetricsFlowTests
             $"Optimize latency was recorded as {measurement.Value}ms, which is not a measurement of anything.");
     }
 
-    /// <summary>
-    /// One batch carrying both outcomes: a status the state machine allows, and one it refuses.
-    /// </summary>
-    /// <remarks>
-    /// The refusal is the half that matters. It rides inside a 200 with no log level and no status
-    /// code of its own (see <c>PushOpsHandler</c>), so this counter is the only thing standing
-    /// between "a fleet of phones is being refused all morning" and a quiet dashboard.
-    /// </remarks>
-    [Fact]
-    public async Task APushCountsWhatItAppliedAndWhyItRefusedTheRest()
-    {
-        await using var services = BuildHost();
-        using var applied = Collect<long>(services, SyncMetrics.OpsAppliedName);
-        using var conflicted = Collect<long>(services, SyncMetrics.OpsConflictedName);
-
-        var job = await ADispatchedJobAsync(services);
-
-        var pushed = await Send(services, new PushOpsCommand(
-            TechnicianId.New(),
-            [
-                Status(job, JobStatus.EnRoute, MondayMorning.AddMinutes(5)),
-
-                // Legal for the field workflow in general, illegal from where this job now is:
-                // EnRoute goes to InProgress or Cancelled, never straight to Completed.
-                Status(job, JobStatus.Completed, MondayMorning.AddMinutes(40)),
-            ]));
-
-        Assert.True(pushed.IsSuccess);
-        Assert.Single(pushed.Value.Applied);
-        Assert.Single(pushed.Value.Conflicts);
-
-        Assert.Equal(1L, Assert.Single(applied.GetMeasurementSnapshot()).Value);
-
-        var refusal = Assert.Single(conflicted.GetMeasurementSnapshot());
-        Assert.Equal(1L, refusal.Value);
-        Assert.Equal(
-            JobErrors.IllegalTransitionCode,
-            refusal.Tags[SyncMetrics.ConflictReasonTag]);
-    }
+    // The sync counters used to be asserted here, over MediatR. They are recorded at the edge now
+    // — inside the handler they counted work a failed save could still take back — so the fact that
+    // proves them lives where the edge is: SyncEndpointsFlowTests
+    // .APushCountsWhatItAppliedAndWhyItRefusedTheRest, over a real push.
 
     /// <summary>Watches one instrument on this host's meter and nobody else's.</summary>
     private static MetricCollector<T> Collect<T>(ServiceProvider services, string instrument)
@@ -121,25 +81,6 @@ public sealed class MetricsFlowTests
             OpenDispatchMetrics.MeterName,
             instrument);
 
-    private static PushedOp Status(JobId job, JobStatus status, DateTimeOffset at) =>
-        new(
-            SyncOpId.From(Guid.NewGuid()),
-            FieldOps.JobEntity,
-            job.Value,
-            FieldOps.StatusChange,
-            JsonSerializer.SerializeToElement(new { status = status.ToString() }),
-            BaseVersion: 1,
-            ClientTs: at);
-
-    private async Task<JobId> ADispatchedJobAsync(ServiceProvider services)
-    {
-        var job = await ABookedJobAsync(services);
-
-        await Send(services, new ChangeJobStatusCommand(job.Value, JobStatus.Scheduled));
-        await Send(services, new ChangeJobStatusCommand(job.Value, JobStatus.Dispatched));
-
-        return job.Value;
-    }
 
     private async Task<Application.Results.Result<JobId>> ABookedJobAsync(ServiceProvider services)
     {

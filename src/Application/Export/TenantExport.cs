@@ -1,6 +1,7 @@
 using OpenDispatch.Application.Customers.GetCustomer;
 using OpenDispatch.Application.Invoicing;
 using OpenDispatch.Application.Jobs;
+using OpenDispatch.Application.Technicians.ListTechnicians;
 
 namespace OpenDispatch.Application.Export;
 
@@ -8,6 +9,7 @@ namespace OpenDispatch.Application.Export;
 /// The whole of a tenant's business data, as Document 1's anti-lock-in promise names it: "your
 /// customers, your jobs, your data — on software you control."
 /// </summary>
+/// <param name="Technicians">The crew: who works here, what they hold, and when they work.</param>
 /// <param name="Customers">Every customer, with their service locations.</param>
 /// <param name="Jobs">Every job, whatever its status.</param>
 /// <param name="Assignments">The plan: every stop, whichever technician it is on.</param>
@@ -46,12 +48,16 @@ namespace OpenDispatch.Application.Export;
 /// for them by the same means an upload uses to write them.
 /// </para>
 /// <para>
-/// Technicians are still not a list here — the build text names customers, jobs, assignments and
-/// invoices, step 50b adds attachments to that by name, and a crew roster remains staffing data
-/// rather than the call-to-cash record this endpoint hands back whole.
+/// <strong>Technicians are here now.</strong> Step 49 read the build text's enumeration literally
+/// and left the crew out as staffing rather than call-to-cash data; the correctness pass flagged
+/// the consequence, which is that every exported assignment names a technician id that resolves to
+/// nothing. An export a shop cannot read without the system that produced it is not the promise
+/// Document 1 makes, and a crew roster is business data by any reading that survives contact with
+/// an actual export.
 /// </para>
 /// </remarks>
 public sealed record TenantExport(
+    IAsyncEnumerable<TechnicianSummary> Technicians,
     IAsyncEnumerable<CustomerDetail> Customers,
     IAsyncEnumerable<JobSummary> Jobs,
     IAsyncEnumerable<AssignmentSummary> Assignments,

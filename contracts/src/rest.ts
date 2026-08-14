@@ -796,6 +796,8 @@ export interface components {
         /** @description The whole of a tenant's business data — the response from `GET /export`, Document 1's
          *     anti-lock-in feature: "your customers, your jobs, your data — on software you control." */
         ExportResponse: {
+            /** @description The crew: who works here, what they hold, and when they work. */
+            technicians: components["schemas"]["TechnicianResponse"][];
             /** @description Every customer, with their service locations. */
             customers: components["schemas"]["CustomerResponse"][];
             /** @description Every job, whatever its status. */

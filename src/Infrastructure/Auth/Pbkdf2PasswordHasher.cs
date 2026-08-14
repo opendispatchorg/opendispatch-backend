@@ -33,19 +33,47 @@ internal sealed class Pbkdf2PasswordHasher : IPasswordHasher
             $"{Iterations}.{Convert.ToBase64String(salt)}.{Convert.ToBase64String(key)}");
     }
 
+    /// <remarks>
+    /// <strong>A hash this method cannot read is a failed verification, not an exception.</strong>
+    /// Every part of the stored value is parsed rather than trusted — the iteration count, both
+    /// base64 fields, and the key length — because the one caller is the login path, and a row
+    /// corrupted by a bad migration or a hand-edited database should refuse the password rather than
+    /// answer a 500 that says the server is broken. There is no case where the right answer to
+    /// "does this password match?" is a stack trace.
+    /// </remarks>
     public bool Verify(string password, string hash)
     {
-        var parts = hash.Split('.');
+        var parts = hash?.Split('.') ?? [];
 
-        if (parts.Length != 3 || !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var iterations))
+        if (parts.Length != 3
+            || !int.TryParse(parts[0], NumberStyles.None, CultureInfo.InvariantCulture, out var iterations)
+            || iterations < 1
+            || !TryDecode(parts[1], out var salt)
+            || !TryDecode(parts[2], out var expected)
+            || expected.Length == 0)
         {
             return false;
         }
 
-        var salt = Convert.FromBase64String(parts[1]);
-        var expected = Convert.FromBase64String(parts[2]);
         var actual = Rfc2898DeriveBytes.Pbkdf2(password, salt, iterations, Algorithm, expected.Length);
 
         return CryptographicOperations.FixedTimeEquals(actual, expected);
+    }
+
+    /// <summary>Reads one base64 field, or reports that it is not one.</summary>
+    private static bool TryDecode(string value, out byte[] decoded)
+    {
+        var buffer = new byte[((value.Length + 3) / 4) * 3];
+
+        if (!Convert.TryFromBase64String(value, buffer, out var written))
+        {
+            decoded = [];
+
+            return false;
+        }
+
+        decoded = buffer[..written];
+
+        return true;
     }
 }

@@ -21,4 +21,12 @@ internal sealed class TechnicianRepository(AppDbContext context) : ITechnicianRe
         await context.Technicians
             .OrderBy(technician => technician.Id)
             .ToListAsync(ct);
+
+    /// <remarks>By name, because the export is read by a person or an importer rather than by the
+    /// scheduler, whose ordering requirement <see cref="ListAsync"/> serves.</remarks>
+    public IAsyncEnumerable<Technician> StreamAsync(CancellationToken ct) =>
+        context.Technicians
+            .OrderBy(technician => technician.Name)
+            .ThenBy(technician => technician.Id)
+            .AsAsyncEnumerable();
 }

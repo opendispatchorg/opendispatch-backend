@@ -9,10 +9,12 @@ using OpenDispatch.Application.Export;
 using OpenDispatch.Application.Export.GetExport;
 using OpenDispatch.Application.Invoicing;
 using OpenDispatch.Application.Jobs;
+using OpenDispatch.Application.Technicians.ListTechnicians;
 using OpenDispatch.Contracts.Customers;
 using OpenDispatch.Contracts.Export;
 using OpenDispatch.Contracts.Invoicing;
 using OpenDispatch.Contracts.Jobs;
+using OpenDispatch.Contracts.Technicians;
 using OpenDispatch.Domain.ValueObjects;
 
 namespace OpenDispatch.Api.Export;
@@ -88,6 +90,10 @@ public static class ExportEndpoints
 
             writer.WriteStartObject();
 
+            // In the order ExportResponse declares them, so the document the clients are generated
+            // from and the bytes this writes describe one thing.
+            await WriteAsync(writer, options, "technicians", export.Technicians, ToResponse, cancellationToken)
+                .ConfigureAwait(false);
             await WriteAsync(writer, options, "customers", export.Customers, ToResponse, cancellationToken)
                 .ConfigureAwait(false);
             await WriteAsync(writer, options, "jobs", export.Jobs, ToResponse, cancellationToken)
@@ -140,6 +146,15 @@ public static class ExportEndpoints
         /// </remarks>
         private const int FlushThreshold = 16 * 1024;
     }
+
+    private static TechnicianResponse ToResponse(TechnicianSummary technician) => new(
+        technician.Id.Value,
+        technician.Name,
+        technician.Skills,
+        technician.ShiftStart,
+        technician.ShiftEnd,
+        technician.Latitude,
+        technician.Longitude);
 
     private static CustomerResponse ToResponse(CustomerDetail customer) => new(
         customer.Id.Value,

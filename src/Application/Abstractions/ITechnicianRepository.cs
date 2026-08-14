@@ -24,4 +24,15 @@ public interface ITechnicianRepository
     /// technicians than fit in memory is not the shop this system is for.
     /// </remarks>
     Task<IReadOnlyList<Technician>> ListAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Every technician in the tenant, one at a time — for the export.
+    /// </summary>
+    /// <remarks>
+    /// The crew is small enough that <see cref="ListAsync"/> would do, and this exists anyway so
+    /// the export reads all five of its sources the same way: five streams drained in order, with
+    /// nothing materialized. One list among four streams would be the exception a reader has to
+    /// stop and explain.
+    /// </remarks>
+    IAsyncEnumerable<Technician> StreamAsync(CancellationToken ct);
 }

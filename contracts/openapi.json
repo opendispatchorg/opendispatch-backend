@@ -2281,6 +2281,7 @@
       },
       "ExportResponse": {
         "required": [
+          "technicians",
           "customers",
           "jobs",
           "assignments",
@@ -2289,6 +2290,13 @@
         ],
         "type": "object",
         "properties": {
+          "technicians": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TechnicianResponse"
+            },
+            "description": "The crew: who works here, what they hold, and when they work."
+          },
           "customers": {
             "type": "array",
             "items": {
