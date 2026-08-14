@@ -47,6 +47,8 @@ public sealed class AttachmentStoreTests
             _tenant,
             job,
             AttachmentKind.Signature,
+            "image/jpeg",
+            128L,
             InTheField);
 
         await AddAsync(services, captured);
@@ -116,7 +118,7 @@ public sealed class AttachmentStoreTests
         await using var services = BuildHost();
         var storage = services.GetRequiredService<IAttachmentStorage>();
         var id = AttachmentId.From(Guid.NewGuid());
-        var captured = Attachment.Create(id, _tenant, JobId.New(), AttachmentKind.Photo, InTheField);
+        var captured = Attachment.Create(id, _tenant, JobId.New(), AttachmentKind.Photo, "image/jpeg", 128L, InTheField);
         var photograph = Photograph();
 
         await storage.SaveAsync(captured.StorageKey, new MemoryStream(photograph), CancellationToken.None);
@@ -154,12 +156,12 @@ public sealed class AttachmentStoreTests
         await using var services = BuildHost();
         var id = AttachmentId.From(Guid.NewGuid());
 
-        await AddAsync(services, Attachment.Create(id, _tenant, JobId.New(), AttachmentKind.Photo, InTheField));
+        await AddAsync(services, Attachment.Create(id, _tenant, JobId.New(), AttachmentKind.Photo, "image/jpeg", 128L, InTheField));
 
         // DuplicateRecordException, not the provider's own: the unit of work translates a unique
         // violation into the port's word for it, so a caller answers 409 rather than 500.
         await Assert.ThrowsAsync<DuplicateRecordException>(() =>
-            AddAsync(services, Attachment.Create(id, _tenant, JobId.New(), AttachmentKind.Signature, InTheField)));
+            AddAsync(services, Attachment.Create(id, _tenant, JobId.New(), AttachmentKind.Signature, "image/jpeg", 128L, InTheField)));
     }
 
     [Fact]
@@ -171,6 +173,8 @@ public sealed class AttachmentStoreTests
             _tenant,
             JobId.New(),
             AttachmentKind.Photo,
+            "image/jpeg",
+            128L,
             InTheField);
 
         await AddAsync(services, captured);

@@ -163,7 +163,13 @@ try
         .AddPolicy(AuthPolicies.TechnicianOnly, policy => policy.RequireRole(nameof(UserRole.Technician)))
         .AddPolicy(
             AuthPolicies.AdminOrDispatcher,
-            policy => policy.RequireRole(nameof(UserRole.Admin), nameof(UserRole.Dispatcher)));
+            policy => policy.RequireRole(nameof(UserRole.Admin), nameof(UserRole.Dispatcher)))
+        .AddPolicy(
+            AuthPolicies.AnyRole,
+            policy => policy.RequireRole(
+                nameof(UserRole.Admin),
+                nameof(UserRole.Dispatcher),
+                nameof(UserRole.Technician)));
 
     // The REST half of the API contract (Document 2 §11). The same registration serves the
     // document at /openapi/v1.json for a running host and feeds the build-time export that

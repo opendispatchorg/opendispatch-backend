@@ -182,6 +182,12 @@ database.
 `GET /export` is unpaged and always will be — it is the whole-business dump Document 1 promises —
 but it is streamed rather than assembled, so its cost to this host does not grow with the shop.
 
+Field captures are read back through two routes, open to all three roles: `GET
+/jobs/{id}/attachments` lists what was captured against a job (id, kind, content type, size, and the
+URL for the bytes), and `GET /attachments/{id}/content` streams one of them. Uploads are restricted
+to the types the field app captures — JPEG, PNG, WebP, HEIC — and content is served as a download
+with `X-Content-Type-Options: nosniff`, never as a page in this API's origin.
+
 ## The API contract
 
 One authoritative contract holds the three repos together, so a backend change surfaces as a

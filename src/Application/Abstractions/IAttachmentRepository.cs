@@ -8,7 +8,7 @@ namespace OpenDispatch.Application.Abstractions;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Two methods, and the first one is the whole point: an upload asks whether it has seen this
+/// The first method is the whole point: an upload asks whether it has seen this
 /// attachment id before, and if it has, there is nothing to do. That check and the primary key
 /// behind it are what make an upload safe to retry over a connection that keeps dropping.
 /// </para>
@@ -35,6 +35,16 @@ public interface IAttachmentRepository
     /// be readable for the length of a transaction.
     /// </summary>
     void Add(Attachment attachment);
+
+    /// <summary>
+    /// Fetches the metadata of everything captured against one job, oldest first.
+    /// </summary>
+    /// <remarks>
+    /// Unpaged, and this one does not need the caveat the customer list did: a job has the handful
+    /// of photographs one visit produced, and it is bounded by the visit rather than by the age of
+    /// the business. The index on <c>job_id</c> is what makes it a lookup rather than a scan.
+    /// </remarks>
+    Task<IReadOnlyList<Attachment>> ListForJobAsync(JobId job, CancellationToken ct);
 
     /// <summary>
     /// Fetches every attachment's metadata in the tenant, unpaged — step 50b's <c>GET /export</c>

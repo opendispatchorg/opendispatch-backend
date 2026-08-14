@@ -11,6 +11,12 @@ namespace OpenDispatch.Application.Attachments.UploadAttachment;
 /// <param name="AttachmentId">The id the device generated for it — the idempotency key.</param>
 /// <param name="JobId">The job it was captured against.</param>
 /// <param name="Kind">Photograph or signature.</param>
+/// <param name="ContentType">
+/// What the bytes are, as the request declared. Checked against <c>Attachment.AllowedContentTypes</c>
+/// — by the validator, so a phone sending something this system does not store is told so, and by
+/// the domain, so nothing else can write one either.
+/// </param>
+/// <param name="ByteLength">How many bytes there are, as the request declared.</param>
 /// <param name="Content">
 /// The bytes, read from wherever the caller's stream is positioned. Not buffered by this command —
 /// see <c>UploadAttachmentHandler</c> for where it is actually read.
@@ -30,5 +36,10 @@ namespace OpenDispatch.Application.Attachments.UploadAttachment;
 /// of what a site looked like at the time, and this command cannot supply one.
 /// </para>
 /// </remarks>
-public sealed record UploadAttachmentCommand(AttachmentId AttachmentId, JobId JobId, AttachmentKind Kind, Stream Content)
-    : ICommand<UploadedAttachment>;
+public sealed record UploadAttachmentCommand(
+    AttachmentId AttachmentId,
+    JobId JobId,
+    AttachmentKind Kind,
+    string ContentType,
+    long ByteLength,
+    Stream Content) : ICommand<UploadedAttachment>;

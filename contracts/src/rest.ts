@@ -123,9 +123,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["ListJobAttachments"];
         put?: never;
         post: operations["UploadAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/attachments/{id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetAttachmentContent"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -489,6 +505,35 @@ export interface components {
          * @enum {unknown}
          */
         AttachmentKind: "Photo" | "Signature";
+        /** @description One capture, without its bytes. An element of `GET /jobs/{id}/attachments`. */
+        AttachmentResponse: {
+            /**
+             * Format: uuid
+             * @description The capture's id — the one its device generated.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The job it was captured against.
+             */
+            jobId: string;
+            /** @description Photograph or signature. */
+            kind: components["schemas"]["AttachmentKind"];
+            /** @description What the bytes are, as the download will answer with. */
+            contentType: string;
+            /**
+             * Format: int64
+             * @description How big it is.
+             */
+            byteLength: number | string;
+            /**
+             * Format: date-time
+             * @description When it was captured.
+             */
+            createdAt: string;
+            /** @description Where to fetch the bytes, on this same API. */
+            contentUrl: string;
+        };
         /** @description A job as the board shows it, over REST — the snapshot half of JobUpdated's delta. */
         BoardJobResponse: {
             /**
@@ -880,6 +925,7 @@ export interface components {
          * @enum {unknown}
          */
         InvoiceStatus: "Draft" | "Paid";
+        IResult: Record<string, never>;
         /** @description One page of jobs. The body of `GET /jobs?page={n}&amp;pageSize={n}`. */
         JobPageResponse: {
             /** @description The jobs on this page, soonest-promised first. */
@@ -1535,6 +1581,37 @@ export interface operations {
             };
         };
     };
+    ListJobAttachments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentResponse"][];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     UploadAttachment: {
         parameters: {
             query?: never;
@@ -1559,6 +1636,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["UploadAttachmentResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    GetAttachmentContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": components["schemas"]["IResult"];
                 };
             };
             /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
