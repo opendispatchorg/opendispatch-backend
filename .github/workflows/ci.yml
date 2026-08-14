@@ -55,6 +55,28 @@ jobs:
       - name: Test
         run: make test CONFIGURATION=Release
 
+  # Builds the deployment artifact, and nothing else: no registry, no push, no tag. A Dockerfile
+  # that is never built is a Dockerfile that stops working — a moved file, a renamed project, an
+  # SDK band that no longer satisfies global.json — and the first person to find out would be
+  # somebody trying to deploy. Pushing needs a registry and a credential this repository does not
+  # hold; adding one is a step for whoever runs a real deployment, and it goes here.
+  image:
+    name: Container image builds
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Build the image
+        run: docker build -t opendispatch-api:ci .
+
+      # The image is only as good as what it can do, and the cheapest proof it is a working
+      # application rather than a set of files is that it answers about itself.
+      - name: The image runs the application
+        run: docker run --rm opendispatch-api:ci create-user | grep -q "Usage: create-user"
+
   # Regenerate the shared contract package and fail if it differs from what is committed.
   # This is what makes a backend change a client compile error instead of a runtime surprise:
   # the generated TypeScript cannot fall behind the C# and the endpoints without turning a

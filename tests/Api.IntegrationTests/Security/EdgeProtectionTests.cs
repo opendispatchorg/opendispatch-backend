@@ -24,6 +24,15 @@ public sealed class EdgeProtectionTests
 {
     private const string Origin = "https://board.opendispatch.example";
 
+    private readonly PostgresFixture _postgres;
+
+    /// <remarks>
+    /// The fixture is here for one fact only — the rate-limit test seeds a login, and a login is a
+    /// row in the users table now rather than an entry in a dictionary. The CORS facts below still
+    /// need no database and are not given one.
+    /// </remarks>
+    public EdgeProtectionTests(PostgresFixture postgres) => _postgres = postgres;
+
     /// <summary>
     /// Guessing stops after the configured number of attempts, with the same ProblemDetails shape
     /// every other refusal in this API uses — and the refusal is about the address, not the
@@ -34,6 +43,7 @@ public sealed class EdgeProtectionTests
     {
         await using var factory = new ApiFactory
         {
+            ConnectionString = _postgres.ConnectionString,
             Settings =
             {
                 ["RateLimit:Enabled"] = "true",

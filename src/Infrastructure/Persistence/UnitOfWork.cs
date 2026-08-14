@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore;
+using Npgsql;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Infrastructure.Events;
 
@@ -42,7 +43,31 @@ internal sealed class UnitOfWork(AppDbContext context, DomainEventDispatcher dis
             throw new ConcurrencyConflictException(
                 "Another change to this data was committed first.", lost);
         }
+
+        // The other half of the same race, caught by a different lock. Two writers *creating* the
+        // row a unique index guards — two dispatchers planning one job, two re-plans of one day —
+        // never read a version to be stale about, so the version token cannot see them and the
+        // index is what refuses the second. Untranslated it is a DbUpdateException nothing catches:
+        // an error-level log and a 500 for the most ordinary collision a dispatch board has.
+        catch (DbUpdateException duplicated) when (IsDuplicate(duplicated))
+        {
+            throw new DuplicateRecordException(
+                "Something else has already been written where this could only be written once.",
+                duplicated);
+        }
     }
+
+    /// <summary>
+    /// Whether the save failed because a unique index refused it.
+    /// </summary>
+    /// <remarks>
+    /// Narrow on purpose: <c>DbUpdateException</c> also covers a foreign key, a check constraint
+    /// and a not-null column, none of which is a race between two callers and all of which are
+    /// bugs worth a 500 and a stack trace. Only the provider knows which is which, and it says so
+    /// in <c>SqlState</c> — <c>23505</c>, the SQL standard's own code for a unique violation.
+    /// </remarks>
+    private static bool IsDuplicate(DbUpdateException failed) =>
+        failed.InnerException is PostgresException { SqlState: PostgresErrorCodes.UniqueViolation };
 
     public async Task<IUnitOfWorkTransaction> BeginTransactionAsync(CancellationToken ct) =>
         new UnitOfWorkTransaction(

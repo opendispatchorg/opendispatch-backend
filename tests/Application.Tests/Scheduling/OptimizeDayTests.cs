@@ -264,6 +264,69 @@ public sealed class OptimizeDayTests
     }
 
     /// <summary>
+    /// The other half of leaving work under way alone: the hours it is taking are gone from the
+    /// day, and the engine has no way to be told so.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A job being driven to is not in the problem, but its stop is still on the technician's day.
+    /// Without <c>CommittedWork</c> the engine plans from the start of the shift as though the
+    /// morning were empty, and a day re-planned at eleven comes back with two stops on the same
+    /// technician at the same hour, two stops sharing a position in the run, and — because a day
+    /// that overlaps itself is not a route — every later emergency insertion refused.
+    /// </para>
+    /// <para>
+    /// The cost of the fix is visible here too, and is the reason it is written down rather than
+    /// discovered: the free morning in front of the committed stop is not offered to the engine,
+    /// because a shift is one window and capacity with a hole in it is not something this model can
+    /// express.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task PlansAroundTheHoursWorkUnderWayIsTaking()
+    {
+        await using var slice = SliceHost.Dispatching();
+        var technician = await ATechnician(slice);
+
+        var underway = await ABookedJob(slice, Slough);
+        await slice.Send(new AssignJobCommand(underway, technician, MondayMorning.AddHours(3)));
+
+        foreach (var status in new[] { JobStatus.Dispatched, JobStatus.EnRoute })
+        {
+            await slice.Send(new ChangeJobStatusCommand(underway, status));
+        }
+
+        await ABookedJob(slice, Croydon);
+        await ABookedJob(slice, Camden);
+
+        var optimized = await Optimize(slice);
+        Assert.True(optimized.IsSuccess);
+
+        var day = slice.Store<Assignment>().Saved
+            .Where(stop => stop.TechnicianId == technician)
+            .OrderBy(stop => stop.ScheduledStart)
+            .ToList();
+
+        Assert.Equal(3, day.Count);
+
+        // Every job here lasts an hour, so a technician in one place at a time cannot start two
+        // stops inside the same hour.
+        for (var i = 1; i < day.Count; i++)
+        {
+            Assert.True(
+                day[i].ScheduledStart >= day[i - 1].ScheduledStart.AddHours(1),
+                $"stop {i} starts at {day[i].ScheduledStart:HH:mm}, inside the one before it at "
+                    + $"{day[i - 1].ScheduledStart:HH:mm}");
+        }
+
+        // And the run is numbered once, continuing past the stop the re-plan could not touch
+        // rather than starting again at zero beside it.
+        Assert.Equal(day.Count, day.Select(stop => stop.Sequence).Distinct().Count());
+        Assert.Equal(0, day[0].Sequence);
+        Assert.Equal(underway, day[0].JobId);
+    }
+
+    /// <summary>
     /// A stop records when the work starts, not when the van pulls up — which are different
     /// instants only when a technician arrives before the customer's window opens and waits.
     /// </summary>

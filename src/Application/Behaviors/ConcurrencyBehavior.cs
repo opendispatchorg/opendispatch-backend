@@ -27,6 +27,21 @@ public static class ConcurrencyErrors
     public static Error StaleVersion() => Error.Conflict(
         StaleVersionCode,
         "Somebody else changed this first. Reload to see the current state, then try again.");
+
+    /// <summary>The code every write a unique index refused carries.</summary>
+    public const string DuplicateCode = "concurrency.duplicate";
+
+    /// <summary>Reports that somebody else has already created what this was creating.</summary>
+    /// <remarks>
+    /// Its own code rather than <see cref="StaleVersionCode"/>, because the two ask a client for
+    /// different things. A stale version means "your copy is old"; this means "the thing you were
+    /// making is already there" — a job somebody else planned in the same second, a day two
+    /// dispatchers re-planned at once — and the client's next move is to look at what exists, not
+    /// to reload and repeat.
+    /// </remarks>
+    public static Error Duplicate() => Error.Conflict(
+        DuplicateCode,
+        "Somebody else has already made this change. Reload to see what is there now.");
 }
 
 /// <summary>
@@ -51,8 +66,10 @@ public static class ConcurrencyErrors
 /// not one.
 /// </para>
 /// <para>
-/// It catches nothing else. Every other exception is still a bug, still logged with its stack
-/// trace, and still answered with a 500.
+/// It catches both shapes the same race takes — a stale <c>Version</c>, and a unique index
+/// refusing a row two callers created at once (<see cref="DuplicateRecordException"/>) — and
+/// nothing else. Every other exception is still a bug, still logged with its stack trace, and
+/// still answered with a 500.
 /// </para>
 /// </remarks>
 internal sealed class ConcurrencyBehavior<TRequest, TResponse> : IPipelineBehavior<TRequest, TResponse>
@@ -71,6 +88,10 @@ internal sealed class ConcurrencyBehavior<TRequest, TResponse> : IPipelineBehavi
         catch (ConcurrencyConflictException)
         {
             return TResponse.FromError(ConcurrencyErrors.StaleVersion());
+        }
+        catch (DuplicateRecordException)
+        {
+            return TResponse.FromError(ConcurrencyErrors.Duplicate());
         }
     }
 }

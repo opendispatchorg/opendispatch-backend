@@ -156,7 +156,9 @@ public sealed class AttachmentStoreTests
 
         await AddAsync(services, Attachment.Create(id, _tenant, JobId.New(), AttachmentKind.Photo, InTheField));
 
-        await Assert.ThrowsAsync<DbUpdateException>(() =>
+        // DuplicateRecordException, not the provider's own: the unit of work translates a unique
+        // violation into the port's word for it, so a caller answers 409 rather than 500.
+        await Assert.ThrowsAsync<DuplicateRecordException>(() =>
             AddAsync(services, Attachment.Create(id, _tenant, JobId.New(), AttachmentKind.Signature, InTheField)));
     }
 

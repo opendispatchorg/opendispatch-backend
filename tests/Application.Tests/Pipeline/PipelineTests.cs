@@ -112,6 +112,28 @@ public sealed class PipelineTests
             pipeline.Journal.Entries);
     }
 
+    /// <summary>
+    /// The other shape of the same collision: two callers creating the row a unique index guards.
+    /// Neither read a version to be stale about, so the index is what refuses the second — and
+    /// until it was translated, the most ordinary way for two dispatchers to plan one job answered
+    /// 500.
+    /// </summary>
+    [Fact]
+    public async Task ADuplicateWriteBecomesAConflictRatherThanAThrow()
+    {
+        await using var pipeline = new SamplePipeline();
+
+        var result = await pipeline.Sender.Send(new SampleCommand("Ada", SampleOutcome.WriteADuplicate));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ConcurrencyErrors.DuplicateCode, result.Error!.Code);
+        Assert.Equal(ErrorCategory.Conflict, result.Error.Category);
+
+        Assert.Equal(
+            [PipelineJournal.Begun, PipelineJournal.Handled, PipelineJournal.RolledBack],
+            pipeline.Journal.Entries);
+    }
+
     [Fact]
     public async Task AQueryIsNeverGivenATransaction()
     {

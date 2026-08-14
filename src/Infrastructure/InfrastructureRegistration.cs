@@ -4,6 +4,7 @@ using OpenDispatch.Infrastructure.Attachments;
 using OpenDispatch.Infrastructure.Auth;
 using OpenDispatch.Infrastructure.Payments;
 using OpenDispatch.Infrastructure.Persistence;
+using OpenDispatch.Infrastructure.Provisioning;
 using OpenDispatch.Infrastructure.Time;
 using OpenDispatch.Scheduling;
 using OpenDispatch.Scheduling.Travel;
@@ -47,9 +48,10 @@ public static class InfrastructureRegistration
             .AddPersistence(connectionString)
             .AddSystemClock()
 
-            // The minimal user store, password hasher and JWT issuer (Document 2 §7, step 44).
-            // Auth has no database of its own yet — see InMemoryUserStore's remarks — so it asks
-            // for nothing from persistence and sits beside it rather than inside AddPersistence.
+            // The user store, password hasher and JWT issuer (Document 2 §7, step 44). The store
+            // reads the users table through the context AddPersistence registers, so it goes after
+            // it — beside it rather than inside it, because who may sign in is not a business
+            // record and does not belong in the same registration as the aggregates.
             .AddAuth(jwtSigningOptions)
 
             // Photographs and signatures on a local disk, which is the whole answer for a shop
@@ -74,5 +76,12 @@ public static class InfrastructureRegistration
             // v1 takes no money, which is a scoped product decision (Document 1) rather than an
             // unfinished adapter. A real processor is one class beside this one and one changed
             // line here.
-            .AddSingleton<IPaymentGateway, FakePaymentGateway>();
+            .AddSingleton<IPaymentGateway, FakePaymentGateway>()
+
+            // How a deployment gets its first login (`create-user`). Registered in every
+            // environment, unlike the demo seeder beside it: a production host is precisely the one
+            // that has to do this once, and doing it is the only way anybody can sign in.
+            // Scoped, because it writes through the request-shaped context the verb opens a scope
+            // for.
+            .AddScoped<UserProvisioner>();
 }

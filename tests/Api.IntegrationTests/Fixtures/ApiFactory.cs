@@ -77,9 +77,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public Dictionary<string, string?> Settings { get; } = [];
 
     /// <summary>
-    /// Seeds one user directly into the host's <see cref="IUserStore"/> — the store is an
-    /// in-memory singleton (Document 3, step 44), so this needs no database and survives for the
-    /// life of the factory, exactly like a real deployment's own seed.
+    /// Seeds one user directly into the host's <see cref="IUserStore"/>, which is the users table:
+    /// a factory that seeds a login therefore needs <see cref="ConnectionString"/> pointed at a
+    /// database, exactly as a real deployment does.
     /// </summary>
     /// <param name="orgId">The tenant this user signs in as.</param>
     /// <param name="username">Looked up case-insensitively; must be unique across the store.</param>
@@ -90,6 +90,11 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     /// <see cref="UserRole.Technician"/> token (step 50's sync endpoints). Ignored for the other
     /// two roles.
     /// </param>
+    /// <remarks>
+    /// In a scope of its own, because the store is scoped now that it reads through the request's
+    /// <c>AppDbContext</c> — resolving it from the root provider is the mistake the host's own
+    /// scope validation would refuse.
+    /// </remarks>
     public async Task<AuthUser> SeedUserAsync(
         OrgId orgId,
         string username,
@@ -97,8 +102,9 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         UserRole role,
         TechnicianId? technicianId = null)
     {
-        var hasher = Services.GetRequiredService<IPasswordHasher>();
-        var users = Services.GetRequiredService<IUserStore>();
+        using var scope = Services.CreateScope();
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+        var users = scope.ServiceProvider.GetRequiredService<IUserStore>();
 
         var user = new AuthUser(UserId.New(), orgId, username, hasher.Hash(password), role, technicianId);
         await users.AddAsync(user, CancellationToken.None).ConfigureAwait(false);

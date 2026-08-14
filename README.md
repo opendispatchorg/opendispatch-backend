@@ -65,6 +65,50 @@ make test           # everything, including container-backed integration tests
 make gen-contracts  # rebuild contracts/ - the @opendispatch/contracts package
 ```
 
+## Deploying it
+
+A deployment is the same application with different arguments, in a container. It has no SDK, no
+tool manifest and no working tree, which is why the schema and the first login are verbs on the
+host rather than `make` targets:
+
+```bash
+make image                                   # build opendispatch-api:local (what CI builds too)
+
+docker run --rm \
+  -e Database__ConnectionString="Host=…;Database=opendispatch;Username=…;Password=…" \
+  -e Jwt__SigningKey="a real key, at least 32 bytes of it" \
+  opendispatch-api:local migrate             # apply the schema; exits non-zero if it cannot
+
+docker run --rm -it \
+  -e Database__ConnectionString="…" -e Jwt__SigningKey="…" \
+  opendispatch-api:local create-user \
+    --username ada@yourshop.example --org "Your Shop" --role Admin
+                                             # asks for a password on stdin; registers the
+                                             # organization if it does not exist yet
+
+docker run -d -p 8080:8080 \
+  -e Database__ConnectionString="…" -e Jwt__SigningKey="…" \
+  -e Cors__Origins__0="https://board.yourshop.example" \
+  -v opendispatch-attachments:/var/lib/opendispatch/attachments \
+  opendispatch-api:local                     # serve
+```
+
+To see the whole shape locally instead, `make up-app` runs the database, the migration and the API
+in containers on `http://localhost:8080` (as `Development`, using the credentials this repository
+commits), and `make down-app` stops it.
+
+Four things a real deployment owns:
+
+| | |
+|---|---|
+| **Migrations** | Run `migrate` as a one-shot **before** the new version serves, and only once — the host deliberately does not migrate itself on startup, because two replicas rolling out together would race. It is idempotent and says whether it applied anything. |
+| **The first login** | Nothing creates users over HTTP, by design. `create-user` is the only way in, and running it again for an existing username **replaces** that login — which is also the only password reset this system has. |
+| **Attachments** | Photographs and signatures are files, under `Attachments__Root` (`/var/lib/opendispatch/attachments` in the image). Mount a volume, back it up with the database, and note that two API instances need *shared* storage — the local-disk adapter is one machine's disk until an object-store adapter replaces it. |
+| **TLS** | Terminated by a proxy in front; the container serves plain HTTP on 8080. Set `ReverseProxy:Enabled` so the host believes the forwarded address, and only when it is unreachable except through that proxy. |
+
+Back up the database and the attachment volume together: an invoice whose photograph is missing is
+half a record, and Document 1's promise is that the business owns all of it.
+
 ## Operating it
 
 Three things a deployment needs to watch this service, none of which assume a particular
@@ -102,7 +146,8 @@ OpenTelemetry exporter or `dotnet-counters` at that meter name; no exporter is r
 because which one to use is the deployment's decision.
 
 The schema lives in `src/Infrastructure/Persistence/Migrations` and is generated with
-`make migration NAME=AddSomething`. Integration tests apply the same migrations to a throwaway
+`make migration NAME=AddSomething`; it is *applied* by `make migrate` on a developer machine and by
+the `migrate` verb in a deployment. Integration tests apply the same migrations to a throwaway
 container, so a migration that will not apply from scratch fails the suite rather than a
 deployment.
 

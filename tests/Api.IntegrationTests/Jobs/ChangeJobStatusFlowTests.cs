@@ -6,8 +6,10 @@ using OpenDispatch.Api.IntegrationTests.Fixtures;
 using OpenDispatch.Application.Customers.AddServiceLocation;
 using OpenDispatch.Application.Customers.CreateCustomer;
 using OpenDispatch.Application.Jobs;
+using OpenDispatch.Application.Jobs.AssignJob;
 using OpenDispatch.Application.Jobs.ChangeJobStatus;
 using OpenDispatch.Application.Jobs.CreateJob;
+using OpenDispatch.Application.Technicians.CreateTechnician;
 using OpenDispatch.Domain.Events;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Jobs;
@@ -87,6 +89,64 @@ public sealed class ChangeJobStatusFlowTests
         var reloaded = await context.Jobs.SingleAsync(candidate => candidate.Id == job);
         Assert.Equal(JobStatus.Unscheduled, reloaded.Status);
         Assert.Empty(_recorder.Received);
+    }
+
+    /// <summary>
+    /// Calling a job off takes it off the technician's day too — through a subscriber, not through
+    /// an edit to the code that cancels it.
+    /// </summary>
+    /// <remarks>
+    /// The reaction is <c>WithdrawStopWhenJobIsCancelled</c>, and it is here rather than in the
+    /// Application suite because a domain event is only dispatched by the real interceptor over a
+    /// real commit. Both halves matter: the stop is gone, so nothing draws it on the board or drives
+    /// to it, and a removal note is written, so the phone holding it is told rather than left with a
+    /// visit that quietly stopped existing.
+    /// </remarks>
+    [Fact]
+    public async Task CancellingAJobWithdrawsTheStopPlannedForIt()
+    {
+        await using var services = BuildHost();
+        var job = await ABookedJobAsync(services);
+        var technician = await ATechnicianAsync(services);
+
+        var assigned = await Send(services, new AssignJobCommand(job, technician, MondayMorning));
+        Assert.True(assigned.IsSuccess);
+
+        Assert.True((await Send(services, new ChangeJobStatusCommand(job, JobStatus.Cancelled))).IsSuccess);
+
+        await using var context = _postgres.NewContext(_tenant);
+
+        Assert.Empty(await context.Assignments.Where(stop => stop.JobId == job).ToListAsync());
+        Assert.Equal(
+            assigned.Value.Value,
+            Assert.Single(await context.SyncRemovals.ToListAsync()).EntityId);
+        Assert.Equal(JobStatus.Cancelled, (await context.Jobs.SingleAsync(saved => saved.Id == job)).Status);
+    }
+
+    /// <summary>Work called off before anybody planned it has no stop to withdraw.</summary>
+    [Fact]
+    public async Task CancellingUnplannedWorkWithdrawsNothing()
+    {
+        await using var services = BuildHost();
+        var job = await ABookedJobAsync(services);
+
+        Assert.True((await Send(services, new ChangeJobStatusCommand(job, JobStatus.Cancelled))).IsSuccess);
+
+        await using var context = _postgres.NewContext(_tenant);
+        Assert.Empty(await context.SyncRemovals.ToListAsync());
+    }
+
+    private async Task<TechnicianId> ATechnicianAsync(ServiceProvider services)
+    {
+        var technician = await Send(services, new CreateTechnicianCommand(
+            "Sam Rivera",
+            ["hvac"],
+            MondayMorning.AddHours(-1),
+            MondayMorning.AddHours(8),
+            51.5074,
+            -0.1278));
+
+        return technician.Value;
     }
 
     private async Task<JobId> ABookedJobAsync(ServiceProvider services)

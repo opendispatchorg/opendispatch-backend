@@ -25,6 +25,52 @@ services:
       retries: 10
       start_period: 10s
 
+  # The API itself, and the one-shot that applies the schema before it. Both are behind the `app`
+  # profile, so `make up` still means "just the database" for a developer running the host from
+  # their own SDK — `docker compose --profile app up` is what runs the whole system in containers.
+  #
+  # This is a working deployment shape rather than a production one: it holds the same committed
+  # development credentials the compose database does, which the host's own startup guards refuse
+  # outside Development (see DevelopmentDefaults). A real deployment supplies its own
+  # Database__ConnectionString and Jwt__SigningKey and runs as a non-Development environment.
+  migrate:
+    profiles: ["app"]
+    build: .
+    image: opendispatch-api:local
+    command: ["migrate"]
+    environment:
+      # Development for the same reason the api service below is: this profile runs against the
+      # credentials this repository commits, and the host refuses those anywhere else.
+      ASPNETCORE_ENVIRONMENT: Development
+      Database__ConnectionString: "Host=postgres;Port=5432;Database=opendispatch;Username=opendispatch;Password=opendispatch"
+    depends_on:
+      postgres:
+        condition: service_healthy
+    restart: "no"
+
+  api:
+    profiles: ["app"]
+    build: .
+    image: opendispatch-api:local
+    environment:
+      ASPNETCORE_ENVIRONMENT: Development
+      Database__ConnectionString: "Host=postgres;Port=5432;Database=opendispatch;Username=opendispatch;Password=opendispatch"
+    ports:
+      - "8080:8080"
+    volumes:
+      - attachments:/var/lib/opendispatch/attachments
+    depends_on:
+      postgres:
+        condition: service_healthy
+      migrate:
+        # The schema is applied before anything serves, and the API starts only if it worked —
+        # which is the whole reason migrating is a verb with an exit code rather than something
+        # the host does to itself while starting.
+        condition: service_completed_successfully
+    restart: unless-stopped
+
 volumes:
   pgdata:
     name: opendispatch-pgdata
+  attachments:
+    name: opendispatch-attachments

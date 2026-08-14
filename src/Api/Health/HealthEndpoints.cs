@@ -65,15 +65,21 @@ public static class HealthEndpoints
 
     public static IEndpointRouteBuilder MapHealthEndpoint(this IEndpointRouteBuilder endpoints)
     {
+        // Said out loud, now that the host denies by default (Program.cs's fallback policy): a
+        // probe runs before there is anybody to authenticate as, so these three are the exceptions
+        // rather than routes that happen never to have asked for a policy.
         endpoints.MapGet("/health", Live)
+            .AllowAnonymous()
             .WithName("Health")
             .WithTags("Health");
 
         endpoints.MapGet("/health/live", Live)
+            .AllowAnonymous()
             .WithName("HealthLive")
             .WithTags("Health");
 
         endpoints.MapGet("/health/ready", ReadyAsync)
+            .AllowAnonymous()
             .WithName("HealthReady")
             .WithTags("Health")
             .Produces<ReadinessResponse>()

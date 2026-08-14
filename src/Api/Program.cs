@@ -16,12 +16,14 @@ using OpenDispatch.Api.Invoicing;
 using OpenDispatch.Api.Jobs;
 using OpenDispatch.Api.Observability;
 using OpenDispatch.Api.OpenApi;
+using OpenDispatch.Api.Operations;
 using OpenDispatch.Api.Schedule;
 using OpenDispatch.Api.Security;
 using OpenDispatch.Api.Seeding;
 using OpenDispatch.Api.Sync;
 using OpenDispatch.Api.Technicians;
 using OpenDispatch.Api.Tenancy;
+using OpenDispatch.Api.Users;
 using OpenDispatch.Application;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Auth;
@@ -147,6 +149,13 @@ try
     // Customers/Technicians/Jobs endpoints use by default. A later step's endpoint asks for
     // AuthPolicies.AdminOnly rather than [Authorize(Roles = "Admin")], so a typo fails to
     // compile instead of silently authorizing nobody.
+    // Every route says for itself who may call it, and the ones that anybody may call say that
+    // too (AllowAnonymous on login, the three health probes, and the development-only diagnostics
+    // and OpenAPI routes). A fallback policy would say it once here instead — and was tried — but
+    // ASP.NET Core applies a fallback to requests that match *no* endpoint as well, which turns
+    // every mistyped URL in the API into a 401 and contradicts step 46's answer for an unknown
+    // path. What holds the rule instead is EndpointAuthorizationTests, which walks the host's own
+    // endpoint list and fails if a route carries neither.
     builder.Services.AddAuthorizationBuilder()
         .AddPolicy(AuthPolicies.AdminOnly, policy => policy.RequireRole(nameof(UserRole.Admin)))
         .AddPolicy(AuthPolicies.DispatcherOnly, policy => policy.RequireRole(nameof(UserRole.Dispatcher)))
@@ -237,6 +246,20 @@ try
         return await SeedCommand.RunAsync(app).ConfigureAwait(false);
     }
 
+    // The two verbs a real deployment runs, in the same shape and for the same reason: applying the
+    // schema and writing the first login are things this host does once, from a terminal or a
+    // deployment job, rather than things it does while serving. Unlike the seeder neither is
+    // restricted to Development — a production database is exactly what they are for.
+    if (MigrateCommand.Requested(args))
+    {
+        return await MigrateCommand.RunAsync(app).ConfigureAwait(false);
+    }
+
+    if (CreateUserCommand.Requested(args))
+    {
+        return await CreateUserCommand.RunAsync(app, args).ConfigureAwait(false);
+    }
+
     // Ahead of everything, including the correlation id and the request log: until the forwarded
     // headers are applied, every request below claims to come from the proxy over plain HTTP, so a
     // log line, a rate-limit partition and a scheme check would all be answering about the wrong
@@ -303,7 +326,9 @@ try
     // API surface to anonymous callers in production.
     if (app.Environment.IsDevelopment())
     {
-        app.MapOpenApi();
+        // Anonymous like the rest of the development-only surface, and explicitly so now that the
+        // host denies by default: a developer pointing a browser at the document has no token.
+        app.MapOpenApi().AllowAnonymous();
     }
 
     app.MapHealthEndpoint();

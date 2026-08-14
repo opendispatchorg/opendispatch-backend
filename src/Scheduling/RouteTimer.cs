@@ -1,4 +1,5 @@
 using System.Collections.Immutable;
+using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Scheduling.Model;
 using OpenDispatch.Scheduling.Travel;
 
@@ -27,14 +28,37 @@ internal static class RouteTimer
     /// <summary>
     /// Times <paramref name="sequence"/> as <paramref name="technician"/> would drive it.
     /// </summary>
+    /// <param name="technician">Whose day is being timed.</param>
+    /// <param name="sequence">The jobs, in the order they would be driven.</param>
+    /// <param name="distances">The drives between them.</param>
+    /// <param name="notBefore">
+    /// Instants a job may not be started before, over and above its window — the times stops
+    /// already planned were promised for. Empty when a day is being built from nothing.
+    /// </param>
     /// <returns>
     /// The timed stops, or <see langword="null"/> if the technician cannot do this run: a job
     /// they are not qualified for, or work that would still be going after their shift ends.
     /// </returns>
+    /// <remarks>
+    /// <para>
+    /// <paramref name="notBefore"/> is what makes <see cref="Insertion"/> keep the promise
+    /// <see cref="IScheduler.Insert"/> makes: a day that is already planned is re-timed around the
+    /// job being slotted in, and without it every stop is re-timed <em>from the start of the
+    /// shift</em> — so an emergency at nine o'clock pulls a stop a dispatcher placed by hand at two
+    /// back to the morning, and pulls a job a technician is already driving to along with it. The
+    /// clock may still move a stop later, which is what displacing an afternoon means; it may not
+    /// move one earlier than the customer was told.
+    /// </para>
+    /// <para>
+    /// Building a day from nothing passes nothing, because there is no promise to keep: the
+    /// constructor and the local search are choosing all of these times for the first time.
+    /// </para>
+    /// </remarks>
     public static ImmutableArray<Stop>? Time(
         TechPlan technician,
         IReadOnlyList<SchedJob> sequence,
-        TravelMatrix distances)
+        TravelMatrix distances,
+        IReadOnlyDictionary<JobId, DateTimeOffset>? notBefore = null)
     {
         var stops = ImmutableArray.CreateBuilder<Stop>(sequence.Count);
         var clock = technician.Shift.Start;
@@ -54,8 +78,18 @@ internal static class RouteTimer
             var arrival = clock + TimeSpan.FromMinutes(leg);
 
             // Early is not the same as allowed. The window's opening is the one part of the
-            // customer's promise the schedule treats as binding; its closing is not.
-            var start = arrival > job.Window.Start ? arrival : job.Window.Start;
+            // customer's promise the schedule treats as binding; its closing is not — and a stop
+            // that has already been promised for a particular time is a second such opening.
+            var earliest = job.Window.Start;
+
+            if (notBefore is not null
+                && notBefore.TryGetValue(job.Id, out var promised)
+                && promised > earliest)
+            {
+                earliest = promised;
+            }
+
+            var start = arrival > earliest ? arrival : earliest;
             var end = start + job.Duration;
 
             if (end > technician.Shift.End)

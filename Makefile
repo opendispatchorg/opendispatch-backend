@@ -21,7 +21,7 @@ OPENAPI_EXPORT := src/Api/obj/openapi/Api.json
 EF := dotnet ef --project src/Infrastructure --startup-project src/Api
 
 .PHONY: up run migrate migration seed test test-fast test-watch gen-contracts check-contracts \
-	check-contracts-sample publish-contracts
+	check-contracts-sample publish-contracts image up-app down-app
 
 ## up: start Postgres/PostGIS via docker compose
 up:
@@ -32,6 +32,10 @@ run:
 	dotnet run --project src/Api
 
 ## migrate: apply EF migrations to the compose database (needs `make up` first)
+##
+## The developer's path, through `dotnet ef`. A deployment has no SDK and no tool manifest, so it
+## applies the schema with the published application instead: `dotnet OpenDispatch.Api.dll migrate`,
+## which is what the compose `migrate` service and the README's deployment section run.
 migrate:
 	dotnet tool restore
 	$(EF) database update
@@ -64,6 +68,26 @@ migration:
 ## with a claim this Makefile made on the host's behalf.
 seed:
 	dotnet run --project src/Api -- seed
+
+## image: build the deployable container image
+##
+## The same build CI runs. Tagged `local` because nothing here publishes: pushing needs a registry
+## and a credential this repository does not hold.
+image:
+	docker build -t opendispatch-api:local .
+
+## up-app: run the whole system in containers - database, migration, API on :8080
+##
+## `make up` is still just the database, for a developer running the host from their own SDK. This
+## is the other shape: the image built by `make image`, the schema applied by the one-shot migrate
+## service, and the API waiting on both. It runs as Development because it uses the credentials
+## this repository commits - see the compose file and DevelopmentDefaults.
+up-app:
+	docker compose --profile app up -d --build
+
+## down-app: stop the containerised system (leaves the volumes)
+down-app:
+	docker compose --profile app down
 
 ## test: everything - unit + integration (integration needs Docker running)
 test:

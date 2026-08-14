@@ -72,7 +72,7 @@ internal static class Insertion
         }
 
         var objective = new ObjectiveEvaluator(problem, distances);
-        var placement = Cheapest(arriving, problem, runs, current, objective, distances);
+        var placement = Cheapest(arriving, problem, runs, current, objective, distances, Promised(current));
         var routes = problem.Technicians.ToDictionary(
             technician => technician.Id,
             technician => current.RouteFor(technician.Id));
@@ -107,7 +107,8 @@ internal static class Insertion
         Dictionary<TechnicianId, List<SchedJob>> runs,
         Solution current,
         ObjectiveEvaluator objective,
-        TravelMatrix distances)
+        TravelMatrix distances,
+        IReadOnlyDictionary<JobId, DateTimeOffset> promised)
     {
         Placement? cheapest = null;
         var lowestExtra = double.PositiveInfinity;
@@ -122,7 +123,7 @@ internal static class Insertion
                 var candidate = new List<SchedJob>(run);
                 candidate.Insert(position, arriving);
 
-                if (RouteTimer.Time(technician, candidate, distances) is not { } stops)
+                if (RouteTimer.Time(technician, candidate, distances, promised) is not { } stops)
                 {
                     continue;
                 }
@@ -139,6 +140,31 @@ internal static class Insertion
         }
 
         return cheapest;
+    }
+
+    /// <summary>
+    /// When each stop already on the day was promised for — the times the re-timing may not
+    /// pull earlier.
+    /// </summary>
+    /// <remarks>
+    /// Without this, timing a candidate run rebuilds every stop's clock from the start of the
+    /// shift, so slotting an emergency into the morning drags a two o'clock appointment back to
+    /// half past nine — including one a technician is already driving to. A dispatcher asking
+    /// where one job fits must not be answered with a different afternoon.
+    /// </remarks>
+    private static Dictionary<JobId, DateTimeOffset> Promised(Solution current)
+    {
+        var promised = new Dictionary<JobId, DateTimeOffset>();
+
+        foreach (var route in current.Routes.Values)
+        {
+            foreach (var stop in route)
+            {
+                promised[stop.JobId] = stop.Start;
+            }
+        }
+
+        return promised;
     }
 
     /// <summary>Whose day the job joins, and that day as it ends up.</summary>

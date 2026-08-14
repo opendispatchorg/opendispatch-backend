@@ -245,5 +245,12 @@ public sealed class DemoSeeder(
             .Where(row => row.OrgId == organization).ExecuteDeleteAsync(ct).ConfigureAwait(false);
         await database.Technicians.IgnoreQueryFilters()
             .Where(row => row.OrgId == organization).ExecuteDeleteAsync(ct).ConfigureAwait(false);
+
+        // The demo's logins too, now that they are rows. Left behind, they would point at
+        // technicians the line above has just deleted — a login that authenticates and then answers
+        // for nobody, which is worse than one that is not there. RegisterLoginsAsync writes them
+        // again from the crew this run creates.
+        await database.Users.IgnoreQueryFilters()
+            .Where(row => row.OrgId == organization).ExecuteDeleteAsync(ct).ConfigureAwait(false);
     }
 }

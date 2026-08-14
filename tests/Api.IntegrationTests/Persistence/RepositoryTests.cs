@@ -228,7 +228,7 @@ public sealed class RepositoryTests
             scope.ServiceProvider.GetRequiredService<IJobRepository>().Add(job);
             scope.ServiceProvider.GetRequiredService<IAssignmentRepository>().Add(duplicate);
 
-            await Assert.ThrowsAsync<DbUpdateException>(() => scope.ServiceProvider
+            await Assert.ThrowsAsync<DuplicateRecordException>(() => scope.ServiceProvider
                 .GetRequiredService<IUnitOfWork>()
                 .SaveChangesAsync(CancellationToken.None));
         }

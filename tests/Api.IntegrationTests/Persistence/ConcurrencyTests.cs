@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Api.IntegrationTests.Fixtures;
 using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Domain.Assignments;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.TestSupport;
@@ -69,6 +70,46 @@ public sealed class ConcurrencyTests
 
         Assert.Equal(JobStatus.Scheduled, stored.Status);
         Assert.Equal(1, stored.Version);
+    }
+
+    /// <summary>
+    /// The same race, caught by the other lock: two dispatchers planning one job at the same
+    /// moment, or two re-plans of one day running side by side.
+    /// </summary>
+    /// <remarks>
+    /// Neither writer read a stop, so there is no <c>Version</c> to be stale — the one-stop-per-job
+    /// index is what refuses the second, and Postgres reports it as a unique violation rather than
+    /// as a concurrency conflict. Untranslated it reached the caller as a 500, which is the same
+    /// misreport <c>ConcurrencyConflictException</c> exists to prevent one lock over.
+    /// </remarks>
+    [Fact]
+    public async Task TheSecondPlanForOneJobIsRefusedRatherThanCrashing()
+    {
+        await using var services = TestHost.Over(_postgres).BuildServiceProvider(validateScopes: true);
+        var job = JobId.New();
+        var technician = TechnicianId.New();
+        var when = new DateTimeOffset(2026, 8, 10, 9, 0, 0, TimeSpan.Zero);
+
+        using (var first = services.ActingAs(_tenant))
+        {
+            first.ServiceProvider.GetRequiredService<IAssignmentRepository>()
+                .Add(Assignment.Create(_tenant, job, technician, 0, when, 10d));
+
+            await first.ServiceProvider.GetRequiredService<IUnitOfWork>()
+                .SaveChangesAsync(CancellationToken.None);
+        }
+
+        using var second = services.ActingAs(_tenant);
+        second.ServiceProvider.GetRequiredService<IAssignmentRepository>()
+            .Add(Assignment.Create(_tenant, job, technician, 1, when, 10d));
+
+        await Assert.ThrowsAsync<DuplicateRecordException>(
+            () => second.ServiceProvider.GetRequiredService<IUnitOfWork>().SaveChangesAsync(CancellationToken.None));
+
+        // One stop, the winner's, and it is the whole of the point: the loser's write is refused
+        // rather than half-applied.
+        await using var context = _postgres.NewContext(_tenant);
+        Assert.Equal(0, (await context.Assignments.SingleAsync(stop => stop.JobId == job)).Sequence);
     }
 
     private async Task<JobId> ABookedJobAsync()

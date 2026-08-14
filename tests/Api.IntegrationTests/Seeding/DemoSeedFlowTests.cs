@@ -105,7 +105,10 @@ public sealed class DemoSeedFlowTests
                     .RegisterLoginsAsync(CancellationToken.None));
         }
 
-        var users = services.GetRequiredService<IUserStore>();
+        // In a scope of its own: the store reads the users table through the request's context now
+        // that a login is a row rather than a dictionary entry.
+        using var reading = services.CreateScope();
+        var users = reading.ServiceProvider.GetRequiredService<IUserStore>();
         var expected = seed.Logins.Single(login => login.Role == UserRole.Technician);
         var registered = await users.FindByUsernameAsync(expected.Username, CancellationToken.None);
 

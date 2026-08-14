@@ -30,6 +30,12 @@ internal enum SampleOutcome
     /// proved in <c>Api.IntegrationTests</c>.
     /// </remarks>
     LoseTheRace,
+
+    /// <summary>
+    /// Throw <see cref="DuplicateRecordException"/>, standing in for a unique index refusing a row
+    /// two callers created at the same moment.
+    /// </summary>
+    WriteADuplicate,
 }
 
 /// <summary>
@@ -67,6 +73,8 @@ internal sealed class SampleCommandHandler(PipelineJournal journal)
             SampleOutcome.Fail => Result.Failure<string>(Refused),
             SampleOutcome.LoseTheRace => throw new ConcurrencyConflictException(
                 "Another change to this data was committed first."),
+            SampleOutcome.WriteADuplicate => throw new DuplicateRecordException(
+                "Something else has already been written where this could only be written once."),
             _ => throw new InvalidOperationException("The sample handler was told to throw."),
         });
     }
