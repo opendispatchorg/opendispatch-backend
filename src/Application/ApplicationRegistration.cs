@@ -37,6 +37,11 @@ public static class ApplicationRegistration
             //   Validation   is next so a malformed request is refused before anything else
             //                happens — in particular before a transaction is opened for work
             //                that was never going to be kept.
+            //   Concurrency  is next, and its position is forced: the lost race it reports is
+            //                thrown by the save inside Transaction below, and that transaction
+            //                rolls back as the exception passes out through it — so this is the
+            //                first place the failure can be turned into a Result with nothing
+            //                half-written behind it.
             //   Transaction  is innermost, so the transaction spans the handler and nothing
             //                else. Validators do not run inside it, and neither does logging.
             //
@@ -44,6 +49,7 @@ public static class ApplicationRegistration
             // inside the transaction, in which case it belongs to the handler instead.
             mediator.AddOpenBehavior(typeof(LoggingBehavior<,>));
             mediator.AddOpenBehavior(typeof(ValidationBehavior<,>));
+            mediator.AddOpenBehavior(typeof(ConcurrencyBehavior<,>));
             mediator.AddOpenBehavior(typeof(TransactionBehavior<,>));
         });
 

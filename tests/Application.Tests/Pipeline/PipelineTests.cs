@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using OpenDispatch.Application.Behaviors;
 using OpenDispatch.Application.Results;
 using OpenDispatch.TestSupport;
 
@@ -83,6 +84,29 @@ public sealed class PipelineTests
 
         // A bug leaves as little behind as an expected failure does, and by the same mechanism:
         // the transaction ends without a commit.
+        Assert.Equal(
+            [PipelineJournal.Begun, PipelineJournal.Handled, PipelineJournal.RolledBack],
+            pipeline.Journal.Entries);
+    }
+
+    /// <summary>
+    /// The one exception the pipeline is allowed to answer for: a lost optimistic-concurrency
+    /// race, which is what two dispatchers editing the same job produce and which was a 500 until
+    /// something turned it into a refusal.
+    /// </summary>
+    [Fact]
+    public async Task ALostRaceBecomesAConflictRatherThanAThrow()
+    {
+        await using var pipeline = new SamplePipeline();
+
+        var result = await pipeline.Sender.Send(new SampleCommand("Ada", SampleOutcome.LoseTheRace));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ConcurrencyErrors.StaleVersionCode, result.Error!.Code);
+        Assert.Equal(ErrorCategory.Conflict, result.Error.Category);
+
+        // Caught above the transaction, which had already rolled back on the way out: the refusal
+        // is reported and nothing half-written survives it.
         Assert.Equal(
             [PipelineJournal.Begun, PipelineJournal.Handled, PipelineJournal.RolledBack],
             pipeline.Journal.Entries);

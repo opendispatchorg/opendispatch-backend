@@ -58,6 +58,25 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     public string? ConnectionString { get; set; }
 
     /// <summary>
+    /// The environment the host boots as. <c>Testing</c> for everything that is not deliberately
+    /// testing what a different environment does — the startup guards and the diagnostics route,
+    /// which exist precisely to behave differently outside the environments this repository
+    /// controls (see <c>DevelopmentDefaults</c>).
+    /// </summary>
+    /// <remarks>Set before the first <c>CreateClient()</c>, like <see cref="ConnectionString"/>.</remarks>
+    public string Environment { get; set; } = "Testing";
+
+    /// <summary>
+    /// Configuration this host overrides, applied last so a test can set anything.
+    /// </summary>
+    /// <remarks>
+    /// The escape hatch for settings that only one class cares about — a two-attempt rate limit, a
+    /// browser origin, a real signing key — so the common defaults below stay the arrangement every
+    /// other class gets without a knob per class.
+    /// </remarks>
+    public Dictionary<string, string?> Settings { get; } = [];
+
+    /// <summary>
     /// Seeds one user directly into the host's <see cref="IUserStore"/> — the store is an
     /// in-memory singleton (Document 3, step 44), so this needs no database and survives for the
     /// life of the factory, exactly like a real deployment's own seed.
@@ -89,15 +108,31 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)
     {
-        builder.UseEnvironment("Testing");
+        builder.UseEnvironment(Environment);
 
-        // Always overridden, never left to fall through: appsettings.json names a real host
-        // (localhost:5433, the compose database a developer runs `make up` for), and a test that
-        // reached it would be reading and writing real local data while looking like it passed.
         builder.ConfigureAppConfiguration((_, configuration) =>
-            configuration.AddInMemoryCollection(new Dictionary<string, string?>
+        {
+            var settings = new Dictionary<string, string?>
             {
+                // Always overridden, never left to fall through: appsettings.json names a real host
+                // (localhost:5433, the compose database a developer runs `make up` for), and a test
+                // that reached it would be reading and writing real local data while looking like
+                // it passed.
                 ["Database:ConnectionString"] = ConnectionString ?? NoDatabaseRequested,
-            }));
+
+                // Off by default, because the suite is the one caller that looks like an attack: a
+                // dozen classes logging in repeatedly, all from one address (none at all, in fact —
+                // an in-process connection has no remote IP), against a host they share. The class
+                // that tests the limiter turns it back on with a limit of its own.
+                ["RateLimit:Enabled"] = "false",
+            };
+
+            foreach (var setting in Settings)
+            {
+                settings[setting.Key] = setting.Value;
+            }
+
+            configuration.AddInMemoryCollection(settings);
+        });
     }
 }

@@ -78,8 +78,15 @@ test-watch:
 	dotnet watch --project $(WATCH_PROJECT) test --filter Category=Unit
 
 ## gen-contracts: rebuild @opendispatch/contracts from the C# types and the OpenAPI document
+##
+## ASPNETCORE_ENVIRONMENT is set here and only here. The export works by building the real host in
+## a child process to read its endpoints, and that process has no environment of its own — so it
+## lands outside Development, where the startup guards refuse the development signing key and
+## database password appsettings.json commits (see DevelopmentDefaults). Generating a document is a
+## development-time act on a working tree, so it says so; nothing about the guards is relaxed.
 gen-contracts:
-	dotnet build src/Api --configuration $(CONFIGURATION) -p:OpenApiGenerateDocuments=true
+	ASPNETCORE_ENVIRONMENT=Development \
+		dotnet build src/Api --configuration $(CONFIGURATION) -p:OpenApiGenerateDocuments=true
 	mkdir -p $(CONTRACTS)/src
 	cp $(OPENAPI_EXPORT) $(CONTRACTS)/openapi.json
 	npm ci --prefix tools --silent

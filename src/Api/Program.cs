@@ -17,6 +17,7 @@ using OpenDispatch.Api.Jobs;
 using OpenDispatch.Api.Observability;
 using OpenDispatch.Api.OpenApi;
 using OpenDispatch.Api.Schedule;
+using OpenDispatch.Api.Security;
 using OpenDispatch.Api.Seeding;
 using OpenDispatch.Api.Sync;
 using OpenDispatch.Api.Technicians;
@@ -46,9 +47,13 @@ try
         .ReadFrom.Services(services)
         .Enrich.FromLogContext());
 
-    builder.Services.AddDatabaseOptions(builder.Configuration);
+    // The environment is passed in because two of these validate against it: the signing key and
+    // the database password this repository commits are development conveniences, and a host
+    // outside Development/Testing that still carries them refuses to start rather than serving
+    // traffic with published credentials. See DevelopmentDefaults.
+    builder.Services.AddDatabaseOptions(builder.Configuration, builder.Environment);
     builder.Services.AddAttachmentOptions(builder.Configuration);
-    builder.Services.AddJwtOptions(builder.Configuration);
+    builder.Services.AddJwtOptions(builder.Configuration, builder.Environment);
 
     // The request pipeline every feature slice rides on: MediatR, the validators, and the
     // logging/validation/transaction behaviors in that order. The order lives with the
@@ -197,11 +202,30 @@ try
         context.ProblemDetails.Extensions["traceId"] = context.HttpContext.TraceIdentifier);
     builder.Services.AddExceptionHandler<UnhandledExceptionHandler>();
 
+    // A request whose parameters cannot be bound is routed through the same handler as everything
+    // else, so it gets the same ProblemDetails body as every other failure.
+    //
+    // This flag is otherwise on in Development and off everywhere else, which is the worst of both:
+    // on a development host a missing query parameter threw and became a 500 (found by hand while
+    // walking the step-53 demo: GET /sync/pull with no cursor), and on any other host it answered a
+    // bare 400 with an empty body and no correlation id. Set explicitly, both become a 400 that says
+    // which parameter — UnhandledExceptionHandler's BadHttpRequestException branch is what turns it
+    // into a body.
+    builder.Services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadRequest = true);
+
     // The real-time dispatch board (Document 2 §9, step 51). Scoped, not singleton: it reads
     // ITenantContext, which is itself scoped to the request that raised the domain event this
     // notifier is answering.
     builder.Services.AddSignalR();
     builder.Services.AddScoped<IBoardNotifier, SignalRBoardNotifier>();
+
+    // The three edge concerns a host that faces something other than curl needs, each doing
+    // nothing at all unless configured: a cap on credential guessing, the browser origins the two
+    // client repositories are served from, and whether this host is behind a proxy whose forwarded
+    // headers it should believe. See each type's own remarks.
+    builder.Services.AddLoginRateLimiting(builder.Configuration);
+    builder.Services.AddClientCors();
+    builder.Services.AddReverseProxyForwarding();
 
     var app = builder.Build();
 
@@ -212,6 +236,12 @@ try
     {
         return await SeedCommand.RunAsync(app).ConfigureAwait(false);
     }
+
+    // Ahead of everything, including the correlation id and the request log: until the forwarded
+    // headers are applied, every request below claims to come from the proxy over plain HTTP, so a
+    // log line, a rate-limit partition and a scheme check would all be answering about the wrong
+    // caller. Reads no header at all unless this host says it is behind a proxy.
+    app.UseForwardedHeaders();
 
     // First in the pipeline (Document 3, step 54): everything below it — the request-summary line,
     // the exception handler, every handler log line, and the traceId on a ProblemDetails body —
@@ -248,6 +278,17 @@ try
     // it catches an exception from any of it — including auth and tenant resolution.
     app.UseExceptionHandler();
 
+    // Before authentication, because a browser's preflight carries no token and must still be
+    // answered, and before the rate limiter, because an OPTIONS a browser sends on its own is not
+    // a sign-in attempt. With no origins configured the policy matches nothing and writes no
+    // header, which is the same answer a host without CORS gives.
+    app.UseCors(ClientCors.PolicyName);
+
+    // Ahead of the endpoints it protects, and after CORS: a refused caller is turned away before
+    // any handler, and before a password is verified at 100,000 iterations. Only routes that ask
+    // for a policy are limited; everything else passes through untouched.
+    app.UseRateLimiter();
+
     // Authentication before authorization before tenant resolution, all three before any
     // endpoint: an anonymous or wrong-role caller is rejected before routing hands the request
     // to a handler, and a caller who passed both of those but carries no valid org claim
@@ -267,7 +308,7 @@ try
 
     app.MapHealthEndpoint();
     app.MapAuthEndpoints();
-    app.MapDiagnosticsEndpoints();
+    app.MapDiagnosticsEndpoints(app.Environment);
     app.MapCustomerEndpoints();
     app.MapTechnicianEndpoints();
     app.MapJobEndpoints();

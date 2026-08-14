@@ -76,6 +76,24 @@ monitoring stack:
 | Readiness | `GET /health/ready` | Every registered health check, database connectivity among them. 503 means take this host out of rotation and leave it alone — it recovers on its own. |
 | Correlation id | `X-Correlation-ID` request/response header | Sent by the caller or minted by the server; the same value lands in `traceId` on every error body and in every log line the request produces. |
 
+### Configuration a deployment must set
+
+`appsettings.json` ships development values so a clone runs with no setup. Outside `Development`
+the host **refuses to start** while it still carries the two that are credentials:
+
+| Key | Why |
+|---|---|
+| `Jwt:SigningKey` | The committed key is public; every token signed with it is forgeable. |
+| `Database:ConnectionString` | The committed password is the compose one, published here and in `docker-compose.yml`. |
+
+Optional, and doing nothing until set:
+
+| Key | Effect |
+|---|---|
+| `Cors:Origins` | Browser origins allowed to call the API and the hub. Empty means no browser client can call it — set it to your dispatch board and technician app origins. |
+| `RateLimit:*` | Sign-in attempts per address per window (`20` per `300`s). Raise it for an office behind one NAT address. |
+| `ReverseProxy:Enabled` | Read `X-Forwarded-For`/`-Proto`. Turn it on **only** when this host is unreachable except through the proxy, or narrow it with `KnownProxies`/`KnownNetworks`. |
+
 Metrics are published on the `OpenDispatch` meter (`System.Diagnostics.Metrics`) — optimize
 latency as `opendispatch.scheduling.optimize.duration`, and sync as
 `opendispatch.sync.ops.applied` / `opendispatch.sync.ops.conflicted` (tagged with the reason a
