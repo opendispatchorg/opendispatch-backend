@@ -49,9 +49,22 @@ public static class PersistenceRegistration
         services.AddDbContext<AppDbContext>((provider, options) => options
             .UseNpgsql(
                 connectionString(provider),
-                // Turns on the NTS type handlers, so a GeoPoint can be stored as
-                // geography(Point) and queried with PostGIS operators.
-                npgsql => npgsql.UseNetTopologySuite())
+                npgsql => npgsql
+                    // Turns on the NTS type handlers, so a GeoPoint can be stored as
+                    // geography(Point) and queried with PostGIS operators.
+                    .UseNetTopologySuite()
+
+                    // A failover, a reset connection, a database that was restarting while a
+                    // technician's phone pushed — every one of those reached the caller as a 500
+                    // until this line, where a second attempt would have been invisible. The
+                    // strategy owns the retry *boundary*, which is why commands go through
+                    // IUnitOfWork.ExecuteInTransactionAsync: it refuses to retry a transaction
+                    // somebody else opened, and it is right to.
+                    //
+                    // Three attempts over five seconds: enough to ride out a failover, short
+                    // enough that a request does not sit behind a database that is genuinely gone
+                    // — that case is readiness' to report, not this one's to wait for.
+                    .EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null))
             // Tables and columns are snake_case. This runs over whatever names the model ends
             // up with, so a configuration names a table once, in the words the database uses.
             .UseSnakeCaseNamingConvention()

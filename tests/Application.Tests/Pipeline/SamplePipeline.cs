@@ -29,12 +29,21 @@ internal sealed class SamplePipeline : IAsyncDisposable
     private readonly ServiceProvider _services;
     private readonly IServiceScope _scope;
 
-    public SamplePipeline()
+    /// <param name="transientFailures">
+    /// How many attempts the unit of work should fail transiently before letting one through — the
+    /// database blip a retry exists for, without a database to unplug. Zero for every test that is
+    /// not about the retry.
+    /// </param>
+    public SamplePipeline(int transientFailures = 0)
     {
         _services = new ServiceCollection()
             .AddSingleton(_journal)
             .AddLogging(logging => logging.SetMinimumLevel(LogLevel.Debug).AddProvider(_logs))
-            .AddScoped<IUnitOfWork, RecordingUnitOfWork>()
+            .AddScoped<IUnitOfWork>(provider =>
+                new RecordingUnitOfWork(provider.GetRequiredService<PipelineJournal>())
+                {
+                    TransientFailures = transientFailures,
+                })
             .AddApplication()
             .AddTransient<IRequestHandler<SampleCommand, Result<string>>, SampleCommandHandler>()
             .AddTransient<IRequestHandler<SampleQuery, Result<string>>, SampleQueryHandler>()

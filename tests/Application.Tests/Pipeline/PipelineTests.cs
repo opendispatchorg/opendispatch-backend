@@ -134,6 +134,44 @@ public sealed class PipelineTests
             pipeline.Journal.Entries);
     }
 
+    /// <summary>
+    /// A command whose database dropped underneath it runs again, from the beginning, and commits
+    /// once.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The point of the retry, and the reason the transaction boundary belongs to the unit of work:
+    /// a failover or a reset connection took the transaction with it, so there is nothing to
+    /// resume — the whole operation begins again. Before this, every such blip was a 500 to a phone
+    /// or a board.
+    /// </para>
+    /// <para>
+    /// The journal is what makes it meaningful: two transactions begun, one commit, and the handler
+    /// having run inside the second — a retry that committed twice, or committed the attempt that
+    /// failed, would read differently here.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ATransientDatabaseFailureRunsTheWholeCommandAgain()
+    {
+        await using var pipeline = new SamplePipeline(transientFailures: 1);
+
+        var result = await pipeline.Sender.Send(new SampleCommand("Ada", SampleOutcome.Succeed));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(
+            [
+                PipelineJournal.Begun,
+                PipelineJournal.RetriedAfterFailure,
+                PipelineJournal.RolledBack,
+                PipelineJournal.Begun,
+                PipelineJournal.Handled,
+                PipelineJournal.Saved,
+                PipelineJournal.Committed,
+            ],
+            pipeline.Journal.Entries);
+    }
+
     [Fact]
     public async Task AQueryIsNeverGivenATransaction()
     {

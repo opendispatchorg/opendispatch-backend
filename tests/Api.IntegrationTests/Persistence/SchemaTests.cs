@@ -167,6 +167,36 @@ public sealed class SchemaTests
         Assert.Equal(tables.Order(), triggered.Order());
     }
 
+    /// <summary>
+    /// The indexes the two read paths that run constantly depend on.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Hand-written in a migration, like the board's composite index above and for a related reason
+    /// — <c>change_seq</c> is a shadow property added after the configurations run, so no
+    /// configuration can name it. Outside the model means nothing else would notice one going
+    /// missing, and what going missing looks like is not an error: it is a pull that gets slower
+    /// every month until a shop with real history times out.
+    /// </para>
+    /// <para>
+    /// The columns are asserted, not just the names, because an index that exists over the wrong
+    /// columns answers no query and passes a name check.
+    /// </para>
+    /// </remarks>
+    [Theory]
+    [InlineData("ix_assignments_technician_id_change_seq", "(technician_id, change_seq)")]
+    [InlineData("ix_assignments_change_seq", "(change_seq)")]
+    [InlineData("ix_jobs_change_seq", "(change_seq)")]
+    [InlineData("ix_assignments_org_id_scheduled_start", "(org_id, scheduled_start)")]
+    [InlineData("ix_sync_ops_applied_at", "(applied_at)")]
+    public async Task IndexesWhatTheSyncAndBoardPathsReadBy(string index, string columns)
+    {
+        var definitions = await IndexDefinitionsAsync();
+
+        Assert.Contains(index, definitions.Keys);
+        Assert.Contains(columns, definitions[index], StringComparison.Ordinal);
+    }
+
     [Fact]
     public async Task IndexesEveryOrgScopedTableOnItsTenant()
     {

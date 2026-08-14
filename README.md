@@ -105,6 +105,7 @@ Four things a real deployment owns:
 | **The first login** | Nothing creates users over HTTP, by design. `create-user` is the only way in, and running it again for an existing username **replaces** that login — which is also the only password reset this system has. |
 | **Attachments** | Photographs and signatures are files, under `Attachments__Root` (`/var/lib/opendispatch/attachments` in the image). Mount a volume, back it up with the database, and note that two API instances need *shared* storage — the local-disk adapter is one machine's disk until an object-store adapter replaces it. |
 | **TLS** | Terminated by a proxy in front; the container serves plain HTTP on 8080. Set `ReverseProxy:Enabled` so the host believes the forwarded address, and only when it is unreachable except through that proxy. |
+| **More than one instance** | Set `SignalR:Redis`. SignalR keeps its groups in the memory of the process holding the connection, so **without a backplane the live board is correct only while there is exactly one API instance** — a dispatcher connected to one would never see a change made through another, silently. One instance is a supported way to run this; two without Redis is not. The host says which it is in its startup log. |
 
 Back up the database and the attachment volume together: an invoice whose photograph is missing is
 half a record, and Document 1's promise is that the business owns all of it.
@@ -151,6 +152,7 @@ Optional, and doing nothing until set:
 | `Cors:Origins` | Browser origins allowed to call the API and the hub. Empty means no browser client can call it — set it to your dispatch board and technician app origins. |
 | `RateLimit:*` | Sign-in attempts per address per window (`20` per `300`s). Raise it for an office behind one NAT address. |
 | `ReverseProxy:Enabled` | Read `X-Forwarded-For`/`-Proto`. Turn it on **only** when this host is unreachable except through the proxy, or narrow it with `KnownProxies`/`KnownNetworks`. |
+| `SignalR:Redis` | A StackExchange connection string for the dispatch board's backplane. Unset means in-process, which is correct for exactly one instance — see "More than one instance" above. |
 | `Sync:PullPageTransactions` | How much of a technician's change stream one `GET /sync/pull` may carry, counted in transactions (default `200`). Lower it for a fleet on poor connections; a device simply pulls more often, because a capped page says `hasMore`. |
 
 Metrics are published on the `OpenDispatch` meter (`System.Diagnostics.Metrics`) — optimize

@@ -116,6 +116,17 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
     {
         builder.UseEnvironment(Environment);
 
+        // The same settings again, one layer earlier. Most of this host reads its configuration
+        // after the container is built, where the in-memory collection below is visible; a few
+        // things — the SignalR backplane, which is a structural choice about the container itself —
+        // are read *during* registration, before `ConfigureAppConfiguration` has been applied.
+        // UseSetting puts a value in the host's own configuration, which is visible from the first
+        // line of Program.cs, so a test can steer both kinds.
+        foreach (var setting in Settings)
+        {
+            builder.UseSetting(setting.Key, setting.Value);
+        }
+
         builder.ConfigureAppConfiguration((_, configuration) =>
         {
             var settings = new Dictionary<string, string?>

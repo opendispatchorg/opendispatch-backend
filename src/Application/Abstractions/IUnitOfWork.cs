@@ -57,4 +57,37 @@ public interface IUnitOfWork
     /// </para>
     /// </remarks>
     Task<IUnitOfWorkTransaction> BeginTransactionAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Runs <paramref name="work"/> inside a transaction, retrying the whole of it if the database
+    /// failed in a way that is worth trying again.
+    /// </summary>
+    /// <typeparam name="TResult">What the work produces.</typeparam>
+    /// <param name="work">
+    /// Everything the transaction covers — the handler, the save, and the decision to keep it.
+    /// <strong>It may be called more than once</strong>, so it must be safe to run again from the
+    /// beginning: no state carried outside the database, no measurement recorded until it returns.
+    /// </param>
+    /// <param name="ct">Cancels the work and any retry of it.</param>
+    /// <remarks>
+    /// <para>
+    /// This exists because a retry has to enclose <em>the whole operation</em>, not the save. A
+    /// connection that dropped is a connection whose transaction is gone, so there is nothing to
+    /// resume — the only correct answer is to begin again, which means the caller cannot hold
+    /// anything from the first attempt.
+    /// </para>
+    /// <para>
+    /// It is a method on the port rather than something the pipeline arranges for itself because
+    /// only the persistence layer knows which failures are transient — and because
+    /// <c>Application</c> may not name the provider that does.
+    /// </para>
+    /// <para>
+    /// A failure that is <em>not</em> transient — a lost concurrency race, a unique index refusing
+    /// a duplicate — is not retried. Retrying either would mean asking the same losing question
+    /// twice.
+    /// </para>
+    /// </remarks>
+    Task<TResult> ExecuteInTransactionAsync<TResult>(
+        Func<IUnitOfWorkTransaction, CancellationToken, Task<TResult>> work,
+        CancellationToken ct);
 }

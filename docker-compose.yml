@@ -48,6 +48,19 @@ services:
         condition: service_healthy
     restart: "no"
 
+  # The SignalR backplane. Only the `app` profile starts it, and only because that profile is the
+  # one shape in this repository where there could be more than one API: without it, a dispatch
+  # board connected to one instance never hears about a change made through another.
+  redis:
+    profiles: ["app"]
+    image: redis:7-alpine
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
   api:
     profiles: ["app"]
     build: .
@@ -55,12 +68,15 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       Database__ConnectionString: "Host=postgres;Port=5432;Database=opendispatch;Username=opendispatch;Password=opendispatch"
+      SignalR__Redis: "redis:6379"
     ports:
       - "8080:8080"
     volumes:
       - attachments:/var/lib/opendispatch/attachments
     depends_on:
       postgres:
+        condition: service_healthy
+      redis:
         condition: service_healthy
       migrate:
         # The schema is applied before anything serves, and the API starts only if it worked —

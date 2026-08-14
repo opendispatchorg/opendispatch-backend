@@ -73,4 +73,42 @@ internal sealed class UnitOfWork(AppDbContext context, DomainEventDispatcher dis
         new UnitOfWorkTransaction(
             await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false),
             dispatcher);
+
+    /// <inheritdoc />
+    /// <remarks>
+    /// <para>
+    /// EF Core's execution strategy is what decides a failure is worth retrying, and it refuses to
+    /// wrap a transaction somebody else opened — for a good reason: it cannot retry work whose
+    /// boundary it does not own. So the boundary moves here, and the transaction is opened
+    /// <em>inside</em> the strategy's own attempt.
+    /// </para>
+    /// <para>
+    /// Every attempt is a fresh transaction and a fresh set of queued domain events: the
+    /// transaction's dispose discards anything the failed attempt raised, so the retry cannot
+    /// announce a fact from a run that was rolled back.
+    /// </para>
+    /// <para>
+    /// What it does not do is reset the change tracker between attempts. Nothing in this system
+    /// needs it to — a handler loads what it works on, and a retry re-runs the handler — but a
+    /// caller that staged changes before calling this would be handing the second attempt the
+    /// first one's leftovers.
+    /// </para>
+    /// </remarks>
+    public Task<TResult> ExecuteInTransactionAsync<TResult>(
+        Func<IUnitOfWorkTransaction, CancellationToken, Task<TResult>> work,
+        CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(work);
+
+        return context.Database.CreateExecutionStrategy().ExecuteAsync(
+            work,
+            async (_, operation, token) =>
+            {
+                await using var transaction = await BeginTransactionAsync(token).ConfigureAwait(false);
+
+                return await operation(transaction, token).ConfigureAwait(false);
+            },
+            verifySucceeded: null,
+            cancellationToken: ct);
+    }
 }

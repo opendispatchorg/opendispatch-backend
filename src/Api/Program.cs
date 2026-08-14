@@ -229,10 +229,13 @@ try
     // into a body.
     builder.Services.Configure<RouteHandlerOptions>(options => options.ThrowOnBadRequest = true);
 
-    // The real-time dispatch board (Document 2 §9, step 51). Scoped, not singleton: it reads
-    // ITenantContext, which is itself scoped to the request that raised the domain event this
-    // notifier is answering.
-    builder.Services.AddSignalR();
+    // The real-time dispatch board (Document 2 §9, step 51), with a Redis backplane when one is
+    // configured — without it this host's board is correct only while there is one of it, because
+    // SignalR groups live in the memory of the process holding the connection. See BoardBackplane.
+    //
+    // The notifier is scoped, not singleton: it reads ITenantContext, which is itself scoped to the
+    // request that raised the domain event it is answering.
+    var backplane = builder.Services.AddDispatchBoardRealtime(builder.Configuration);
     builder.Services.AddScoped<IBoardNotifier, SignalRBoardNotifier>();
 
     // The three edge concerns a host that faces something other than curl needs, each doing
@@ -359,6 +362,10 @@ try
     app.MapSyncEndpoints();
     app.MapAttachmentEndpoints();
     app.MapHub<DispatchHub>("/hubs/dispatch");
+
+    // Said once, at startup, because it is the one property of this host that cannot be discovered
+    // by looking at it: a board with no backplane works perfectly until a second instance exists.
+    StartupLog.BoardRealtime(app.Logger, backplane);
 
     app.Run();
     return 0;

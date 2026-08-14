@@ -17,6 +17,14 @@ namespace OpenDispatch.Application.Behaviors;
 /// query is not merely allowed to skip the transaction — it cannot be given one.
 /// </para>
 /// <para>
+/// <strong>The handler runs inside the retry boundary, which means it can run twice.</strong> A
+/// transient database failure — a failover, a reset connection — makes the persistence layer begin
+/// the whole thing again, transaction and all, because there is nothing left of the first attempt
+/// to resume. Anything a handler does that is not a database write must therefore be safe to repeat;
+/// the one thing in this system that was not — the sync counters — is recorded at the edge, after
+/// this returns, for exactly that reason.
+/// </para>
+/// <para>
 /// A successful command is saved and committed here rather than in the handler, so a slice
 /// states what changed and this decides whether it is kept. A handler may still save partway
 /// through when it needs the write ordered; the save below then finds nothing outstanding and
@@ -41,23 +49,28 @@ internal sealed class TransactionBehavior<TRequest, TResponse>(IUnitOfWork unitO
         RequestHandlerDelegate<TResponse> next,
         CancellationToken cancellationToken)
     {
-        // Disposing an uncommitted transaction rolls it back, so an exception on any path below
-        // — including one thrown by the save — undoes the work without a catch block.
-        await using var transaction = await unitOfWork
-            .BeginTransactionAsync(cancellationToken)
-            .ConfigureAwait(false);
+        // The transaction is opened by the unit of work rather than here, and everything below runs
+        // inside it: that is what lets the persistence layer retry a command whose database
+        // connection dropped, because the boundary it would have to begin again from is its own.
+        // Disposing an uncommitted transaction still rolls it back, so an exception on any path
+        // below — including one thrown by the save — undoes the work without a catch block.
+        return await unitOfWork.ExecuteInTransactionAsync(
+            async (transaction, token) =>
+            {
+                var response = await next(token).ConfigureAwait(false);
 
-        var response = await next(cancellationToken).ConfigureAwait(false);
+                if (response.IsFailure)
+                {
+                    await transaction.RollbackAsync(token).ConfigureAwait(false);
 
-        if (response.IsFailure)
-        {
-            await transaction.RollbackAsync(cancellationToken).ConfigureAwait(false);
-            return response;
-        }
+                    return response;
+                }
 
-        await unitOfWork.SaveChangesAsync(cancellationToken).ConfigureAwait(false);
-        await transaction.CommitAsync(cancellationToken).ConfigureAwait(false);
+                await unitOfWork.SaveChangesAsync(token).ConfigureAwait(false);
+                await transaction.CommitAsync(token).ConfigureAwait(false);
 
-        return response;
+                return response;
+            },
+            cancellationToken).ConfigureAwait(false);
     }
 }

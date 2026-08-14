@@ -26,6 +26,20 @@ internal sealed class FakeUnitOfWork(IEnumerable<IStagedWrites> stores) : IUnitO
     public Task<IUnitOfWorkTransaction> BeginTransactionAsync(CancellationToken ct) =>
         Task.FromResult<IUnitOfWorkTransaction>(new Transaction(stores));
 
+    /// <remarks>
+    /// One attempt, always: retrying is the real unit of work's business, and a fake that retried
+    /// would be asserting a policy rather than standing in for one. What a retry does to the
+    /// pipeline is proved by <c>RecordingUnitOfWork</c> in the pipeline tests.
+    /// </remarks>
+    public async Task<TResult> ExecuteInTransactionAsync<TResult>(
+        Func<IUnitOfWorkTransaction, CancellationToken, Task<TResult>> work,
+        CancellationToken ct)
+    {
+        await using var transaction = await BeginTransactionAsync(ct).ConfigureAwait(false);
+
+        return await work(transaction, ct).ConfigureAwait(false);
+    }
+
     private sealed class Transaction(IEnumerable<IStagedWrites> stores) : IUnitOfWorkTransaction
     {
         public Task CommitAsync(CancellationToken ct) => Task.CompletedTask;
