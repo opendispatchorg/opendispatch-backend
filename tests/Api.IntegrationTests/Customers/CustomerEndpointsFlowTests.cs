@@ -63,8 +63,11 @@ public sealed class CustomerEndpointsFlowTests : IClassFixture<ApiFactory>
         Assert.Equal("New head office", onlyLocation.Label);
         Assert.Equal("9 New Street, London", onlyLocation.Address);
 
-        var listed = await GetAsync<CustomerSummaryResponse[]>(client, token, "/customers");
-        Assert.Contains(listed, customer => customer.Id == created.Id);
+        // A page now, not an array: the endpoint answers with items plus a total so a caller can
+        // tell there is more to fetch.
+        var listed = await GetAsync<CustomerPageResponse>(client, token, "/customers");
+        Assert.Contains(listed.Items, customer => customer.Id == created.Id);
+        Assert.Equal(listed.Items.Count, listed.Total);
 
         using var removed = await SendAsync(
             client, token, HttpMethod.Delete, $"/customers/{created.Id}/locations/{located.Id}", body: null);

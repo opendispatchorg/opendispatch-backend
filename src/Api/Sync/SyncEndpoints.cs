@@ -1,7 +1,9 @@
 using System.Security.Claims;
 using System.Text.Json;
 using MediatR;
+using Microsoft.Extensions.Options;
 using OpenDispatch.Api.Auth;
+using OpenDispatch.Api.Configuration;
 using OpenDispatch.Api.ErrorHandling;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Jobs;
@@ -63,10 +65,18 @@ public static class SyncEndpoints
         return result.ToHttpResult(batch => Results.Ok(ToResponse(batch)));
     }
 
+    /// <remarks>
+    /// The page size is read here, from options resolved per request, rather than being a constant
+    /// in the handler or something the caller may ask for: a device does not get to request the
+    /// whole database, and an operator with a slow fleet gets a lever. Per request, because
+    /// configuration read while the container is being built is read before a host's own sources
+    /// are applied — the lesson the edge-hardening pass wrote down.
+    /// </remarks>
     private static async Task<IResult> PullAsync(
         SyncCursor since,
         ClaimsPrincipal caller,
         ISender sender,
+        IOptions<SyncOptions> sync,
         CancellationToken cancellationToken)
     {
         if (!TryGetTechnicianId(caller, out var technicianId))
@@ -75,7 +85,9 @@ public static class SyncEndpoints
         }
 
         var result = await sender
-            .Send(new PullChangesQuery(technicianId, since), cancellationToken)
+            .Send(
+                new PullChangesQuery(technicianId, since, sync.Value.PullPageTransactions),
+                cancellationToken)
             .ConfigureAwait(false);
 
         return result.ToHttpResult(pulled => Results.Ok(ToResponse(pulled)));
@@ -137,7 +149,8 @@ public static class SyncEndpoints
             .. pulled.Changes.Stops.Select(ToChange),
             .. pulled.Changes.RemovedStops.Select(ToRemoval),
         ],
-        pulled.Cursor.ToString());
+        pulled.Cursor.ToString(),
+        pulled.HasMore);
 
     private static SyncChange ToChange(SyncJobState job) => new(
         FieldOps.JobEntity,

@@ -15,6 +15,21 @@ namespace OpenDispatch.Application.Export;
 /// <param name="Attachments">Every photo and signature captured, by metadata — not their bytes.</param>
 /// <remarks>
 /// <para>
+/// <strong>Five streams, not five lists, and the difference is what makes this endpoint safe to
+/// offer.</strong> A shop's whole history was being read into memory and then serialized into a
+/// second copy of itself before a byte reached the client — twice the size of the export, held at
+/// once, for as long as the response took. Nothing here is materialized: the rows arrive from the
+/// database as the JSON writer asks for them, so the memory cost is one row rather than one
+/// business.
+/// </para>
+/// <para>
+/// The cost of that is where a failure lands. A stream that faults halfway leaves a truncated
+/// response with a 200 already on it, because the status line went out before the first row was
+/// read. That is the ordinary trade for streaming anything, and the honest answer for a client is
+/// the same as for any download: a body that does not parse is a failed export, and the request is
+/// repeatable.
+/// </para>
+/// <para>
 /// Built entirely from shapes the rest of the application already had a reason to define —
 /// <see cref="CustomerDetail"/> is what <c>GET /customers/{id}</c> already returns,
 /// <see cref="JobSummary"/> is what <c>GET /jobs</c> already returns, <see cref="InvoiceSummary"/>
@@ -37,8 +52,8 @@ namespace OpenDispatch.Application.Export;
 /// </para>
 /// </remarks>
 public sealed record TenantExport(
-    IReadOnlyList<CustomerDetail> Customers,
-    IReadOnlyList<JobSummary> Jobs,
-    IReadOnlyList<AssignmentSummary> Assignments,
-    IReadOnlyList<InvoiceSummary> Invoices,
-    IReadOnlyList<AttachmentSummary> Attachments);
+    IAsyncEnumerable<CustomerDetail> Customers,
+    IAsyncEnumerable<JobSummary> Jobs,
+    IAsyncEnumerable<AssignmentSummary> Assignments,
+    IAsyncEnumerable<InvoiceSummary> Invoices,
+    IAsyncEnumerable<AttachmentSummary> Attachments);

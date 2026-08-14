@@ -24,14 +24,27 @@ namespace OpenDispatch.Application.Sync.PullChanges;
 /// storing the cursor it was given.
 /// </para>
 /// </remarks>
-public sealed record PullChangesQuery(TechnicianId TechnicianId, SyncCursor Since) : IQuery<PulledChanges>;
+/// <param name="MaxTransactions">
+/// How much of the stream one pull may carry, counted in transactions rather than rows (see
+/// <c>SyncScopePage</c>). Supplied by the edge from configuration rather than by the caller: a
+/// device does not get to ask for the whole database, and an operator with a slow fleet gets a
+/// lever.
+/// </param>
+public sealed record PullChangesQuery(TechnicianId TechnicianId, SyncCursor Since, int MaxTransactions)
+    : IQuery<PulledChanges>;
 
 /// <summary>
 /// What the server holds for this technician, and the watermark to ask with next time.
 /// </summary>
 /// <param name="Changes">The work, the plan, and the stops that are gone.</param>
 /// <param name="Cursor">
-/// Where the device now stands. Taken before the read, so anything committed while the read was
-/// running is at or after it and arrives next time rather than being skipped.
+/// Where the device now stands. When this page is everything that was waiting, the watermark taken
+/// before the read — so anything committed while the read was running is at or after it and arrives
+/// next time rather than being skipped. When the page stopped early, one past the last transaction
+/// it carried whole.
 /// </param>
-public sealed record PulledChanges(SyncScopeChanges Changes, SyncCursor Cursor);
+/// <param name="HasMore">
+/// Whether the server stopped early. The device should pull again immediately with
+/// <paramref name="Cursor"/> rather than waiting for its next scheduled sync.
+/// </param>
+public sealed record PulledChanges(SyncScopeChanges Changes, SyncCursor Cursor, bool HasMore);

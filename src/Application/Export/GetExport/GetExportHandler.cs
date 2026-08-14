@@ -17,11 +17,16 @@ namespace OpenDispatch.Application.Export.GetExport;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The five reads run one after another, not in parallel: they share the one scoped
-/// <c>DbContext</c> the request's unit of work owns, and EF Core refuses a second operation
-/// started on a context before the first has finished. The same reason every other multi-read
-/// handler in this codebase (<c>OptimizeDayHandler</c>, <c>InsertJobHandler</c>) awaits its reads
-/// in sequence.
+/// <strong>It reads nothing.</strong> Each port hands back a stream, the handler projects it, and
+/// the rows are pulled by whatever writes the response — so a tenant's whole history never exists
+/// in memory, which is what the materialized version could not promise as a shop got older.
+/// </para>
+/// <para>
+/// The five streams must still be drained one after another, not at once: they share the one
+/// scoped <c>DbContext</c> the request owns, and EF Core refuses a second operation started before
+/// the first has finished. That was this handler's rule when it awaited five reads in sequence and
+/// it is now the writer's — <c>ExportEndpoints</c> writes the arrays in order for exactly this
+/// reason.
 /// </para>
 /// <para>
 /// A query, so no transaction and nothing here can change anything — the same guarantee
@@ -36,20 +41,18 @@ internal sealed class GetExportHandler(
     IAttachmentRepository attachments)
     : IRequestHandler<GetExportQuery, Result<TenantExport>>
 {
-    public async Task<Result<TenantExport>> Handle(GetExportQuery query, CancellationToken cancellationToken)
+    public Task<Result<TenantExport>> Handle(GetExportQuery query, CancellationToken cancellationToken)
     {
-        var foundCustomers = await customers.ListAsync(cancellationToken).ConfigureAwait(false);
-        var foundJobs = await jobs.ListAsync(cancellationToken).ConfigureAwait(false);
-        var foundAssignments = await assignments.ListAsync(cancellationToken).ConfigureAwait(false);
-        var foundInvoices = await invoices.ListAsync(cancellationToken).ConfigureAwait(false);
-        var foundAttachments = await attachments.ListAsync(cancellationToken).ConfigureAwait(false);
-
-        return Result.Success(new TenantExport(
-            [.. foundCustomers.Select(ProjectCustomer)],
-            [.. foundJobs.Select(ProjectJob)],
-            [.. foundAssignments.Select(ProjectAssignment)],
-            [.. foundInvoices.Select(ProjectInvoice)],
-            [.. foundAttachments.Select(ProjectAttachment)]));
+        // Nothing is read here. Five streams are described and handed back, and the rows arrive
+        // when the edge writes them — which is what keeps a whole business out of memory. The
+        // sequencing rule the old version obeyed still holds and is now the writer's: one context,
+        // one operation at a time, so the streams are drained one after another rather than at once.
+        return Task.FromResult(Result.Success(new TenantExport(
+            customers.StreamAsync(cancellationToken).Select(ProjectCustomer),
+            jobs.StreamAsync(cancellationToken).Select(ProjectJob),
+            assignments.StreamAsync(cancellationToken).Select(ProjectAssignment),
+            invoices.StreamAsync(cancellationToken).Select(ProjectInvoice),
+            attachments.StreamAsync(cancellationToken).Select(ProjectAttachment))));
     }
 
     private static CustomerDetail ProjectCustomer(Customer customer) => new(

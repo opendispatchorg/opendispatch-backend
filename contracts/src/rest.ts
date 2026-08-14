@@ -681,6 +681,26 @@ export interface components {
              */
             longitude: number | string;
         };
+        /** @description One page of customers. The body of `GET /customers?page={n}&amp;pageSize={n}`. */
+        CustomerPageResponse: {
+            /** @description The customers on this page, by name. */
+            items: components["schemas"]["CustomerSummaryResponse"][];
+            /**
+             * Format: int32
+             * @description How many the tenant has altogether.
+             */
+            total: number | string;
+            /**
+             * Format: int32
+             * @description Which page this is, counting from one.
+             */
+            page: number | string;
+            /**
+             * Format: int32
+             * @description How many this page was allowed to hold.
+             */
+            pageSize: number | string;
+        };
         /** @description One customer, as the clients see them: who they are, how to reach them, and where they want work done. */
         CustomerResponse: {
             /**
@@ -860,6 +880,26 @@ export interface components {
          * @enum {unknown}
          */
         InvoiceStatus: "Draft" | "Paid";
+        /** @description One page of jobs. The body of `GET /jobs?page={n}&amp;pageSize={n}`. */
+        JobPageResponse: {
+            /** @description The jobs on this page, soonest-promised first. */
+            items: components["schemas"]["JobResponse"][];
+            /**
+             * Format: int32
+             * @description How many the tenant has altogether.
+             */
+            total: number | string;
+            /**
+             * Format: int32
+             * @description Which page this is, counting from one.
+             */
+            page: number | string;
+            /**
+             * Format: int32
+             * @description How many this page was allowed to hold.
+             */
+            pageSize: number | string;
+        };
         /**
          * @description How badly a job needs doing, as the clients see it.
          * @enum {unknown}
@@ -1150,6 +1190,10 @@ export interface components {
             /** @description The watermark to ask with next time. Opaque — the shape of the server's bookmark is not
              *     part of the contract. */
             cursor: string;
+            /** @description Whether the server stopped early and has more waiting. When `true`, pull again
+             *     with Cursor as soon as this page is applied; when `false`,
+             *     the device is up to date as of Cursor. */
+            hasMore: boolean;
         };
         /** @description A device emptying its queue: everything it did since it last got through, in the order it
          *     did it. The body of `POST /sync/push`. */
@@ -1530,7 +1574,10 @@ export interface operations {
     };
     ListCustomers: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number | string;
+                pageSize?: number | string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1543,7 +1590,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CustomerSummaryResponse"][];
+                    "application/json": components["schemas"]["CustomerPageResponse"];
                 };
             };
             /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
@@ -1947,7 +1994,10 @@ export interface operations {
     };
     ListJobs: {
         parameters: {
-            query?: never;
+            query?: {
+                page?: number | string;
+                pageSize?: number | string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1960,7 +2010,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobResponse"][];
+                    "application/json": components["schemas"]["JobPageResponse"];
                 };
             };
             /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */

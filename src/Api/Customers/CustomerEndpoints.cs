@@ -34,7 +34,7 @@ public static class CustomerEndpoints
         customers.MapPost("/", CreateAsync).WithName("CreateCustomer")
             .Produces<CustomerSummaryResponse>(StatusCodes.Status201Created);
         customers.MapGet("/", ListAsync).WithName("ListCustomers")
-            .Produces<IEnumerable<CustomerSummaryResponse>>();
+            .Produces<CustomerPageResponse>();
         customers.MapGet("/{id:guid}", GetAsync).WithName("GetCustomer")
             .Produces<CustomerResponse>();
         customers.MapPut("/{id:guid}", UpdateAsync).WithName("UpdateCustomer")
@@ -66,11 +66,28 @@ public static class CustomerEndpoints
             new CustomerSummaryResponse(id.Value, request.Name, request.Email, request.Phone)));
     }
 
-    private static async Task<IResult> ListAsync(ISender sender, CancellationToken cancellationToken)
+    /// <remarks>
+    /// Both parameters are optional and both have defaults, so a caller that has never heard of
+    /// paging still gets an answer — a first page, rather than the whole customer book this used to
+    /// hand over.
+    /// </remarks>
+    private static async Task<IResult> ListAsync(
+        ISender sender,
+        CancellationToken cancellationToken,
+        int? page = null,
+        int? pageSize = null)
     {
-        var result = await sender.Send(new ListCustomersQuery(), cancellationToken).ConfigureAwait(false);
+        var query = new ListCustomersQuery(
+            page ?? 1,
+            pageSize ?? ListCustomersQuery.DefaultPageSize);
 
-        return result.ToHttpResult(customers => Results.Ok(customers.Select(ToSummary)));
+        var result = await sender.Send(query, cancellationToken).ConfigureAwait(false);
+
+        return result.ToHttpResult(customers => Results.Ok(new CustomerPageResponse(
+            [.. customers.Items.Select(ToSummary)],
+            customers.Total,
+            customers.Page,
+            customers.PageSize)));
     }
 
     private static async Task<IResult> GetAsync(Guid id, ISender sender, CancellationToken cancellationToken)

@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Sync;
+using OpenDispatch.Domain.Assignments;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.ValueObjects;
 
@@ -47,20 +48,29 @@ namespace OpenDispatch.Infrastructure.Persistence.ReadModels;
 /// </remarks>
 internal sealed class SyncChangeReader(AppDbContext context) : ISyncChangeReader
 {
-    public async Task<SyncScopeChanges> ReadAsync(
+    public async Task<SyncScopePage> ReadAsync(
         TechnicianId technician,
         SyncCursor since,
+        int maxTransactions,
         CancellationToken ct)
     {
         var mine = context.Assignments.Where(assignment => assignment.TechnicianId == technician);
+
+        // Where this page stops, decided before anything is read: the stamp of the last whole
+        // transaction that fits. Null means everything waiting fits, which is the ordinary case and
+        // the only one where the caller's watermark is the right answer.
+        var ceiling = await CeilingAsync(technician, mine, since, maxTransactions, ct).ConfigureAwait(false);
+        var upTo = ceiling ?? long.MaxValue;
 
         // A stop is news if it moved, or if the work it is for changed underneath it — the second
         // is what carries a re-windowed job to a device whose plan is untouched.
         var stops = await (
             from assignment in mine
             join job in context.Jobs on assignment.JobId equals job.Id
-            where EF.Property<long>(assignment, ChangeStamps.PropertyName) >= since.Value
-                || EF.Property<long>(job, ChangeStamps.PropertyName) >= since.Value
+            where (EF.Property<long>(assignment, ChangeStamps.PropertyName) >= since.Value
+                    && EF.Property<long>(assignment, ChangeStamps.PropertyName) <= upTo)
+                || (EF.Property<long>(job, ChangeStamps.PropertyName) >= since.Value
+                    && EF.Property<long>(job, ChangeStamps.PropertyName) <= upTo)
             orderby assignment.ScheduledStart, assignment.Id
             select new
             {
@@ -79,8 +89,10 @@ internal sealed class SyncChangeReader(AppDbContext context) : ISyncChangeReader
             from assignment in mine.AsNoTracking()
             join job in context.Jobs.AsNoTracking() on assignment.JobId equals job.Id
             join customer in context.Customers.AsNoTracking() on job.CustomerId equals customer.Id
-            where EF.Property<long>(assignment, ChangeStamps.PropertyName) >= since.Value
-                || EF.Property<long>(job, ChangeStamps.PropertyName) >= since.Value
+            where (EF.Property<long>(assignment, ChangeStamps.PropertyName) >= since.Value
+                    && EF.Property<long>(assignment, ChangeStamps.PropertyName) <= upTo)
+                || (EF.Property<long>(job, ChangeStamps.PropertyName) >= since.Value
+                    && EF.Property<long>(job, ChangeStamps.PropertyName) <= upTo)
             orderby job.Id
             select new
             {
@@ -108,7 +120,8 @@ internal sealed class SyncChangeReader(AppDbContext context) : ISyncChangeReader
         // is no longer in it.
         var handedOn = await context.Assignments
             .Where(assignment => assignment.TechnicianId != technician)
-            .Where(assignment => EF.Property<long>(assignment, ChangeStamps.PropertyName) >= since.Value)
+            .Where(assignment => EF.Property<long>(assignment, ChangeStamps.PropertyName) >= since.Value
+                && EF.Property<long>(assignment, ChangeStamps.PropertyName) <= upTo)
             .Select(assignment => assignment.Id)
             .ToListAsync(ct);
 
@@ -117,11 +130,12 @@ internal sealed class SyncChangeReader(AppDbContext context) : ISyncChangeReader
         var deleted = await context.SyncRemovals
             .Where(removal => removal.TechnicianId == technician)
             .Where(removal => removal.Entity == SyncRemoval.StopEntity)
-            .Where(removal => EF.Property<long>(removal, ChangeStamps.PropertyName) >= since.Value)
+            .Where(removal => EF.Property<long>(removal, ChangeStamps.PropertyName) >= since.Value
+                && EF.Property<long>(removal, ChangeStamps.PropertyName) <= upTo)
             .Select(removal => removal.EntityId)
             .ToListAsync(ct);
 
-        return new SyncScopeChanges(
+        var changes = new SyncScopeChanges(
             [
                 .. jobs.Select(job => new SyncJobState(
                     job.Id,
@@ -155,5 +169,87 @@ internal sealed class SyncChangeReader(AppDbContext context) : ISyncChangeReader
                     stop.Version)),
             ],
             [.. handedOn, .. deleted.Select(AssignmentId.From)]);
+
+        return new SyncScopePage(changes, ceiling);
     }
+
+    /// <summary>
+    /// The stamp this page stops at, or <see langword="null"/> if everything waiting fits in one.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Four cheap questions rather than one expensive one: each source is asked for its next
+    /// <paramref name="maxTransactions"/> + 1 distinct stamps at or after the cursor, which an index
+    /// answers without reading rows. Merged, that is the first
+    /// <paramref name="maxTransactions"/> + 1 stamps of the technician's whole stream — because the
+    /// merged stream's earliest stamps can only come from some source's earliest stamps.
+    /// </para>
+    /// <para>
+    /// If there are no more than <paramref name="maxTransactions"/>, the page is everything and
+    /// there is no ceiling. If there are more, the ceiling is the last stamp that fits <em>whole</em>
+    /// — and the caller resumes at one past it, which is safe because a transaction that has
+    /// committed cannot gain more rows and its id is never reused.
+    /// </para>
+    /// <para>
+    /// A single transaction bigger than the budget is therefore sent whole, overrunning the page.
+    /// That is deliberate: the alternative is a device that asks for the same stamp forever, or one
+    /// that skips half of what a re-optimisation did to its day.
+    /// </para>
+    /// </remarks>
+    private async Task<long?> CeilingAsync(
+        TechnicianId technician,
+        IQueryable<Assignment> mine,
+        SyncCursor since,
+        int maxTransactions,
+        CancellationToken ct)
+    {
+        var wanted = maxTransactions + 1;
+
+        var stamps = new List<long>(wanted * 4);
+
+        stamps.AddRange(await StampsAsync(mine, since, wanted, ct).ConfigureAwait(false));
+
+        // The jobs behind this technician's stops: their own stamps move when the office edits the
+        // work, which is a change to this technician's world even when the plan did not move.
+        stamps.AddRange(await StampsAsync(
+            from assignment in mine
+            join job in context.Jobs on assignment.JobId equals job.Id
+            select job,
+            since,
+            wanted,
+            ct).ConfigureAwait(false));
+
+        stamps.AddRange(await StampsAsync(
+            context.Assignments.Where(assignment => assignment.TechnicianId != technician),
+            since,
+            wanted,
+            ct).ConfigureAwait(false));
+
+        stamps.AddRange(await StampsAsync(
+            context.SyncRemovals
+                .Where(removal => removal.TechnicianId == technician)
+                .Where(removal => removal.Entity == SyncRemoval.StopEntity),
+            since,
+            wanted,
+            ct).ConfigureAwait(false));
+
+        var ordered = stamps.Distinct().Order().Take(wanted).ToList();
+
+        return ordered.Count > maxTransactions ? ordered[maxTransactions - 1] : null;
+    }
+
+    /// <summary>The next <paramref name="wanted"/> distinct change stamps in a source, from the cursor.</summary>
+    private static Task<List<long>> StampsAsync<TEntity>(
+        IQueryable<TEntity> source,
+        SyncCursor since,
+        int wanted,
+        CancellationToken ct)
+        where TEntity : class =>
+        source
+            .Select(row => EF.Property<long>(row, ChangeStamps.PropertyName))
+            .Where(stamp => stamp >= since.Value)
+            .Distinct()
+            .OrderBy(stamp => stamp)
+            .Take(wanted)
+            .ToListAsync(ct);
 }

@@ -55,6 +55,7 @@ try
     // traffic with published credentials. See DevelopmentDefaults.
     builder.Services.AddDatabaseOptions(builder.Configuration, builder.Environment);
     builder.Services.AddAttachmentOptions(builder.Configuration);
+    builder.Services.AddSyncOptions(builder.Configuration);
     builder.Services.AddJwtOptions(builder.Configuration, builder.Environment);
 
     // The request pipeline every feature slice rides on: MediatR, the validators, and the
@@ -258,6 +259,14 @@ try
     if (CreateUserCommand.Requested(args))
     {
         return await CreateUserCommand.RunAsync(app, args).ConfigureAwait(false);
+    }
+
+    // Housekeeping, for a scheduler rather than a person: the sync op log and the removal notes are
+    // the only tables nothing else ever deletes from. See PruneCommand for what that costs a device
+    // that has been away longer than the window.
+    if (PruneCommand.Requested(args))
+    {
+        return await PruneCommand.RunAsync(app, args).ConfigureAwait(false);
     }
 
     // Ahead of everything, including the correlation id and the request log: until the forwarded

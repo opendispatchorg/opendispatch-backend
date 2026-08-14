@@ -8,6 +8,7 @@ using OpenDispatch.Application.Customers.CreateCustomer;
 using OpenDispatch.Application.Jobs.AssignJob;
 using OpenDispatch.Application.Jobs.ChangeJobStatus;
 using OpenDispatch.Application.Jobs.CreateJob;
+using OpenDispatch.Application.Scheduling.OptimizeDay;
 using OpenDispatch.Application.Sync;
 using OpenDispatch.Application.Sync.PullChanges;
 using OpenDispatch.Application.Technicians.CreateTechnician;
@@ -39,6 +40,9 @@ namespace OpenDispatch.Api.IntegrationTests.Sync;
 [Trait(TestCategories.Name, TestCategories.Integration)]
 public sealed class PullChangesFlowTests
 {
+    /// <summary>A page budget big enough that nothing these tests write is ever capped.</summary>
+    private const int APage = 200;
+
     private static readonly DateTimeOffset MondayMorning = new(2026, 8, 10, 8, 0, 0, TimeSpan.Zero);
 
     private readonly OrgId _tenant = OrgId.New();
@@ -202,7 +206,7 @@ public sealed class PullChangesFlowTests
         using var elsewhere = services.ActingAs(OrgId.New());
         var pulled = await elsewhere.ServiceProvider
             .GetRequiredService<ISender>()
-            .Send(new PullChangesQuery(sam, SyncCursor.Beginning));
+            .Send(new PullChangesQuery(sam, SyncCursor.Beginning, APage));
 
         Assert.Empty(pulled.Value.Changes.Jobs);
         Assert.Empty(pulled.Value.Changes.Stops);
@@ -303,13 +307,123 @@ public sealed class PullChangesFlowTests
         Assert.True(work.Version > 0);
     }
 
+    /// <summary>
+    /// A device that has never synced drains its history a page at a time, and misses nothing on
+    /// the way.
+    /// </summary>
+    /// <remarks>
+    /// The page is counted in transactions, so three separately-assigned stops are three pages at a
+    /// budget of one. What matters is the loop a real client runs: pull, apply, store the cursor,
+    /// repeat while <c>HasMore</c> — and that the stops it ends up holding are all of them, each
+    /// exactly once per page it appeared in.
+    /// </remarks>
+    [Fact]
+    public async Task DrainsAHistoryTooBigForOnePageWithoutLosingAnything()
+    {
+        await using var services = BuildHost();
+        var sam = await ATechnicianAsync(services, "Sam Rivera");
+
+        var planned = new List<JobId>();
+
+        for (var hour = 1; hour <= 3; hour++)
+        {
+            var job = await ABookedJobAsync(services);
+
+            // One assignment per transaction, which is what makes this three pages rather than one.
+            await Send(services, new AssignJobCommand(job, sam, MondayMorning.AddHours(hour)));
+            planned.Add(job);
+        }
+
+        var drained = new List<JobId>();
+        var cursor = SyncCursor.Beginning;
+        var pages = 0;
+
+        while (true)
+        {
+            var page = await Send(services, new PullChangesQuery(sam, cursor, 1));
+            Assert.True(page.IsSuccess);
+
+            drained.AddRange(page.Value.Changes.Stops.Select(stop => stop.JobId));
+            cursor = page.Value.Cursor;
+            pages++;
+
+            if (!page.Value.HasMore)
+            {
+                break;
+            }
+
+            // The loop terminates because the cursor strictly advances; without that this test
+            // hangs, which is the failure mode a split transaction would produce in the field.
+            Assert.True(pages < 20, "the pull is not making progress");
+        }
+
+        Assert.True(pages > 1, "the history should not have fitted in one page");
+        Assert.Equal(
+            planned.Select(job => job.Value).Order(),
+            drained.Distinct().Select(job => job.Value).Order());
+
+        // And the device is now up to date: one more pull says so and carries nothing new.
+        var settled = await Send(services, new PullChangesQuery(sam, cursor, 1));
+        Assert.False(settled.Value.HasMore);
+        Assert.Empty(settled.Value.Changes.Stops);
+    }
+
+    /// <summary>
+    /// A transaction bigger than the page budget is sent whole rather than split.
+    /// </summary>
+    /// <remarks>
+    /// The hazard this whole design is shaped around. Every row one transaction wrote shares a
+    /// change stamp, so a page that stopped in the middle of one could only resume at that same
+    /// stamp — the device would ask again, get the same page, and never move. Here an optimise
+    /// plans three stops in one transaction against a budget of one: the answer is all three, and
+    /// the cursor moves past them.
+    /// </remarks>
+    [Fact]
+    public async Task SendsATransactionBiggerThanThePageWholeRatherThanSplittingIt()
+    {
+        await using var services = BuildHost();
+        var sam = await ATechnicianAsync(services, "Sam Rivera");
+
+        for (var i = 0; i < 3; i++)
+        {
+            await ABookedJobAsync(services);
+        }
+
+        // One command, one transaction, three stops.
+        var optimized = await Send(services, new OptimizeDayCommand(MondayMorning, MondayMorning.AddHours(9)));
+        Assert.Equal(3, optimized.Value.Planned);
+
+        var caughtUpOnTheJobs = await Send(services, new PullChangesQuery(sam, SyncCursor.Beginning, 1));
+
+        // Drain whatever the bookings themselves wrote, then look at the page the optimise landed
+        // in: whichever page that is, it carries all three of its stops.
+        var cursor = caughtUpOnTheJobs.Value.Cursor;
+        var stops = caughtUpOnTheJobs.Value.Changes.Stops.Count;
+        var pages = 0;
+
+        while (caughtUpOnTheJobs.Value.HasMore && pages < 20)
+        {
+            var page = await Send(services, new PullChangesQuery(sam, cursor, 1));
+            cursor = page.Value.Cursor;
+            stops = Math.Max(stops, page.Value.Changes.Stops.Count);
+            pages++;
+
+            if (!page.Value.HasMore)
+            {
+                break;
+            }
+        }
+
+        Assert.Equal(3, stops);
+    }
+
     [Fact]
     public async Task RefusesACursorThisServerNeverIssued()
     {
         await using var services = BuildHost();
         var sam = await ATechnicianAsync(services, "Sam Rivera");
 
-        var pulled = await Send(services, new PullChangesQuery(sam, new SyncCursor(-1)));
+        var pulled = await Send(services, new PullChangesQuery(sam, new SyncCursor(-1), APage));
 
         Assert.True(pulled.IsFailure);
     }
@@ -326,7 +440,7 @@ public sealed class PullChangesFlowTests
 
     private async Task<PulledChanges> PullAsync(ServiceProvider services, TechnicianId technician, SyncCursor since)
     {
-        var pulled = await Send(services, new PullChangesQuery(technician, since));
+        var pulled = await Send(services, new PullChangesQuery(technician, since, APage));
 
         Assert.True(pulled.IsSuccess);
 

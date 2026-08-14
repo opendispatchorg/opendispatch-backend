@@ -67,7 +67,8 @@ public sealed class CustomersFlowTests
         Assert.Equal(-0.5950, location.Longitude);
 
         var listed = await Send(services, new ListCustomersQuery());
-        Assert.Equal(created.Value, Assert.Single(listed.Value).Id);
+        Assert.Equal(created.Value, Assert.Single(listed.Value.Items).Id);
+        Assert.Equal(1, listed.Value.Total);
     }
 
     /// <summary>
@@ -89,8 +90,8 @@ public sealed class CustomersFlowTests
         Assert.True(stranger.IsFailure);
         Assert.Equal(CustomerErrors.NotFoundCode, stranger.Error!.Code);
 
-        Assert.Empty((await Send(services, new ListCustomersQuery(), _rival)).Value);
-        Assert.NotEmpty((await Send(services, new ListCustomersQuery())).Value);
+        Assert.Empty((await Send(services, new ListCustomersQuery(), _rival)).Value.Items);
+        Assert.NotEmpty((await Send(services, new ListCustomersQuery())).Value.Items);
     }
 
     private ServiceProvider BuildHost() =>

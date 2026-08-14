@@ -61,10 +61,14 @@ internal sealed class AssignmentRepository(AppDbContext context, IClock clock) :
             .ThenBy(assignment => assignment.Id)
             .ToListAsync(ct);
 
-    /// <remarks>By scheduled start, the same order the horizon-scoped read uses.</remarks>
-    public async Task<IReadOnlyList<Assignment>> ListAsync(CancellationToken ct) =>
-        await context.Assignments
+    /// <remarks>
+    /// By scheduled start, the same order the horizon-scoped read uses — streamed, because its one
+    /// caller is the export and a shop's whole plan is not something to hold in memory to write it
+    /// out.
+    /// </remarks>
+    public IAsyncEnumerable<Assignment> StreamAsync(CancellationToken ct) =>
+        context.Assignments
             .OrderBy(assignment => assignment.ScheduledStart)
             .ThenBy(assignment => assignment.Id)
-            .ToListAsync(ct);
+            .AsAsyncEnumerable();
 }

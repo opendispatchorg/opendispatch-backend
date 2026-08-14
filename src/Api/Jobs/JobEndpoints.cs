@@ -41,7 +41,7 @@ public static class JobEndpoints
         jobs.MapPost("/", CreateAsync).WithName("CreateJob")
             .Produces<CreateJobResponse>(StatusCodes.Status201Created);
         jobs.MapGet("/", ListAsync).WithName("ListJobs")
-            .Produces<IEnumerable<JobResponse>>();
+            .Produces<JobPageResponse>();
         jobs.MapGet("/{id:guid}", GetAsync).WithName("GetJob")
             .Produces<JobResponse>();
         jobs.MapPost("/{id:guid}/status", ChangeStatusAsync).WithName("ChangeJobStatus")
@@ -70,11 +70,21 @@ public static class JobEndpoints
         return result.ToHttpResult(id => Results.Created($"/jobs/{id.Value}", new CreateJobResponse(id.Value)));
     }
 
-    private static async Task<IResult> ListAsync(ISender sender, CancellationToken cancellationToken)
+    /// <remarks>Paged, with defaults — see <c>CustomerEndpoints.ListAsync</c>.</remarks>
+    private static async Task<IResult> ListAsync(
+        ISender sender,
+        CancellationToken cancellationToken,
+        int? page = null,
+        int? pageSize = null)
     {
-        var result = await sender.Send(new ListJobsQuery(), cancellationToken).ConfigureAwait(false);
+        var query = new ListJobsQuery(page ?? 1, pageSize ?? ListJobsQuery.DefaultPageSize);
+        var result = await sender.Send(query, cancellationToken).ConfigureAwait(false);
 
-        return result.ToHttpResult(found => Results.Ok(found.Select(ToResponse)));
+        return result.ToHttpResult(found => Results.Ok(new JobPageResponse(
+            [.. found.Items.Select(ToResponse)],
+            found.Total,
+            found.Page,
+            found.PageSize)));
     }
 
     private static async Task<IResult> GetAsync(Guid id, ISender sender, CancellationToken cancellationToken)

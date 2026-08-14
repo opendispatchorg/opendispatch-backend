@@ -16,13 +16,31 @@ internal sealed class JobRepository(AppDbContext context) : IJobRepository
 
     /// <remarks>
     /// By promised window, because this is read by a dispatcher scanning what is coming up —
-    /// unlike <see cref="ListSchedulableAsync"/>, which orders for the scheduler's own reasons.
+    /// unlike <see cref="ListSchedulableAsync"/>, which orders for the scheduler's own reasons. The
+    /// id breaks ties so a page boundary cannot fall between two jobs promised for the same instant
+    /// and show one of them twice.
     /// </remarks>
-    public async Task<IReadOnlyList<Job>> ListAsync(CancellationToken ct) =>
-        await context.Jobs
+    public async Task<Page<Job>> ListAsync(PageRequest page, CancellationToken ct)
+    {
+        var total = await context.Jobs.CountAsync(ct).ConfigureAwait(false);
+
+        var items = await context.Jobs
             .OrderBy(job => job.Window.Start)
             .ThenBy(job => job.Id)
-            .ToListAsync(ct);
+            .Skip(page.Skip)
+            .Take(page.Size)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return new Page<Job>(items, total);
+    }
+
+    /// <remarks>Streamed for the export — see <c>CustomerRepository.StreamAsync</c>.</remarks>
+    public IAsyncEnumerable<Job> StreamAsync(CancellationToken ct) =>
+        context.Jobs
+            .OrderBy(job => job.Window.Start)
+            .ThenBy(job => job.Id)
+            .AsAsyncEnumerable();
 
     public async Task<IReadOnlyList<Job>> ListSchedulableAsync(TimeWindow horizon, CancellationToken ct) =>
         await context.Jobs

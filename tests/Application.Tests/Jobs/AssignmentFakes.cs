@@ -45,11 +45,18 @@ internal sealed class FakeAssignmentRepository(FakeStore<Assignment> store, ITen
                 .ThenBy(assignment => assignment.Id.Value),
         ]);
 
-    public Task<IReadOnlyList<Assignment>> ListAsync(CancellationToken ct) =>
-        Task.FromResult<IReadOnlyList<Assignment>>(
-        [
-            .. Mine().OrderBy(assignment => assignment.ScheduledStart).ThenBy(assignment => assignment.Id.Value),
-        ]);
+    public async IAsyncEnumerable<Assignment> StreamAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        foreach (var assignment in Mine()
+            .OrderBy(assignment => assignment.ScheduledStart)
+            .ThenBy(assignment => assignment.Id.Value))
+        {
+            yield return assignment;
+        }
+
+        await Task.CompletedTask.ConfigureAwait(false);
+    }
 
     private IEnumerable<Assignment> Mine() => store.Owned(tenant.OrgId);
 }

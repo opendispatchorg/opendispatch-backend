@@ -44,13 +44,27 @@ internal sealed class RecordingChangeReader(CallOrder order) : ISyncChangeReader
     /// <summary>Who the last read was for.</summary>
     public TechnicianId Technician { get; private set; }
 
-    public Task<SyncScopeChanges> ReadAsync(TechnicianId technician, SyncCursor since, CancellationToken ct)
+    /// <summary>The page budget the last read was given.</summary>
+    public int MaxTransactions { get; private set; }
+
+    /// <summary>
+    /// What the next read reports as the last whole transaction in its page — null for "that was
+    /// everything", which is what a reader with nothing left to give answers.
+    /// </summary>
+    public long? Ceiling { get; set; }
+
+    public Task<SyncScopePage> ReadAsync(
+        TechnicianId technician,
+        SyncCursor since,
+        int maxTransactions,
+        CancellationToken ct)
     {
         Since = since;
         Technician = technician;
+        MaxTransactions = maxTransactions;
         order.Record(nameof(ISyncChangeReader));
 
-        return Task.FromResult(new SyncScopeChanges([], [], []));
+        return Task.FromResult(new SyncScopePage(new SyncScopeChanges([], [], []), Ceiling));
     }
 }
 

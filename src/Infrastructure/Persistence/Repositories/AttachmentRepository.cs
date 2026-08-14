@@ -13,10 +13,13 @@ internal sealed class AttachmentRepository(AppDbContext context) : IAttachmentRe
 
     public void Add(Attachment attachment) => context.Attachments.Add(attachment);
 
-    /// <remarks>By capture instant: an export reads a shop's records in the order they happened.</remarks>
-    public async Task<IReadOnlyList<Attachment>> ListAsync(CancellationToken ct) =>
-        await context.Attachments
+    /// <remarks>
+    /// By capture instant: an export reads a shop's records in the order they happened. Streamed,
+    /// like the rest of the export's reads.
+    /// </remarks>
+    public IAsyncEnumerable<Attachment> StreamAsync(CancellationToken ct) =>
+        context.Attachments
             .OrderBy(attachment => attachment.CreatedAt)
             .ThenBy(attachment => attachment.Id)
-            .ToListAsync(ct);
+            .AsAsyncEnumerable();
 }

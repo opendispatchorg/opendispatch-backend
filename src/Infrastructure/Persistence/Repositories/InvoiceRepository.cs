@@ -17,10 +17,13 @@ internal sealed class InvoiceRepository(AppDbContext context) : IInvoiceReposito
 
     public void Add(Invoice invoice) => context.Invoices.Add(invoice);
 
-    /// <remarks>By issue date: a billing history is read in the order it happened.</remarks>
-    public async Task<IReadOnlyList<Invoice>> ListAsync(CancellationToken ct) =>
-        await context.Invoices
+    /// <remarks>
+    /// By issue date: a billing history is read in the order it happened. Streamed for the export,
+    /// its only caller.
+    /// </remarks>
+    public IAsyncEnumerable<Invoice> StreamAsync(CancellationToken ct) =>
+        context.Invoices
             .OrderBy(invoice => invoice.Issued)
             .ThenBy(invoice => invoice.Id)
-            .ToListAsync(ct);
+            .AsAsyncEnumerable();
 }

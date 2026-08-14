@@ -83,5 +83,10 @@ public static class InfrastructureRegistration
             // that has to do this once, and doing it is the only way anybody can sign in.
             // Scoped, because it writes through the request-shaped context the verb opens a scope
             // for.
-            .AddScoped<UserProvisioner>();
+            .AddScoped<UserProvisioner>()
+
+            // Housekeeping for the two tables nothing else deletes from (`prune`). Registered
+            // everywhere for the same reason the provisioner is: it is a production host that
+            // eventually has a year of op log to be rid of.
+            .AddScoped<SyncLogPruner>();
 }

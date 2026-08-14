@@ -21,6 +21,9 @@ namespace OpenDispatch.Application.Tests.Sync;
 [Trait(TestCategories.Name, TestCategories.Unit)]
 public sealed class PullChangesTests
 {
+    /// <summary>A page budget big enough that nothing these tests write is ever capped.</summary>
+    private const int APage = 200;
+
     /// <summary>
     /// Taken after the read, a cursor would sit above a change committed while the read was
     /// running — and a change below a device's cursor is never sent again, so the stop cancelled at
@@ -31,7 +34,7 @@ public sealed class PullChangesTests
     {
         await using var slice = SliceHost.Sync();
 
-        await slice.Send(new PullChangesQuery(TechnicianId.New(), SyncCursor.Beginning));
+        await slice.Send(new PullChangesQuery(TechnicianId.New(), SyncCursor.Beginning, APage));
 
         Assert.Equal(
             [nameof(ISyncCursorSource), nameof(ISyncChangeReader)],
@@ -45,7 +48,7 @@ public sealed class PullChangesTests
         var sam = TechnicianId.New();
         var since = new SyncCursor(4_096);
 
-        var pulled = await slice.Send(new PullChangesQuery(sam, since));
+        var pulled = await slice.Send(new PullChangesQuery(sam, since, APage));
 
         var reader = slice.Fake<RecordingChangeReader>();
         Assert.Equal(sam, reader.Technician);
@@ -63,7 +66,7 @@ public sealed class PullChangesTests
     {
         await using var slice = SliceHost.Sync();
 
-        var pulled = await slice.Send(new PullChangesQuery(TechnicianId.New(), new SyncCursor(-1)));
+        var pulled = await slice.Send(new PullChangesQuery(TechnicianId.New(), new SyncCursor(-1), APage));
 
         Assert.IsType<ValidationError>(pulled.Error);
     }
@@ -73,7 +76,7 @@ public sealed class PullChangesTests
     {
         await using var slice = SliceHost.Sync();
 
-        var pulled = await slice.Send(new PullChangesQuery(default, SyncCursor.Beginning));
+        var pulled = await slice.Send(new PullChangesQuery(default, SyncCursor.Beginning, APage));
 
         Assert.IsType<ValidationError>(pulled.Error);
     }

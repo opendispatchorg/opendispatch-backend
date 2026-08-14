@@ -109,6 +109,20 @@ Four things a real deployment owns:
 Back up the database and the attachment volume together: an invoice whose photograph is missing is
 half a record, and Document 1's promise is that the business owns all of it.
 
+One thing to schedule, from cron or its equivalent:
+
+```bash
+docker run --rm -e Database__ConnectionString="…" -e Jwt__SigningKey="…" \
+  opendispatch-api:local prune --days 30
+```
+
+`prune` deletes the two tables nothing else ever deletes from — the sync op log, which recognises a
+re-sent operation, and the removal notes, which tell a device a stop is gone. Both are protocol
+bookkeeping rather than business records, and both grow forever without this. The window is how far
+behind a device may be and still be told about a deletion individually; one further behind gets the
+whole truth on a full resync instead. Nothing else in this system is ever pruned: the jobs, the
+invoices and the photographs are the shop's.
+
 ## Operating it
 
 Three things a deployment needs to watch this service, none of which assume a particular
@@ -137,6 +151,7 @@ Optional, and doing nothing until set:
 | `Cors:Origins` | Browser origins allowed to call the API and the hub. Empty means no browser client can call it — set it to your dispatch board and technician app origins. |
 | `RateLimit:*` | Sign-in attempts per address per window (`20` per `300`s). Raise it for an office behind one NAT address. |
 | `ReverseProxy:Enabled` | Read `X-Forwarded-For`/`-Proto`. Turn it on **only** when this host is unreachable except through the proxy, or narrow it with `KnownProxies`/`KnownNetworks`. |
+| `Sync:PullPageTransactions` | How much of a technician's change stream one `GET /sync/pull` may carry, counted in transactions (default `200`). Lower it for a fleet on poor connections; a device simply pulls more often, because a capped page says `hasMore`. |
 
 Metrics are published on the `OpenDispatch` meter (`System.Diagnostics.Metrics`) — optimize
 latency as `opendispatch.scheduling.optimize.duration`, and sync as
@@ -152,6 +167,20 @@ container, so a migration that will not apply from scratch fails the suite rathe
 deployment.
 
 Testing conventions and the shared harness are described in [TESTING.md](TESTING.md).
+
+## Reading lists
+
+`GET /customers` and `GET /jobs` are paged: `?page=1&pageSize=50` by default, `pageSize` capped at
+200, and the body carries `items`, `total`, `page` and `pageSize` so a caller can tell whether there
+is more. They used to answer with the whole table, which is fine for a demo and is a page nobody can
+draw for a shop with ten years of history.
+
+`GET /technicians` is deliberately **not** paged: the scheduler must consider every technician to
+place a job, so the port behind it is unpaged by design, and a crew is a crew rather than a
+database.
+
+`GET /export` is unpaged and always will be — it is the whole-business dump Document 1 promises —
+but it is streamed rather than assembled, so its cost to this host does not grow with the shop.
 
 ## The API contract
 

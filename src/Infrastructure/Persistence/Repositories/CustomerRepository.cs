@@ -19,12 +19,40 @@ internal sealed class CustomerRepository(AppDbContext context) : ICustomerReposi
     public void Add(Customer customer) => context.Customers.Add(customer);
 
     /// <remarks>
+    /// <para>
     /// By name, because this one is read by a person choosing from a list — unlike the crew,
-    /// which is read by the scheduler.
+    /// which is read by the scheduler. The id breaks ties, which is what stops two customers with
+    /// one name swapping places between page one and page two and hiding each other.
+    /// </para>
+    /// <para>
+    /// Two round trips: the count, then the page. The alternative — a window function carrying the
+    /// total on every row — reads the same rows and costs a wider result set, and the count is
+    /// answered from the tenant index without touching the rows at all.
+    /// </para>
     /// </remarks>
-    public async Task<IReadOnlyList<Customer>> ListAsync(CancellationToken ct) =>
-        await context.Customers
+    public async Task<Page<Customer>> ListAsync(PageRequest page, CancellationToken ct)
+    {
+        var total = await context.Customers.CountAsync(ct).ConfigureAwait(false);
+
+        var items = await context.Customers
             .OrderBy(customer => customer.Name)
             .ThenBy(customer => customer.Id)
-            .ToListAsync(ct);
+            .Skip(page.Skip)
+            .Take(page.Size)
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return new Page<Customer>(items, total);
+    }
+
+    /// <remarks>
+    /// <c>AsAsyncEnumerable</c> rather than <c>ToListAsync</c>: the export reads every customer a
+    /// shop has ever had, and the point of streaming it is that the whole of it is never in memory
+    /// at once — not in the repository, not in the handler, and not in a serialized response body.
+    /// </remarks>
+    public IAsyncEnumerable<Customer> StreamAsync(CancellationToken ct) =>
+        context.Customers
+            .OrderBy(customer => customer.Name)
+            .ThenBy(customer => customer.Id)
+            .AsAsyncEnumerable();
 }

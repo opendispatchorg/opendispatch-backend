@@ -400,16 +400,39 @@
           "Customers"
         ],
         "operationId": "ListCustomers",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CustomerSummaryResponse"
-                  }
+                  "$ref": "#/components/schemas/CustomerPageResponse"
                 }
               }
             }
@@ -1006,16 +1029,39 @@
           "Jobs"
         ],
         "operationId": "ListJobs",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JobResponse"
-                  }
+                  "$ref": "#/components/schemas/JobPageResponse"
                 }
               }
             }
@@ -1929,6 +1975,52 @@
         },
         "description": "The body of `POST /technicians`."
       },
+      "CustomerPageResponse": {
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerSummaryResponse"
+            },
+            "description": "The customers on this page, by name."
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many the tenant has altogether.",
+            "format": "int32"
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Which page this is, counting from one.",
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many this page was allowed to hold.",
+            "format": "int32"
+          }
+        },
+        "description": "One page of customers. The body of `GET /customers?page={n}&amp;pageSize={n}`."
+      },
       "CustomerResponse": {
         "required": [
           "id",
@@ -2314,6 +2406,52 @@
           "Paid"
         ],
         "description": "Whether an invoice has been settled, as the clients see it."
+      },
+      "JobPageResponse": {
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobResponse"
+            },
+            "description": "The jobs on this page, soonest-promised first."
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many the tenant has altogether.",
+            "format": "int32"
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Which page this is, counting from one.",
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many this page was allowed to hold.",
+            "format": "int32"
+          }
+        },
+        "description": "One page of jobs. The body of `GET /jobs?page={n}&amp;pageSize={n}`."
       },
       "JobPriority": {
         "enum": [
@@ -2900,7 +3038,8 @@
       "SyncPullResponse": {
         "required": [
           "changes",
-          "cursor"
+          "cursor",
+          "hasMore"
         ],
         "type": "object",
         "properties": {
@@ -2914,6 +3053,10 @@
           "cursor": {
             "type": "string",
             "description": "The watermark to ask with next time. Opaque — the shape of the server's bookmark is not\npart of the contract."
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "Whether the server stopped early and has more waiting. When `true`, pull again\nwith Cursor as soon as this page is applied; when `false`,\nthe device is up to date as of Cursor."
           }
         },
         "description": "Everything that changed in a device's world since the cursor it asked with, and where it\nnow stands. The body of `GET /sync/pull?since={cursor}`."

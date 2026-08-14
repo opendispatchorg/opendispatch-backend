@@ -34,17 +34,30 @@ namespace OpenDispatch.Application.Abstractions;
 public interface ISyncChangeReader
 {
     /// <summary>
-    /// Everything in this technician's world stamped at or after <paramref name="since"/>.
+    /// One page of everything in this technician's world stamped at or after
+    /// <paramref name="since"/>.
     /// </summary>
     /// <param name="technician">Whose world.</param>
     /// <param name="since">
     /// The cursor the device last stored. <c>SyncCursor.Beginning</c> means it has never synced, and
-    /// gets everything.
+    /// gets everything from the beginning — a page at a time.
+    /// </param>
+    /// <param name="maxTransactions">
+    /// How many <em>transactions</em> a page may carry. Not a row count: the rows one transaction
+    /// wrote share a stamp and cannot be split across pages without a device that resumes forever
+    /// at the same cursor, so the reader stops between stamps and may overrun a row budget to do
+    /// it. See <see cref="SyncScopePage"/>.
     /// </param>
     /// <param name="ct">Cancellation.</param>
     /// <remarks>
     /// The caller must take the <em>new</em> cursor before calling this, never after: a change
-    /// committed between the two would be below a cursor taken second and would never be sent.
+    /// committed between the two would be below a cursor taken second and would never be sent. That
+    /// cursor is only the answer when the page turns out to be the whole of what was waiting —
+    /// otherwise the caller resumes from <see cref="SyncScopePage.Ceiling"/>.
     /// </remarks>
-    Task<SyncScopeChanges> ReadAsync(TechnicianId technician, SyncCursor since, CancellationToken ct);
+    Task<SyncScopePage> ReadAsync(
+        TechnicianId technician,
+        SyncCursor since,
+        int maxTransactions,
+        CancellationToken ct);
 }

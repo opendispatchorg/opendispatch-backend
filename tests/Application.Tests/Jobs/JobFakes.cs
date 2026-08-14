@@ -17,11 +17,29 @@ internal sealed class FakeJobRepository(FakeStore<Job> store, ITenantContext ten
 
     public void Add(Job job) => store.Stage(job);
 
-    public Task<IReadOnlyList<Job>> ListAsync(CancellationToken ct) =>
-        Task.FromResult<IReadOnlyList<Job>>(
-        [
-            .. store.Owned(tenant.OrgId).OrderBy(job => job.Window.Start).ThenBy(job => job.Id.Value),
-        ]);
+    /// <remarks>The real query's order, skip, take and count, restated in memory.</remarks>
+    public Task<Page<Job>> ListAsync(PageRequest page, CancellationToken ct)
+    {
+        var all = store.Owned(tenant.OrgId)
+            .OrderBy(job => job.Window.Start)
+            .ThenBy(job => job.Id.Value)
+            .ToList();
+
+        return Task.FromResult(new Page<Job>([.. all.Skip(page.Skip).Take(page.Size)], all.Count));
+    }
+
+    public async IAsyncEnumerable<Job> StreamAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        foreach (var job in store.Owned(tenant.OrgId)
+            .OrderBy(job => job.Window.Start)
+            .ThenBy(job => job.Id.Value))
+        {
+            yield return job;
+        }
+
+        await Task.CompletedTask.ConfigureAwait(false);
+    }
 
     /// <remarks>
     /// <para>

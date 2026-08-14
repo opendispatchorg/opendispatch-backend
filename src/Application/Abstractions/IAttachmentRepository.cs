@@ -43,5 +43,5 @@ public interface IAttachmentRepository
     /// included — a caller wanting bytes goes through <see cref="IAttachmentStorage"/> by the
     /// returned attachment's <c>StorageKey</c>.
     /// </summary>
-    Task<IReadOnlyList<Attachment>> ListAsync(CancellationToken ct);
+    IAsyncEnumerable<Attachment> StreamAsync(CancellationToken ct);
 }
