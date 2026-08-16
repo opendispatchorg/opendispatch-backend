@@ -17,7 +17,7 @@
       Reviewed and kept deliberately rather than inherited: staying here trades upstream fixes for
       the promise in Document 1 that somebody can build a product on this without a licence bill.
     -->
-    <PackageReference Include="MediatR" Version="12.5.0" />
+    <PackageReference Include="MediatR" Version="14.2.0" />
     <PackageReference Include="FluentValidation" Version="12.1.1" />
     <PackageReference Include="FluentValidation.DependencyInjectionExtensions" Version="12.1.1" />
     <!--
