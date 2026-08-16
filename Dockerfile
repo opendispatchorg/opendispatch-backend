@@ -15,7 +15,13 @@ WORKDIR /src
 
 # Restore against the project graph alone, so a change to a .cs file does not invalidate the
 # restore layer. Directory.Build.props comes first because every project imports it.
-COPY global.json Directory.Build.props ./
+#
+# `.editorconfig` is here because leaving it out made this build a *different* build from the one
+# CI and every developer runs: analyzer severities and the `generated_code = true` that exempts EF's
+# migrations both live in it, so without it the image applied rules to generated files that nothing
+# else did, and failed on code no local build objects to. A build that can only be reproduced in
+# Docker is one nobody debugs.
+COPY global.json Directory.Build.props .editorconfig ./
 COPY src/Domain/Domain.csproj src/Domain/
 COPY src/Scheduling/Scheduling.csproj src/Scheduling/
 COPY src/Application/Application.csproj src/Application/
@@ -32,6 +38,18 @@ RUN dotnet publish src/Api/Api.csproj -c Release -o /app --no-restore
 # ---- runtime ----------------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime
 WORKDIR /app
+
+# The one directory this application writes to, created and handed to the user that will run —
+# while this layer is still root, because after `USER` it cannot chown anything.
+#
+# Without this the image starts, serves, and answers **500 on every photograph a technician uploads**:
+# Docker creates the VOLUME's mount point as root, the non-root app cannot write into it, and
+# `Directory.CreateDirectory` at startup succeeds because the directory is already there. Found by
+# `make restore-drill` — no test could, because the tests write to a temp directory their own user
+# owns. A named volume takes its ownership from the image directory, so this fixes that case too; a
+# *bind* mount keeps the host's ownership, which is why the README says to chown it to 1654.
+RUN mkdir -p /var/lib/opendispatch/attachments \
+    && chown -R $APP_UID:$APP_UID /var/lib/opendispatch/attachments
 
 # The framework image ships a non-root user; using it means a container breakout is not root on the
 # host, and it costs nothing here because nothing this application writes lives inside the image.

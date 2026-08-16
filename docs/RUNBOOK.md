@@ -1,0 +1,265 @@
+# OpenDispatch runbook
+
+For whoever is on the end of the phone when a shop cannot dispatch. It assumes you can reach the
+host and the database and nothing else; every command here has been run.
+
+The [README](../README.md) says what the system *is* and how to configure it. This says what to do
+to it.
+
+---
+
+## The shape of a deployment
+
+| Piece | What it is | What happens without it |
+|---|---|---|
+| **The API** | One stateless process. `dotnet OpenDispatch.Api.dll`, or the image with no arguments. | Nothing serves. Nothing is lost. |
+| **Postgres** (with PostGIS) | Every business record: customers, jobs, the plan, invoices, the audit trail, the sync log. | The API answers 503 on `/health/ready` and 500 on everything else. Nothing is lost. |
+| **The attachment volume** | Photographs and signatures — the **only** data not in Postgres. | Uploads fail; existing photographs 404. `pg_dump` will not bring them back. |
+| **Redis** (optional) | The SignalR backplane, for more than one API instance. | With one instance: nothing. With two and no Redis: the live board silently shows one instance's changes only. |
+
+Everything else — the outbox sweep, the demo seeder, the CLI verbs — runs inside the API process or
+as the same image with a different argument.
+
+---
+
+## Deploying a new version
+
+Order matters, and it is the one thing here that cannot be improvised.
+
+```bash
+# 1. Apply the schema. One-shot, before the new version serves, and only once —
+#    two replicas rolling out together must not both run this.
+docker run --rm \
+  -e Database__ConnectionString="$CONNECTION" -e Jwt__SigningKey="$KEY" \
+  opendispatch-api:<new> migrate
+
+# 2. Roll the API.
+docker compose up -d api        # or your orchestrator's equivalent
+```
+
+`migrate` is idempotent, says whether it applied anything, and exits non-zero if it could not — so a
+deployment pipeline can gate on it. The host deliberately **does not** migrate itself at startup:
+two replicas starting together would race.
+
+**In-flight requests drain.** A `SIGTERM` (`docker stop`, a rolling update) lets requests already
+being handled finish before the process exits — verified: a `/schedule/optimize` call issued 0.2s
+before the stop returned 200 with a complete body, and the container took 0.58s to exit rather than
+dying at once.
+
+**Board clients reconnect by themselves.** A restart invalidates the SignalR connection — the old
+connection id answers 404 afterwards — and the client's automatic reconnect negotiates a new one.
+Nothing has to re-subscribe by hand: `DispatchHub.OnConnectedAsync` puts the connection back into
+its tenant's group, so a reconnected board resumes receiving without the client doing anything.
+Updates made *during* the gap are missed; the board's next full read is what fills them in.
+
+### Rolling back
+
+Roll the **image** back and leave the schema alone. Migrations here are forward-only in practice:
+every one so far is additive (new tables, new nullable columns), so an older image runs against a
+newer schema — it simply ignores what it does not know about. That is the property to preserve when
+writing a migration, and the reason a release that must be reversible should not drop or rename in
+the same deploy as the code that stops using the column.
+
+If a migration must be undone, it is `dotnet ef migrations script <to> <from>` from a working tree
+with the SDK, reviewed by a person, and applied by hand. There is no automatic down-migration path
+in the image, deliberately: an automated rollback of a schema is how data goes missing quietly.
+
+---
+
+## Backup
+
+Two commands, because a shop's data is in two places. Both, together, every time — an invoice whose
+photograph is gone is half a record.
+
+```bash
+# The database. -Fc is the custom format: compressed, and restorable selectively.
+docker exec <postgres> pg_dump -U opendispatch -d opendispatch -Fc > opendispatch-$(date +%F).dump
+
+# The attachments. Whatever holds the volume — this is the Docker case.
+docker run --rm -v opendispatch-attachments:/data:ro -v "$PWD:/backup" busybox \
+  tar czf /backup/attachments-$(date +%F).tar.gz -C /data .
+```
+
+Do **not** narrow the dump with `-n public`, however tidy it looks: schema filtering drops the
+`CREATE EXTENSION postgis` along with everything else, and the restore then fails on the first
+`geography` column. A backup that appears to work and cannot be restored is worse than none.
+
+Keep them together and treat them as one artifact. Test them with the drill below.
+
+**Backups and erasure.** A customer erased today is still in yesterday's backup, and nothing here can
+reach into it. That is a retention-policy decision, not a software one: decide how long backups live,
+write it down, and know that restoring an old one re-creates data somebody asked you to forget.
+
+---
+
+## Restore
+
+Into an **empty** database, never over a live one.
+
+```bash
+# 1. An empty database, from template0 rather than the image's initialised one.
+docker exec <postgres> psql -U opendispatch -d postgres -c 'DROP DATABASE opendispatch'
+docker exec <postgres> createdb -U opendispatch -T template0 opendispatch
+
+# 2. The dump. --clean --if-exists so the restore owns every object it creates;
+#    --exit-on-error so a partial restore is a failure rather than a warning.
+docker cp opendispatch-2026-08-16.dump <postgres>:/tmp/restore.dump
+docker exec <postgres> pg_restore -U opendispatch -d opendispatch \
+  --no-owner --clean --if-exists --exit-on-error /tmp/restore.dump
+
+# 3. The attachments.
+docker run --rm -v opendispatch-attachments:/data -v "$PWD:/backup:ro" busybox \
+  tar xzf /backup/attachments-2026-08-16.tar.gz -C /data
+
+# 4. Start the API. No `migrate` — the dump carries the schema and the migration history,
+#    and the API refuses to serve against a schema it does not recognise, which is the check.
+docker compose up -d api
+```
+
+Then confirm it by reading business back: sign in, open a job you know, and **fetch one photograph**
+— `GET /attachments/{id}/content`. The photograph is the half a database-only backup silently loses,
+so it is the half worth checking by hand.
+
+### The drill
+
+```bash
+make restore-drill
+```
+
+Stands up a deployment, does a shop's work through the API (customer, job, visit, photograph,
+invoice), backs both halves up, restores them into scratch containers, and reads the same business
+back out — including the photograph, compared byte for byte. Everything it creates is named
+`opendispatch-drill-*` and removed on exit.
+
+**Run it after any change to the image, the schema, or the backup procedure, and once a quarter
+regardless.** It is the only thing in this repository that tests the parts of a deployment no unit
+test can see; the first time it ran it found two defects in the shipped image.
+
+---
+
+## Routine operations
+
+| Task | Command |
+|---|---|
+| **Create a login** | `<image> create-user --username <name> --org "<Organization>" --role <Admin\|Dispatcher\|Technician> [--technician <guid>]` — the password is read from stdin if `--password` is not given, which is how to keep it out of your shell history. Running it again for an existing username **replaces** that login: the only password reset there is. |
+| **Somebody leaves** | `<image> disable-user --username <name>`. The login stops working; the user row stays, so the audit trail can still say what they did. |
+| **Somebody returns** | `create-user` again with the same username: it switches the login back on with a new password. |
+| **Erase a customer** | `POST /customers/{id}/erase` as an admin. See the README for exactly what goes and what stays. It is irreversible and it deletes photographs from the disk. |
+| **Prune protocol tables** | `<image> prune --days 30`, from cron. Deletes the sync op log and removal notes older than the window — bookkeeping, not business records. Nothing else in this system is ever pruned. |
+
+Every one of these except `prune` shows up in the audit trail or the logs with a name attached.
+
+### Rotating the signing key
+
+`Jwt:SigningKey` signs every token. Changing it **invalidates every token in the field at once**:
+every dispatcher and every phone is signed out and must sign in again. There is no second-key
+overlap window — one key, one moment.
+
+So: rotate at a quiet hour, tell people first, and roll all instances together (an instance still
+holding the old key would accept tokens the new ones reject, which is worse than a clean cutover).
+Rotate immediately and without ceremony if the key has leaked — a leaked signing key is somebody
+able to mint an admin token for any organization.
+
+---
+
+## When something is wrong
+
+### Start here
+
+```bash
+curl -s http://<host>:8080/health/ready   # 200 = serving, 503 = take it out of rotation
+docker logs --since 15m <api> | tail -50
+```
+
+Every log line and every error body carries the same `traceId` (`X-Correlation-ID`). If a shop can
+give you one from an error message, it is the fastest way into the logs.
+
+### `/health/ready` is 503
+
+The API cannot reach Postgres, or a health check is failing. It recovers on its own when the
+database comes back — **do not restart the API for this**; a restart loses nothing but tells you
+nothing either. Check the database first (`pg_isready`, disk, connection count). The API retries
+transient failures three times over five seconds before answering at all, so a 503 means the
+database has been unreachable for longer than a blip.
+
+### Rows are accumulating in `outbox_messages`
+
+```sql
+SELECT type, count(*), min(occurred_at), max(attempts), left(last_error, 200)
+FROM outbox_messages GROUP BY type, left(last_error, 200) ORDER BY 2 DESC;
+```
+
+Every row is a reaction that could not be delivered — a stop that should have been withdrawn, a
+board that was not told. A handful that clear within a minute are normal (the sweep runs every ten
+seconds after a thirty-second grace). Rows that stay, with a rising `attempts` and a `last_error`,
+are a poison message: read the error, fix the cause, and the next sweep delivers them.
+
+**The one shape that never clears by itself** is a payload naming an event type this build does not
+have — a row written before a rename. Those need the old build, or a deliberate delete once somebody
+has decided the reaction no longer matters. Deleting from this table is destroying evidence of work
+that did not happen; do it consciously.
+
+Turning the sweep off (`Outbox:Enabled=false`) is an incident measure while dealing with a poison
+message, not a setting. With it off, a reaction lost to a failure stays lost.
+
+### A technician's phone says its work was refused
+
+Conflicts are answered with a 200 and a per-operation reason — that is the protocol, not a failure.
+Look at `opendispatch.sync.ops.conflicted`, tagged with the reason:
+
+| Tag (the error code) | What it means | What to do |
+|---|---|---|
+| `sync.notesSuperseded` | The office wrote a newer note. Last-write-wins by the writer's clock. | Nothing. Working as designed. |
+| `job.illegalTransition` | The phone asked for a status the job cannot move to — usually a stale copy. | Nothing; the phone finds out by pulling. |
+| `job.erased` | The customer was erased while the phone was offline. | Nothing. The refusal is what keeps the erasure honest. |
+| `sync.unsupportedOperation` / `sync.malformedOperation` | A client sent something this build does not know, or could not read. | A client/server version mismatch. Check what is deployed. |
+| `job.notFound` | The job is not this tenant's, or no longer exists. | A phone signed in as the wrong organization, or a very stale device. |
+
+A phone whose clock is fast is the one that produces conflicts nobody can explain. The raw client
+timestamp is kept on the op-log row exactly for this:
+
+```sql
+SELECT technician_id, type, client_ts, applied_at, applied_at - client_ts AS skew
+FROM sync_ops ORDER BY applied_at DESC LIMIT 50;
+```
+
+### Photograph uploads fail
+
+The attachment volume is not writable by the API's user (uid 1654). With a **named** volume this is
+handled by the image; with a **bind** mount the host directory's ownership wins:
+
+```bash
+chown -R 1654:1654 /path/to/attachments
+```
+
+An unwritable volume does not stop the host from starting — the directory exists, so the startup
+check passes — and shows up as a 500 on the first upload of the day.
+
+### The board is not updating for some people
+
+Two instances without `SignalR:Redis`. Each holds its own connections, so a change made through one
+never reaches a client connected to the other, and nothing errors. The startup log says which mode
+the host is in. Set `SignalR:Redis` and roll.
+
+### Sign-ins are being refused in bulk
+
+Check the login rate limiter (`RateLimit:*`, 20 attempts per address per 300s by default). An office
+behind one NAT address can exhaust it legitimately — raise it. A single address exhausting it
+repeatedly from outside is an attack, and the limiter is doing its job.
+
+---
+
+## Known limits, so you find them here rather than at 2am
+
+- **Two instances need shared attachment storage.** The local-disk adapter is one machine's disk. Two
+  API instances without a shared volume will store a photograph on one and 404 it from the other,
+  silently. Shared volume now; an object-store adapter is one class and one registration when it is
+  worth it.
+- **Disabling a user does not revoke the token they hold.** Up to `Jwt:ExpiryMinutes` (720 by
+  default) of continued access. Lower it if that is unacceptable; rotate the signing key if it is
+  urgent, accepting that everybody else is signed out too.
+- **Nothing here is multi-region and nothing fails over automatically.** One database, one API
+  deployment. Recovery from losing the database is the restore procedure above, and its speed is
+  whatever your backup schedule and the drill say it is.
+- **The audit trail records who did what, never the values.** "Who cancelled job X at 14:02" is
+  answerable; "what was the phone number before it changed" is not, deliberately — see the README.

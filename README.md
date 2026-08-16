@@ -104,12 +104,15 @@ Four things a real deployment owns:
 | **Migrations** | Run `migrate` as a one-shot **before** the new version serves, and only once — the host deliberately does not migrate itself on startup, because two replicas rolling out together would race. It is idempotent and says whether it applied anything. |
 | **The first login** | Nothing creates users over HTTP, by design. `create-user` is the only way in, and running it again for an existing username **replaces** that login — which is also the only password reset this system has. |
 | **Somebody leaving** | `disable-user --username <name>` switches a login off; the user row stays, so the audit trail can still say what they did, and `create-user` for the same name switches it back on with a new password. **It does not revoke the token they already hold:** authorization is a signed JWT and nothing reads the user store per request, so a disabled person can keep calling until that token expires — bounded by `Jwt:ExpiryMinutes` (`720` — twelve hours — by default) and no longer. Set that to the longest window you are willing to have; closing the gap entirely needs short tokens plus refresh, which this does not have. |
-| **Attachments** | Photographs and signatures are files, under `Attachments__Root` (`/var/lib/opendispatch/attachments` in the image). Mount a volume, back it up with the database, and note that two API instances need *shared* storage — the local-disk adapter is one machine's disk until an object-store adapter replaces it. |
+| **Attachments** | Photographs and signatures are files, under `Attachments__Root` (`/var/lib/opendispatch/attachments` in the image). Mount a volume and back it up with the database. A **named** volume is handled by the image; a **bind** mount keeps the host directory's ownership, so `chown -R 1654:1654` it or the first upload of the day answers 500. Two API instances need *shared* storage — the local-disk adapter is one machine's disk until an object-store adapter replaces it. |
 | **TLS** | Terminated by a proxy in front; the container serves plain HTTP on 8080. Set `ReverseProxy:Enabled` so the host believes the forwarded address, and only when it is unreachable except through that proxy. |
 | **More than one instance** | Set `SignalR:Redis`. SignalR keeps its groups in the memory of the process holding the connection, so **without a backplane the live board is correct only while there is exactly one API instance** — a dispatcher connected to one would never see a change made through another, silently. One instance is a supported way to run this; two without Redis is not. The host says which it is in its startup log. |
 
 Back up the database and the attachment volume together: an invoice whose photograph is missing is
-half a record, and Document 1's promise is that the business owns all of it.
+half a record, and Document 1's promise is that the business owns all of it. The exact commands, and
+the restore that goes with them, are in [docs/RUNBOOK.md](docs/RUNBOOK.md) — and `make restore-drill`
+runs the whole cycle against scratch containers, so the procedure is one that has been executed
+rather than one that has been written down.
 
 ### Erasing a customer
 
@@ -201,6 +204,9 @@ The schema lives in `src/Infrastructure/Persistence/Migrations` and is generated
 the `migrate` verb in a deployment. Integration tests apply the same migrations to a throwaway
 container, so a migration that will not apply from scratch fails the suite rather than a
 deployment.
+
+What to do when something is wrong — deploy, roll back, restore, rotate the signing key, and what
+each alert means — is in [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
 Testing conventions and the shared harness are described in [TESTING.md](TESTING.md).
 

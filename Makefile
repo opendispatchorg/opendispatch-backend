@@ -21,7 +21,7 @@ OPENAPI_EXPORT := src/Api/obj/openapi/Api.json
 EF := dotnet ef --project src/Infrastructure --startup-project src/Api
 
 .PHONY: up run migrate migration seed test test-fast test-watch gen-contracts check-contracts \
-	check-contracts-sample publish-contracts image up-app down-app
+	check-contracts-sample publish-contracts image up-app down-app restore-drill
 
 ## up: start Postgres/PostGIS via docker compose
 up:
@@ -68,6 +68,15 @@ migration:
 ## with a claim this Makefile made on the host's behalf.
 seed:
 	dotnet run --project src/Api -- seed
+
+## restore-drill: prove a backup restores, by taking one and restoring it (Document 3, workstream J)
+##
+## Stands up a deployment, does a shop's work through the API, backs up the database and the
+## attachment volume, restores both into scratch containers, and reads the business back out of the
+## restored system — the photograph's bytes included, which is the half `pg_dump` does not carry.
+## Everything it creates is named `opendispatch-drill-*` and removed on exit. See docs/RUNBOOK.md.
+restore-drill:
+	./scripts/restore-drill.sh
 
 ## image: build the deployable container image
 ##
