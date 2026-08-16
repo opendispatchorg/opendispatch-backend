@@ -2,6 +2,7 @@ using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Infrastructure.Attachments;
 using OpenDispatch.Infrastructure.Auth;
+using OpenDispatch.Infrastructure.Events;
 using OpenDispatch.Infrastructure.Payments;
 using OpenDispatch.Infrastructure.Persistence;
 using OpenDispatch.Infrastructure.Provisioning;
@@ -39,13 +40,18 @@ public static class InfrastructureRegistration
     /// <param name="jwtSigningOptions">
     /// Reads the JWT signing key, issuer, audience and expiry once the container is built.
     /// </param>
+    /// <param name="outbox">
+    /// How the outbox sweep behaves, or <see langword="null"/> for the defaults a deployment wants.
+    /// A test suite is the only caller with a reason to change them — see <c>OutboxOptions</c>.
+    /// </param>
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
         Func<IServiceProvider, string> connectionString,
         Func<IServiceProvider, string> attachmentRoot,
-        Func<IServiceProvider, JwtSigningOptions> jwtSigningOptions) =>
+        Func<IServiceProvider, JwtSigningOptions> jwtSigningOptions,
+        OutboxOptions? outbox = null) =>
         services
-            .AddPersistence(connectionString)
+            .AddPersistence(connectionString, outbox)
             .AddSystemClock()
 
             // The user store, password hasher and JWT issuer (Document 2 §7, step 44). The store

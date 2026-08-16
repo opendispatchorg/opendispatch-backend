@@ -153,7 +153,14 @@ Optional, and doing nothing until set:
 | `RateLimit:*` | Sign-in attempts per address per window (`20` per `300`s). Raise it for an office behind one NAT address. |
 | `ReverseProxy:Enabled` | Read `X-Forwarded-For`/`-Proto`. Turn it on **only** when this host is unreachable except through the proxy, or narrow it with `KnownProxies`/`KnownNetworks`. |
 | `SignalR:Redis` | A StackExchange connection string for the dispatch board's backplane. Unset means in-process, which is correct for exactly one instance — see "More than one instance" above. |
+| `Outbox:*` | How the delivery sweep behaves — `Enabled` (default true), `IntervalSeconds` (10), `GraceSeconds` (30), `BatchSize` (50). Turning it off is an incident measure while a poison message is dealt with, not a configuration: with it off, a reaction lost to a failure or a restart stays lost. |
 | `Sync:PullPageTransactions` | How much of a technician's change stream one `GET /sync/pull` may carry, counted in transactions (default `200`). Lower it for a fleet on poor connections; a device simply pulls more often, because a capped page says `hasMore`. |
+
+Domain-event reactions are delivered through an outbox: the event is written in the same
+transaction as the work that raised it, published in-process the moment that commits, and swept up
+afterwards if that publish never happened. **A row that stays in `outbox_messages` is the system
+telling you something could not be delivered** — it carries the error and the attempt count, and the
+size of that table is the alert worth having.
 
 Metrics are published on the `OpenDispatch` meter (`System.Diagnostics.Metrics`) — optimize
 latency as `opendispatch.scheduling.optimize.duration`, and sync as

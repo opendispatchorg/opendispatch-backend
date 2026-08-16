@@ -14,6 +14,7 @@ using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.Organizations;
 using OpenDispatch.Domain.Technicians;
 using OpenDispatch.Domain.ValueObjects;
+using OpenDispatch.Infrastructure.Events;
 using OpenDispatch.Infrastructure.Persistence.Conversions;
 
 namespace OpenDispatch.Infrastructure.Persistence;
@@ -94,6 +95,15 @@ public sealed class AppDbContext : DbContext
     /// what went.
     /// </summary>
     public DbSet<SyncRemoval> SyncRemovals => Set<SyncRemoval>();
+
+    /// <summary>
+    /// Domain events waiting to be delivered, written in the transaction that raised them.
+    /// </summary>
+    /// <remarks>
+    /// Not a business record and not tenant-scoped: it is how a reaction survives a process that
+    /// dies between committing work and announcing it. See <c>OutboxMessage</c>.
+    /// </remarks>
+    public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
 
     /// <summary>
     /// Who may sign in. Not an aggregate and not a tenant-owned business record — a login is how a

@@ -29,6 +29,7 @@ using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Auth;
 using OpenDispatch.Infrastructure;
 using OpenDispatch.Infrastructure.Auth;
+using OpenDispatch.Infrastructure.Events;
 using OpenDispatch.Infrastructure.Seeding;
 using Serilog;
 
@@ -56,6 +57,7 @@ try
     builder.Services.AddDatabaseOptions(builder.Configuration, builder.Environment);
     builder.Services.AddAttachmentOptions(builder.Configuration);
     builder.Services.AddSyncOptions(builder.Configuration);
+    builder.Services.AddOutboxOptions(builder.Configuration);
     builder.Services.AddJwtOptions(builder.Configuration, builder.Environment);
 
     // The request pipeline every feature slice rides on: MediatR, the validators, and the
@@ -76,7 +78,12 @@ try
                 jwt.Issuer,
                 jwt.Audience,
                 TimeSpan.FromMinutes(jwt.ExpiryMinutes));
-        });
+        },
+
+        // The outbox sweep's own settings. Read here rather than lazily for the reason the
+        // backplane is: a hosted service's schedule is a structural choice about the container.
+        // Bound and validated above, so a host with a nonsense interval fails at startup.
+        Outbox(builder.Configuration));
 
     // The dev-only demo dataset (Document 3, step 53). Registers nothing outside Development, so
     // the seeder is not merely refused on a production host — it is not there. The hosted service
@@ -369,6 +376,20 @@ try
 
     app.Run();
     return 0;
+
+    // The outbox sweep's settings, read from the configuration this host has at registration time.
+    // A local function rather than a statement, so it sits with its one caller.
+    static OutboxOptions Outbox(IConfiguration configuration)
+    {
+        var settings = configuration.GetSection(OutboxDeliveryOptions.SectionName).Get<OutboxDeliveryOptions>()
+            ?? new OutboxDeliveryOptions();
+
+        return new OutboxOptions(
+            settings.Enabled,
+            TimeSpan.FromSeconds(settings.IntervalSeconds),
+            TimeSpan.FromSeconds(settings.GraceSeconds),
+            settings.BatchSize);
+    }
 }
 // HostAbortedException is not a failure: it is how the EF Core design-time tools stop the host
 // once they have the service provider they came for. Catching it would turn every

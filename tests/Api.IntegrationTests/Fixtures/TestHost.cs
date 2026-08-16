@@ -4,6 +4,7 @@ using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Infrastructure;
 using OpenDispatch.Infrastructure.Auth;
+using OpenDispatch.Infrastructure.Events;
 
 namespace OpenDispatch.Api.IntegrationTests.Fixtures;
 
@@ -30,7 +31,7 @@ internal static class TestHost
     /// Attachment content goes to a directory of this run's own, deleted with the fixture. A test
     /// that wrote photographs into the repository would be one nobody notices until it is committed.
     /// </remarks>
-    public static IServiceCollection Over(PostgresFixture postgres) =>
+    public static IServiceCollection Over(PostgresFixture postgres, OutboxOptions? outbox = null) =>
         new ServiceCollection()
             .AddLogging()
             .AddApplication()
@@ -43,7 +44,12 @@ internal static class TestHost
                     "test-host-signing-key-not-for-production-use-ever",
                     "opendispatch-tests",
                     "opendispatch-tests",
-                    TimeSpan.FromHours(1)))
+                    TimeSpan.FromHours(1)),
+
+                // The sweep is off unless a test asks for it. These containers have no host to run
+                // a background service anyway, and the one class that tests the outbox drives the
+                // dispatcher directly rather than waiting for a timer.
+                outbox ?? new OutboxOptions(Enabled: false))
             // Last, so it replaces the real tenant context: nothing resolves one from a
             // principal until step 45.
             .AddScoped<TestTenantContext>()

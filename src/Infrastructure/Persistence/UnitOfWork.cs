@@ -71,6 +71,7 @@ internal sealed class UnitOfWork(AppDbContext context, DomainEventDispatcher dis
 
     public async Task<IUnitOfWorkTransaction> BeginTransactionAsync(CancellationToken ct) =>
         new UnitOfWorkTransaction(
+            context,
             await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false),
             dispatcher);
 

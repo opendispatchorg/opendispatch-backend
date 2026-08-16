@@ -36,15 +36,28 @@ public static class PersistenceRegistration
     /// because the host validates its configuration on start, and that validated value does not
     /// exist yet at the point registration runs.
     /// </param>
+    /// <param name="outbox">
+    /// How the outbox sweep behaves, or <see langword="null"/> for the defaults a deployment wants.
+    /// A test suite is the only caller with a reason to change them — see <c>OutboxOptions</c>.
+    /// </param>
     public static IServiceCollection AddPersistence(
         this IServiceCollection services,
-        Func<IServiceProvider, string> connectionString)
+        Func<IServiceProvider, string> connectionString,
+        OutboxOptions? outbox = null)
     {
         // Scoped, all three: one queue, one dispatcher and one interceptor per request, sharing
         // the lifetime of the context that fills the queue and the transaction that empties it.
         services.AddScoped<DomainEventQueue>();
         services.AddScoped<DomainEventDispatcher>();
         services.AddScoped<DomainEventInterceptor>();
+
+        // The sweep that delivers what a request did not — a subscriber that threw, a host killed
+        // between committing work and announcing it. A hosted service rather than a verb, unlike
+        // `prune`, because it is not a scheduled chore: it is the second half of every write, and
+        // it claims its rows in a way two instances can share (see OutboxDispatcher).
+        services.AddSingleton(outbox ?? new OutboxOptions());
+        services.AddScoped<OutboxSweep>();
+        services.AddHostedService<OutboxDispatcher>();
 
         services.AddDbContext<AppDbContext>((provider, options) => options
             .UseNpgsql(

@@ -12,6 +12,7 @@ namespace OpenDispatch.Infrastructure.Persistence;
 /// <c>await using</c> in the behavior is the guarantee rather than the tidy-up.
 /// </remarks>
 internal sealed class UnitOfWorkTransaction(
+    AppDbContext context,
     IDbContextTransaction transaction,
     DomainEventDispatcher dispatcher)
     : IUnitOfWorkTransaction
@@ -23,7 +24,11 @@ internal sealed class UnitOfWorkTransaction(
         // Only now is what happened a fact, so only now may anything be told about it. Publishing
         // on the save instead would push a board event, or email a customer, for a job whose
         // completion the next line could still roll back.
-        await dispatcher.DispatchAsync(ct).ConfigureAwait(false);
+        var delivered = await dispatcher.DispatchAsync(ct).ConfigureAwait(false);
+
+        // And only now are the outbox rows for those events redundant. This is the ordinary path:
+        // the sweep exists for the times it does not run.
+        await OutboxTrail.ForgetAsync(context, delivered, ct).ConfigureAwait(false);
     }
 
     public Task RollbackAsync(CancellationToken ct) => transaction.RollbackAsync(ct);
