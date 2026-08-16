@@ -56,6 +56,17 @@ public interface IJobRepository
     IAsyncEnumerable<Job> StreamAsync(CancellationToken ct);
 
     /// <summary>
+    /// Fetches every job ever booked for one customer, for changing.
+    /// </summary>
+    /// <remarks>
+    /// For erasure, and unpaged because of what it is for: a job carries its own copy of the
+    /// customer's coordinates and whatever was written about the visit, so erasing a person means
+    /// reaching all of their jobs rather than a page of them. It is bounded by one customer's
+    /// history with one shop, and it is a rare, deliberate, admin-only act.
+    /// </remarks>
+    Task<IReadOnlyList<Job>> ListForCustomerAsync(CustomerId customer, CancellationToken ct);
+
+    /// <summary>
     /// Fetches the work the scheduler is allowed to plan over a horizon — everything the
     /// optimiser needs to build a problem, and everything the emergency-insert path needs to
     /// reconstruct the day as it stands.

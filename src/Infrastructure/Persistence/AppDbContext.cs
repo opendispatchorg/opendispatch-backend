@@ -2,6 +2,7 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata;
 using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Application.Auditing;
 using OpenDispatch.Application.Auth;
 using OpenDispatch.Application.Sync;
 using OpenDispatch.Domain.Assignments;
@@ -95,6 +96,11 @@ public sealed class AppDbContext : DbContext
     /// what went.
     /// </summary>
     public DbSet<SyncRemoval> SyncRemovals => Set<SyncRemoval>();
+
+    /// <summary>
+    /// Who did what: one entry per command that changed anything (see <c>AuditBehavior</c>).
+    /// </summary>
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
 
     /// <summary>
     /// Domain events waiting to be delivered, written in the transaction that raised them.

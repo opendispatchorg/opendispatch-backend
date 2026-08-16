@@ -26,10 +26,27 @@ public static class CustomerErrors
     /// <summary>The code every "that customer has no such location" failure carries.</summary>
     public const string LocationNotFoundCode = "customer.locationNotFound";
 
+    /// <summary>The code every "that customer has been erased" failure carries.</summary>
+    public const string ErasedCode = "customer.erased";
+
     /// <summary>Names a customer this tenant does not have.</summary>
     /// <param name="id">The customer that was asked for.</param>
     public static Error NotFound(CustomerId id) =>
         Error.NotFound(NotFoundCode, $"There is no customer {id.Value}.");
+
+    /// <summary>
+    /// Says that the customer is still on the books but has been erased, so nothing may be written
+    /// about them.
+    /// </summary>
+    /// <remarks>
+    /// A conflict rather than a not-found: the record exists and the caller is not mistaken about
+    /// that — what has changed is that it may no longer be added to. The aggregate refuses this
+    /// anyway; this is what turns the refusal into an answer instead of a 500, and gives a client
+    /// something to branch on other than English.
+    /// </remarks>
+    /// <param name="id">The customer that was asked about.</param>
+    public static Error Erased(CustomerId id) =>
+        Error.Conflict(ErasedCode, $"Customer {id.Value} has been erased and cannot be changed.");
 
     /// <summary>
     /// Names a service location the customer does not have.

@@ -131,5 +131,6 @@ public static class JobEndpoints
         job.WindowEnd,
         job.EstimatedDuration,
         (Contracts.JobStatus)job.Status,
-        job.Notes);
+        job.Notes,
+        job.ErasedAt);
 }

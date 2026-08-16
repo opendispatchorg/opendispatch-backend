@@ -103,12 +103,32 @@ Four things a real deployment owns:
 |---|---|
 | **Migrations** | Run `migrate` as a one-shot **before** the new version serves, and only once — the host deliberately does not migrate itself on startup, because two replicas rolling out together would race. It is idempotent and says whether it applied anything. |
 | **The first login** | Nothing creates users over HTTP, by design. `create-user` is the only way in, and running it again for an existing username **replaces** that login — which is also the only password reset this system has. |
+| **Somebody leaving** | `disable-user --username <name>` switches a login off; the user row stays, so the audit trail can still say what they did, and `create-user` for the same name switches it back on with a new password. **It does not revoke the token they already hold:** authorization is a signed JWT and nothing reads the user store per request, so a disabled person can keep calling until that token expires — bounded by `Jwt:ExpiryMinutes` (`720` — twelve hours — by default) and no longer. Set that to the longest window you are willing to have; closing the gap entirely needs short tokens plus refresh, which this does not have. |
 | **Attachments** | Photographs and signatures are files, under `Attachments__Root` (`/var/lib/opendispatch/attachments` in the image). Mount a volume, back it up with the database, and note that two API instances need *shared* storage — the local-disk adapter is one machine's disk until an object-store adapter replaces it. |
 | **TLS** | Terminated by a proxy in front; the container serves plain HTTP on 8080. Set `ReverseProxy:Enabled` so the host believes the forwarded address, and only when it is unreachable except through that proxy. |
 | **More than one instance** | Set `SignalR:Redis`. SignalR keeps its groups in the memory of the process holding the connection, so **without a backplane the live board is correct only while there is exactly one API instance** — a dispatcher connected to one would never see a change made through another, silently. One instance is a supported way to run this; two without Redis is not. The host says which it is in its startup log. |
 
 Back up the database and the attachment volume together: an invoice whose photograph is missing is
 half a record, and Document 1's promise is that the business owns all of it.
+
+### Erasing a customer
+
+`POST /customers/{id}/erase`, admin only, is how a shop answers a request to be forgotten. It is
+**not** a delete: the customer's row, their jobs, their stops and their invoices stay, dated and
+still totalling what they totalled, because a shop is required to keep its financial records. What
+goes is everything that says who they were — their name, their contact details, the label, address
+and coordinates of every site, the coordinates each job carries its own copy of, whatever the
+technician wrote about the visit, and the photographs, whose **bytes are deleted from the attachment
+store** and not merely unlinked.
+
+After it, nothing can write them back: the office cannot rename them or add a site, no new job can be
+booked for them, and a phone that was out of signal when the erasure ran has its late note or
+photograph refused rather than applied. The tombstoned record reads `[erased]`, and `erasedAt` on
+the customer and on each job — in the API and in `GET /export` — says it was an answered request
+rather than a row nobody filled in.
+
+The one thing it cannot reach is a backup taken before it ran. Erasure is a live-system operation;
+what your retention policy does about older backups is a decision this software cannot make.
 
 One thing to schedule, from cron or its equivalent:
 
@@ -155,6 +175,13 @@ Optional, and doing nothing until set:
 | `SignalR:Redis` | A StackExchange connection string for the dispatch board's backplane. Unset means in-process, which is correct for exactly one instance — see "More than one instance" above. |
 | `Outbox:*` | How the delivery sweep behaves — `Enabled` (default true), `IntervalSeconds` (10), `GraceSeconds` (30), `BatchSize` (50). Turning it off is an incident measure while a poison message is dealt with, not a configuration: with it off, a reaction lost to a failure or a restart stays lost. |
 | `Sync:PullPageTransactions` | How much of a technician's change stream one `GET /sync/pull` may carry, counted in transactions (default `200`). Lower it for a fleet on poor connections; a device simply pulls more often, because a capped page says `hasMore`. |
+
+Every command that succeeds writes one row to `audit_entries` — who did it, in which organization,
+what the act was, the ids it named, and when — inside the same transaction as the work, so an audit
+entry cannot survive a command that rolled back. **It records the act, never the values:** no names,
+no addresses, no note text. That is what keeps the trail and erasure compatible — a trail holding
+personal data would be a second, append-only copy of exactly what an erasure has to remove. Nothing
+prunes this table; it is a business record, not bookkeeping.
 
 Domain-event reactions are delivered through an outbox: the event is written in the same
 transaction as the work that raised it, published in-process the moment that commits, and swept up

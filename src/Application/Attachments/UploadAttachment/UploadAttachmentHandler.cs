@@ -59,6 +59,13 @@ internal sealed class UploadAttachmentHandler(
             return Result.Failure<UploadedAttachment>(JobErrors.NotFound(command.JobId));
         }
 
+        // A photograph is of somebody's home, so a capture that arrives after they were erased —
+        // from a phone that had been out of signal since before it — is refused rather than stored.
+        if (job.IsErased)
+        {
+            return Result.Failure<UploadedAttachment>(JobErrors.Erased(command.JobId));
+        }
+
         var attachment = Attachment.Create(
             command.AttachmentId,
             tenant.OrgId,

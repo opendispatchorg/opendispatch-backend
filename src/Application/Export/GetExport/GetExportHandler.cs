@@ -82,7 +82,8 @@ internal sealed class GetExportHandler(
             location.Label,
             location.Address,
             location.Point.Lat,
-            location.Point.Lng))]);
+            location.Point.Lng))],
+        customer.ErasedAt);
 
     private static JobSummary ProjectJob(Job job) => new(
         job.Id,
@@ -96,7 +97,8 @@ internal sealed class GetExportHandler(
         job.Window.End,
         job.EstimatedDuration,
         job.Status,
-        job.Notes);
+        job.Notes,
+        job.ErasedAt);
 
     private static AssignmentSummary ProjectAssignment(Assignment assignment) => new(
         assignment.Id,

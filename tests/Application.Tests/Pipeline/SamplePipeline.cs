@@ -3,7 +3,9 @@ using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Application.Auth;
 using OpenDispatch.Application.Results;
+using OpenDispatch.Domain.Identifiers;
 
 namespace OpenDispatch.Application.Tests.Pipeline;
 
@@ -25,6 +27,7 @@ namespace OpenDispatch.Application.Tests.Pipeline;
 internal sealed class SamplePipeline : IAsyncDisposable
 {
     private readonly PipelineJournal _journal = new();
+    private readonly Fakes.FakeAuditLog _audit = new();
     private readonly RecordingLoggerProvider _logs = new();
     private readonly ServiceProvider _services;
     private readonly IServiceScope _scope;
@@ -39,6 +42,11 @@ internal sealed class SamplePipeline : IAsyncDisposable
         _services = new ServiceCollection()
             .AddSingleton(_journal)
             .AddLogging(logging => logging.SetMinimumLevel(LogLevel.Debug).AddProvider(_logs))
+            .AddSingleton<ITenantContext>(new Fakes.FixedTenant(OrgId.New()))
+            .AddSingleton<IClock>(new Fakes.FixedClock())
+            .AddSingleton(_audit)
+            .AddSingleton<IAuditLog>(_audit)
+            .AddSingleton<ICallerContext>(new Fakes.FixedCaller(UserId.New(), "dana@vance.example"))
             .AddScoped<IUnitOfWork>(provider =>
                 new RecordingUnitOfWork(provider.GetRequiredService<PipelineJournal>())
                 {
@@ -55,6 +63,9 @@ internal sealed class SamplePipeline : IAsyncDisposable
 
     /// <summary>What the pipeline did, in order.</summary>
     public PipelineJournal Journal => _journal;
+
+    /// <summary>What the pipeline wrote down about what was done.</summary>
+    public Fakes.FakeAuditLog Audit => _audit;
 
     /// <summary>What the pipeline logged.</summary>
     public IReadOnlyList<RecordedLog> Logs => _logs.Entries;

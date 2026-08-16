@@ -31,6 +31,11 @@ internal sealed class AddServiceLocationHandler(ICustomerRepository customers)
             return Result.Failure<ServiceLocationId>(CustomerErrors.NotFound(command.CustomerId));
         }
 
+        if (customer.IsErased)
+        {
+            return Result.Failure<ServiceLocationId>(CustomerErrors.Erased(command.CustomerId));
+        }
+
         var location = customer.AddLocation(
             command.Label,
             command.Address,

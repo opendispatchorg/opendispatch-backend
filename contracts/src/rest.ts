@@ -180,6 +180,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/customers/{id}/erase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["EraseCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/customers/{id}/locations": {
         parameters: {
             query?: never;
@@ -761,6 +777,13 @@ export interface components {
             phone: null | string;
             /** @description The places they want work done, in the order they were added. */
             locations: components["schemas"]["ServiceLocationResponse"][];
+            /**
+             * Format: date-time
+             * @description When they asked to be forgotten, or `null` if they did not. A client showing a
+             *     customer whose fields all read `[erased]` can say why, and an export answering a subject
+             *     access request carries the erasure rather than looking like data nobody filled in.
+             */
+            erasedAt: null | string;
         };
         /** @description A customer as `GET /customers` lists them: enough to recognise and to reach, and nothing else. */
         CustomerSummaryResponse: {
@@ -1000,6 +1023,12 @@ export interface components {
             status: components["schemas"]["JobStatus"];
             /** @description What a technician wrote about it, or `null` if nobody has. */
             notes: null | string;
+            /**
+             * Format: date-time
+             * @description When this job's customer was erased, or `null` if they were not. A phone reading
+             *     this knows the job is finished business and that nothing more may be written about it.
+             */
+            erasedAt: null | string;
         };
         /**
          * @description Where a job has got to in its life, as the clients see it.
@@ -1792,6 +1821,35 @@ export interface operations {
                 "application/json": components["schemas"]["UpdateCustomerRequest"];
             };
         };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    EraseCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
         responses: {
             /** @description No Content */
             204: {

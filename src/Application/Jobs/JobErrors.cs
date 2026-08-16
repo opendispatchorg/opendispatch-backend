@@ -36,10 +36,26 @@ public static class JobErrors
     /// </remarks>
     public const string NotSchedulableCode = "job.notSchedulable";
 
+    /// <summary>The code every refusal to write to an erased job carries.</summary>
+    public const string ErasedCode = "job.erased";
+
     /// <summary>Names a job this tenant does not have.</summary>
     /// <param name="id">The job that was asked for.</param>
     public static Error NotFound(JobId id) =>
         Error.NotFound(NotFoundCode, $"There is no job {id.Value}.");
+
+    /// <summary>
+    /// Reports a job whose customer has been erased, so nothing more may be written about it.
+    /// </summary>
+    /// <remarks>
+    /// The job is still there and still bills for what it billed; what it may no longer accept is
+    /// anything that says something about a person — a photograph of the house, a note about the
+    /// visit. A phone that was holding the job offline when the erasure ran is the caller this is
+    /// actually written for, and it is a conflict rather than a miss because nothing is missing.
+    /// </remarks>
+    /// <param name="id">The job that was written to.</param>
+    public static Error Erased(JobId id) =>
+        Error.Conflict(ErasedCode, $"Job {id.Value} belongs to an erased customer.");
 
     /// <summary>Reports a job that can no longer be planned into anybody's day.</summary>
     /// <param name="status">Where the job actually is.</param>

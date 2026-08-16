@@ -1,3 +1,5 @@
+using System.IdentityModel.Tokens.Jwt;
+using OpenDispatch.Application.Auth;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Infrastructure.Auth;
 using OpenDispatch.Infrastructure.Tenancy;
@@ -29,7 +31,7 @@ namespace OpenDispatch.Api.Tenancy;
 /// </remarks>
 public sealed class TenantResolutionMiddleware(RequestDelegate next)
 {
-    public async Task InvokeAsync(HttpContext context, TenantContext tenant)
+    public async Task InvokeAsync(HttpContext context, TenantContext tenant, CallerContext caller)
     {
         if (context.User.Identity?.IsAuthenticated == true)
         {
@@ -47,6 +49,17 @@ public sealed class TenantResolutionMiddleware(RequestDelegate next)
             }
 
             tenant.Resolve(OrgId.From(orgId));
+
+            // And who they are, from the same principal, for the audit trail. Unlike the org claim
+            // this is not required: a token without a subject is a token this system did not issue
+            // in the usual way, and the trail says "nobody" rather than the request being refused —
+            // the tenant is what protects data, and it has already been established above.
+            if (Guid.TryParse(context.User.FindFirst(JwtRegisteredClaimNames.Sub)?.Value, out var userId))
+            {
+                caller.Resolve(
+                    UserId.From(userId),
+                    context.User.FindFirst(JwtRegisteredClaimNames.UniqueName)?.Value);
+            }
         }
 
         await next(context);

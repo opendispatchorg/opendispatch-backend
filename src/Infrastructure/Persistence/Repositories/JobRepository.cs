@@ -35,6 +35,17 @@ internal sealed class JobRepository(AppDbContext context) : IJobRepository
         return new Page<Job>(items, total);
     }
 
+    /// <remarks>
+    /// Oldest first, so an operator reading an erasure's audit trail sees the customer's history in
+    /// the order it happened.
+    /// </remarks>
+    public async Task<IReadOnlyList<Job>> ListForCustomerAsync(CustomerId customer, CancellationToken ct) =>
+        await context.Jobs
+            .Where(job => job.CustomerId == customer)
+            .OrderBy(job => job.Window.Start)
+            .ThenBy(job => job.Id)
+            .ToListAsync(ct);
+
     /// <remarks>Streamed for the export — see <c>CustomerRepository.StreamAsync</c>.</remarks>
     public IAsyncEnumerable<Job> StreamAsync(CancellationToken ct) =>
         context.Jobs

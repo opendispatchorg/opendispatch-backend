@@ -52,4 +52,23 @@ public interface IAttachmentStorage
     /// a state a caller can report on — the alternative is a 500 for a file somebody deleted.
     /// </returns>
     Task<Stream?> OpenAsync(StorageKey key, CancellationToken ct);
+
+    /// <summary>
+    /// Deletes stored content, if there is any.
+    /// </summary>
+    /// <param name="key">What to delete.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// <para>
+    /// Here for erasure, which is the only thing in this system that deletes bytes: a photograph is
+    /// of somebody's home, and a promise to erase them that left the pictures on a disk would be no
+    /// promise at all.
+    /// </para>
+    /// <para>
+    /// <strong>Missing is success.</strong> Nothing under the key means the caller wanted the blob
+    /// gone and it is gone. An erasure is retried until it commits, and a retry that failed because
+    /// the first attempt had already worked would be a procedure nobody can finish.
+    /// </para>
+    /// </remarks>
+    Task DeleteAsync(StorageKey key, CancellationToken ct);
 }

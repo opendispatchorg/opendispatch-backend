@@ -16,6 +16,12 @@ namespace OpenDispatch.Application.Auth;
 /// <param name="Username">What they type into the login form. Looked up case-insensitively.</param>
 /// <param name="PasswordHash">Never the password itself — see <c>IPasswordHasher</c>.</param>
 /// <param name="Role">What they are allowed to do.</param>
+/// <param name="IsActive">
+/// Whether they may still sign in. The one thing this system has that resembles a user lifecycle:
+/// <c>create-user</c> was the only way in and there was no way out, so a dismissed employee kept a
+/// working login until somebody deleted a row by hand. Checked at login, which means an existing
+/// token outlives the change by up to <c>Jwt:ExpiryMinutes</c> — see the README.
+/// </param>
 /// <param name="TechnicianId">
 /// Which <c>Technician</c> this login is, for a <see cref="UserRole.Technician"/> — <see
 /// langword="null"/> for the other two roles, which are not anybody's field identity. Step 42 left
@@ -31,4 +37,5 @@ public sealed record AuthUser(
     string Username,
     string PasswordHash,
     UserRole Role,
+    bool IsActive = true,
     TechnicianId? TechnicianId = null);

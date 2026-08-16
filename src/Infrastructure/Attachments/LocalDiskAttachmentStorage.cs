@@ -97,6 +97,19 @@ internal sealed class LocalDiskAttachmentStorage : IAttachmentStorage
         return Task.FromResult<Stream?>(content);
     }
 
+    public Task DeleteAsync(StorageKey key, CancellationToken ct)
+    {
+        var path = PathFor(key);
+
+        // File.Delete is already a no-op for a path that is not there, which is the behaviour the
+        // port asks for: an erasure that is run twice must finish twice.
+        File.Delete(path);
+
+        AttachmentStorageLog.Deleted(_log, key.Value);
+
+        return Task.CompletedTask;
+    }
+
     private string PathFor(StorageKey key)
     {
         // The key is two uuids and a slash by construction, so this cannot escape the root today.
@@ -124,4 +137,12 @@ internal static partial class AttachmentStorageLog
 {
     [LoggerMessage(Level = LogLevel.Debug, Message = "Stored attachment content at {StorageKey}")]
     internal static partial void Stored(ILogger logger, string storageKey);
+
+    /// <remarks>
+    /// Information rather than debug, unlike its neighbours: this is the only thing in the system
+    /// that destroys data, and an operator answering for an erasure needs to be able to find it in
+    /// the logs of a host that is not running at debug level.
+    /// </remarks>
+    [LoggerMessage(Level = LogLevel.Information, Message = "Deleted attachment content at {StorageKey}")]
+    internal static partial void Deleted(ILogger logger, string storageKey);
 }

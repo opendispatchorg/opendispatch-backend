@@ -11,6 +11,10 @@ namespace OpenDispatch.Application.Customers.GetCustomer;
 /// <param name="Email">Their email address, or <see langword="null"/> if there isn't one.</param>
 /// <param name="Phone">Their phone number, or <see langword="null"/> if there isn't one.</param>
 /// <param name="Locations">The places they want work done, in the order they were added.</param>
+/// <param name="ErasedAt">
+/// When they asked to be forgotten, or <see langword="null"/> if they did not — which is what says
+/// that the tombstones above are an answered request rather than a record somebody has mangled.
+/// </param>
 /// <remarks>
 /// <para>
 /// A projection rather than the <c>Customer</c> itself. Handing an aggregate outwards would give
@@ -29,7 +33,8 @@ public sealed record CustomerDetail(
     string Name,
     string? Email,
     string? Phone,
-    IReadOnlyList<ServiceLocationDetail> Locations);
+    IReadOnlyList<ServiceLocationDetail> Locations,
+    DateTimeOffset? ErasedAt);
 
 /// <summary>
 /// One of a customer's service locations.

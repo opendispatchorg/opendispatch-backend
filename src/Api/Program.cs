@@ -277,6 +277,13 @@ try
         return await CreateUserCommand.RunAsync(app, args).ConfigureAwait(false);
     }
 
+    // Its counterpart, and the reason it exists: somebody leaves the shop. See DisableUserCommand
+    // for what it does not do — the token they already hold.
+    if (DisableUserCommand.Requested(args))
+    {
+        return await DisableUserCommand.RunAsync(app, args).ConfigureAwait(false);
+    }
+
     // Housekeeping, for a scheduler rather than a person: the sync op log and the removal notes are
     // the only tables nothing else ever deletes from. See PruneCommand for what that costs a device
     // that has been away longer than the window.

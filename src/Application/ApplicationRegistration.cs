@@ -42,15 +42,22 @@ public static class ApplicationRegistration
             //                rolls back as the exception passes out through it — so this is the
             //                first place the failure can be turned into a Result with nothing
             //                half-written behind it.
-            //   Transaction  is innermost, so the transaction spans the handler and nothing
-            //                else. Validators do not run inside it, and neither does logging.
+            //   Transaction  spans the handler and nothing else. Validators do not run inside it,
+            //                and neither does logging.
+            //   Audit        is innermost, *inside* the transaction, which is the one behavior
+            //                that genuinely needs to be: the entry it writes is saved and
+            //                committed by the transaction above it, so a record of an act cannot
+            //                survive the act rolling back and committed work cannot exist without
+            //                its record.
             //
             // A behavior added later belongs above Transaction unless it genuinely needs to be
-            // inside the transaction, in which case it belongs to the handler instead.
+            // inside the transaction, in which case it belongs here beside Audit — or in the
+            // handler.
             mediator.AddOpenBehavior(typeof(LoggingBehavior<,>));
             mediator.AddOpenBehavior(typeof(ValidationBehavior<,>));
             mediator.AddOpenBehavior(typeof(ConcurrencyBehavior<,>));
             mediator.AddOpenBehavior(typeof(TransactionBehavior<,>));
+            mediator.AddOpenBehavior(typeof(AuditBehavior<,>));
         });
 
         // Internal types included: a validator is an implementation detail of its slice and has

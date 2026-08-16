@@ -17,9 +17,11 @@ internal sealed class LoginHandler(IUserStore users, IPasswordHasher hasher, ITo
     {
         var user = await users.FindByUsernameAsync(query.Username, cancellationToken).ConfigureAwait(false);
 
-        // Both branches — no such user, and a user whose password does not match — report the
-        // same failure. See AuthErrors.
-        if (user is null || !hasher.Verify(query.Password, user.PasswordHash))
+        // Three branches now, and still one answer. A disabled login joins the other two because
+        // telling somebody their account exists but is switched off is telling somebody who is not
+        // them the same thing — and the password is still checked either way, so the two paths take
+        // the same time. See AuthErrors.
+        if (user is null || !user.IsActive || !hasher.Verify(query.Password, user.PasswordHash))
         {
             return Result.Failure<AuthToken>(AuthErrors.InvalidCredentials);
         }

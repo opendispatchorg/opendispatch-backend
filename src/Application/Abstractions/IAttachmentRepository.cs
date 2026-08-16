@@ -37,6 +37,18 @@ public interface IAttachmentRepository
     void Add(Attachment attachment);
 
     /// <summary>
+    /// Stages an attachment's metadata for deletion — the one place in this system where a record is
+    /// removed rather than superseded.
+    /// </summary>
+    /// <remarks>
+    /// Erasure is why: a photograph of somebody's boiler cupboard is personal data with no financial
+    /// value to weigh against it, so unlike a customer or a job it is deleted outright rather than
+    /// tombstoned. The bytes go through <see cref="IAttachmentStorage.DeleteAsync"/> in the same
+    /// act, because a row without its blob would leave the photograph on the disk.
+    /// </remarks>
+    void Remove(Attachment attachment);
+
+    /// <summary>
     /// Fetches the metadata of everything captured against one job, oldest first.
     /// </summary>
     /// <remarks>

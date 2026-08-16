@@ -3,6 +3,7 @@ using OpenDispatch.Api.Auth;
 using OpenDispatch.Api.ErrorHandling;
 using OpenDispatch.Application.Customers.AddServiceLocation;
 using OpenDispatch.Application.Customers.CreateCustomer;
+using OpenDispatch.Application.Customers.EraseCustomer;
 using OpenDispatch.Application.Customers.GetCustomer;
 using OpenDispatch.Application.Customers.ListCustomers;
 using OpenDispatch.Application.Customers.RemoveServiceLocation;
@@ -38,6 +39,13 @@ public static class CustomerEndpoints
         customers.MapGet("/{id:guid}", GetAsync).WithName("GetCustomer")
             .Produces<CustomerResponse>();
         customers.MapPut("/{id:guid}", UpdateAsync).WithName("UpdateCustomer")
+            .Produces(StatusCodes.Status204NoContent);
+
+        // The one route on this group a dispatcher may not reach. Erasing a customer destroys data
+        // on purpose and cannot be undone, which puts it with the other things Document 1 leaves to
+        // whoever runs the business rather than to whoever runs the day.
+        customers.MapPost("/{id:guid}/erase", EraseAsync).WithName("EraseCustomer")
+            .RequireAuthorization(AuthPolicies.AdminOnly)
             .Produces(StatusCodes.Status204NoContent);
 
         customers.MapPost("/{id:guid}/locations", AddLocationAsync).WithName("AddServiceLocation")
@@ -111,6 +119,20 @@ public static class CustomerEndpoints
         return result.ToHttpResult();
     }
 
+    /// <remarks>
+    /// A POST rather than a DELETE, because it is not one: the customer stays, their jobs stay and
+    /// their invoices still total what they totalled. What goes is everything that says who they
+    /// were — see <see cref="EraseCustomerCommand"/>.
+    /// </remarks>
+    private static async Task<IResult> EraseAsync(Guid id, ISender sender, CancellationToken cancellationToken)
+    {
+        var result = await sender
+            .Send(new EraseCustomerCommand(CustomerId.From(id)), cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.ToHttpResult();
+    }
+
     private static async Task<IResult> AddLocationAsync(
         Guid id,
         ServiceLocationRequest request,
@@ -166,5 +188,6 @@ public static class CustomerEndpoints
         customer.Email,
         customer.Phone,
         [.. customer.Locations.Select(location =>
-            new ServiceLocationResponse(location.Id.Value, location.Label, location.Address, location.Latitude, location.Longitude))]);
+            new ServiceLocationResponse(location.Id.Value, location.Label, location.Address, location.Latitude, location.Longitude))],
+        customer.ErasedAt);
 }

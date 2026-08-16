@@ -28,6 +28,16 @@ internal sealed class FakeJobRepository(FakeStore<Job> store, ITenantContext ten
         return Task.FromResult(new Page<Job>([.. all.Skip(page.Skip).Take(page.Size)], all.Count));
     }
 
+    /// <remarks>The real query's filter and order, restated in memory.</remarks>
+    public Task<IReadOnlyList<Job>> ListForCustomerAsync(CustomerId customer, CancellationToken ct) =>
+        Task.FromResult<IReadOnlyList<Job>>(
+        [
+            .. store.Owned(tenant.OrgId)
+                .Where(job => job.CustomerId == customer)
+                .OrderBy(job => job.Window.Start)
+                .ThenBy(job => job.Id.Value),
+        ]);
+
     public async IAsyncEnumerable<Job> StreamAsync(
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
     {

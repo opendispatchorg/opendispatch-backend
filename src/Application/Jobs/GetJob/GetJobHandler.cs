@@ -31,5 +31,6 @@ internal sealed class GetJobHandler(IJobRepository jobs) : IRequestHandler<GetJo
         job.Window.End,
         job.EstimatedDuration,
         job.Status,
-        job.Notes);
+        job.Notes,
+        job.ErasedAt);
 }

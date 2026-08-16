@@ -18,6 +18,10 @@ namespace OpenDispatch.Application.Jobs;
 /// <param name="EstimatedDuration">How long the work should take once a technician is on site.</param>
 /// <param name="Status">How far through its life the job is.</param>
 /// <param name="Notes">What a technician wrote about it, or <see langword="null"/> if nobody has.</param>
+/// <param name="ErasedAt">
+/// When this job's customer was erased, or <see langword="null"/> if they were not — which is what
+/// explains a job with no notes sitting at Null Island.
+/// </param>
 /// <remarks>
 /// <para>
 /// One shape for both <c>GetJobQuery</c> and <c>ListJobsQuery</c>, the treatment
@@ -44,4 +48,5 @@ public sealed record JobSummary(
     DateTimeOffset WindowEnd,
     TimeSpan EstimatedDuration,
     JobStatus Status,
-    string? Notes);
+    string? Notes,
+    DateTimeOffset? ErasedAt);

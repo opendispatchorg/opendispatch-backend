@@ -194,6 +194,7 @@ public sealed class DemoSeeder(
                     login.Username,
                     passwords.Hash(login.Password),
                     login.Role,
+                    IsActive: true,
                     technician),
                 ct)
                 .ConfigureAwait(false);

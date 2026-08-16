@@ -84,4 +84,16 @@ public sealed class ServiceLocation
         Address = address.Trim();
         Point = point;
     }
+
+    /// <summary>
+    /// Replaces everything that says where this is. Internal for the same reason the rest is: an
+    /// erasure is the customer's act, and a location that could be erased on its own would be a way
+    /// to half-erase somebody.
+    /// </summary>
+    internal void Erase()
+    {
+        Label = Tombstone.Text;
+        Address = Tombstone.Text;
+        Point = Tombstone.Point;
+    }
 }

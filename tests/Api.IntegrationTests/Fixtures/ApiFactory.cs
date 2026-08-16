@@ -106,10 +106,21 @@ public sealed class ApiFactory : WebApplicationFactory<Program>
         var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
         var users = scope.ServiceProvider.GetRequiredService<IUserStore>();
 
-        var user = new AuthUser(UserId.New(), orgId, username, hasher.Hash(password), role, technicianId);
+        var user = new AuthUser(
+            UserId.New(), orgId, username, hasher.Hash(password), role, IsActive: true, technicianId);
         await users.AddAsync(user, CancellationToken.None).ConfigureAwait(false);
 
         return user;
+    }
+
+    /// <summary>Switches a seeded login off, the way the <c>disable-user</c> verb does.</summary>
+    /// <param name="username">Whose login.</param>
+    public async Task DisableUserAsync(string username)
+    {
+        using var scope = Services.CreateScope();
+        var users = scope.ServiceProvider.GetRequiredService<IUserStore>();
+
+        Assert.True(await users.SetActiveAsync(username, active: false, CancellationToken.None));
     }
 
     protected override void ConfigureWebHost(IWebHostBuilder builder)

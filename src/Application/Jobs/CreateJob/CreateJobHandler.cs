@@ -48,6 +48,13 @@ internal sealed class CreateJobHandler(
             return Result.Failure<JobId>(CustomerErrors.NotFound(command.CustomerId));
         }
 
+        // No new work for somebody who has been forgotten: the coordinates a job would copy off
+        // their record are a tombstone, and booking one would be the shop quietly keeping them.
+        if (customer.IsErased)
+        {
+            return Result.Failure<JobId>(CustomerErrors.Erased(command.CustomerId));
+        }
+
         var location = customer.Locations.FirstOrDefault(site => site.Id == command.LocationId);
 
         if (location is null)

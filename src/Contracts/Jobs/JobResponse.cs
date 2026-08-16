@@ -13,6 +13,10 @@ namespace OpenDispatch.Contracts.Jobs;
 /// <param name="EstimatedDuration">How long the work should take once a technician is on site.</param>
 /// <param name="Status">How far through its life the job is.</param>
 /// <param name="Notes">What a technician wrote about it, or <see langword="null"/> if nobody has.</param>
+/// <param name="ErasedAt">
+/// When this job's customer was erased, or <see langword="null"/> if they were not. A phone reading
+/// this knows the job is finished business and that nothing more may be written about it.
+/// </param>
 public sealed record JobResponse(
     Guid Id,
     Guid CustomerId,
@@ -25,4 +29,5 @@ public sealed record JobResponse(
     DateTimeOffset WindowEnd,
     TimeSpan EstimatedDuration,
     JobStatus Status,
-    string? Notes);
+    string? Notes,
+    DateTimeOffset? ErasedAt);

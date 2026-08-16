@@ -71,4 +71,32 @@ internal sealed class EfUserStore(AppDbContext context) : IUserStore
 
         await context.SaveChangesAsync(ct).ConfigureAwait(false);
     }
+
+    /// <remarks>
+    /// Past the tenant filter like its neighbours, and for the same reason: this runs from a verb
+    /// rather than a request, so there is no ambient tenant to scope to — and a username is unique
+    /// across the deployment, so naming one is naming exactly one row.
+    /// </remarks>
+    public async Task<bool> SetActiveAsync(string username, bool active, CancellationToken ct)
+    {
+        ArgumentNullException.ThrowIfNull(username);
+
+        var normalized = AuthUsername.Normalize(username);
+
+        var existing = await context.Users
+            .IgnoreQueryFilters()
+            .FirstOrDefaultAsync(candidate => candidate.Username == normalized, ct)
+            .ConfigureAwait(false);
+
+        if (existing is null)
+        {
+            return false;
+        }
+
+        context.Entry(existing).CurrentValues.SetValues(existing with { IsActive = active });
+
+        await context.SaveChangesAsync(ct).ConfigureAwait(false);
+
+        return true;
+    }
 }

@@ -162,7 +162,8 @@ public static class ExportEndpoints
         customer.Email,
         customer.Phone,
         [.. customer.Locations.Select(location =>
-            new ServiceLocationResponse(location.Id.Value, location.Label, location.Address, location.Latitude, location.Longitude))]);
+            new ServiceLocationResponse(location.Id.Value, location.Label, location.Address, location.Latitude, location.Longitude))],
+        customer.ErasedAt);
 
     private static JobResponse ToResponse(JobSummary job) => new(
         job.Id.Value,
@@ -176,7 +177,8 @@ public static class ExportEndpoints
         job.WindowEnd,
         job.EstimatedDuration,
         (Contracts.JobStatus)job.Status,
-        job.Notes);
+        job.Notes,
+        job.ErasedAt);
 
     private static AssignmentExport ToResponse(AssignmentSummary assignment) => new(
         assignment.Id.Value,

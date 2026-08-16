@@ -122,6 +122,7 @@ public sealed class UserProvisioner(AppDbContext database, IUserStore users, IPa
                 username,
                 passwords.Hash(password),
                 role,
+                IsActive: true,
                 technician),
             ct).ConfigureAwait(false);
 

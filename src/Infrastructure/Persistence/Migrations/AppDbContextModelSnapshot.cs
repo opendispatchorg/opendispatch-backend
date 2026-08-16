@@ -25,6 +25,54 @@ namespace OpenDispatch.Infrastructure.Persistence.Migrations
             NpgsqlModelBuilderExtensions.HasPostgresExtension(modelBuilder, "postgis");
             NpgsqlModelBuilderExtensions.UseIdentityByDefaultColumns(modelBuilder);
 
+            modelBuilder.Entity("OpenDispatch.Application.Auditing.AuditEntry", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("uuid")
+                        .HasColumnName("id");
+
+                    b.Property<string>("Action")
+                        .IsRequired()
+                        .HasColumnType("text")
+                        .HasColumnName("action");
+
+                    b.Property<DateTimeOffset>("At")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("at");
+
+                    b.Property<long>("ChangeSeq")
+                        .ValueGeneratedOnAddOrUpdate()
+                        .HasColumnType("bigint")
+                        .HasColumnName("change_seq")
+                        .HasDefaultValueSql("pg_current_xact_id()::text::bigint");
+
+                    b.Property<Guid>("OrgId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("org_id");
+
+                    b.Property<string>("Targets")
+                        .IsRequired()
+                        .HasColumnType("jsonb")
+                        .HasColumnName("targets");
+
+                    b.Property<Guid?>("UserId")
+                        .HasColumnType("uuid")
+                        .HasColumnName("user_id");
+
+                    b.Property<string>("Username")
+                        .HasColumnType("text")
+                        .HasColumnName("username");
+
+                    b.HasKey("Id")
+                        .HasName("pk_audit_entries");
+
+                    b.HasIndex("OrgId", "At")
+                        .HasDatabaseName("ix_audit_entries_org_id_at");
+
+                    b.ToTable("audit_entries", (string)null);
+                });
+
             modelBuilder.Entity("OpenDispatch.Application.Auth.AuthUser", b =>
                 {
                     b.Property<Guid>("Id")
@@ -36,6 +84,10 @@ namespace OpenDispatch.Infrastructure.Persistence.Migrations
                         .HasColumnType("bigint")
                         .HasColumnName("change_seq")
                         .HasDefaultValueSql("pg_current_xact_id()::text::bigint");
+
+                    b.Property<bool>("IsActive")
+                        .HasColumnType("boolean")
+                        .HasColumnName("is_active");
 
                     b.Property<Guid>("OrgId")
                         .HasColumnType("uuid")
@@ -302,6 +354,10 @@ namespace OpenDispatch.Infrastructure.Persistence.Migrations
                         .HasColumnName("change_seq")
                         .HasDefaultValueSql("pg_current_xact_id()::text::bigint");
 
+                    b.Property<DateTimeOffset?>("ErasedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("erased_at");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasColumnType("text")
@@ -395,6 +451,10 @@ namespace OpenDispatch.Infrastructure.Persistence.Migrations
                     b.Property<Guid>("CustomerId")
                         .HasColumnType("uuid")
                         .HasColumnName("customer_id");
+
+                    b.Property<DateTimeOffset?>("ErasedAt")
+                        .HasColumnType("timestamp with time zone")
+                        .HasColumnName("erased_at");
 
                     b.Property<TimeSpan>("EstimatedDuration")
                         .HasColumnType("interval")

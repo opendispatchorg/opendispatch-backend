@@ -13,6 +13,8 @@ internal sealed class AttachmentRepository(AppDbContext context) : IAttachmentRe
 
     public void Add(Attachment attachment) => context.Attachments.Add(attachment);
 
+    public void Remove(Attachment attachment) => context.Attachments.Remove(attachment);
+
     /// <remarks>
     /// Oldest first: a visit's photographs are read in the order they were taken, which is the
     /// order they tell the story of the job in.

@@ -214,6 +214,14 @@ public sealed class Job : AggregateRoot
     public IReadOnlyList<JobLine> Lines => _lines.AsReadOnly();
 
     /// <summary>
+    /// When this job's customer was erased, or <see langword="null"/> if they were not.
+    /// </summary>
+    public DateTimeOffset? ErasedAt { get; private set; }
+
+    /// <summary>Whether what this job said about a person has been erased.</summary>
+    public bool IsErased => ErasedAt is not null;
+
+    /// <summary>
     /// Books a new job. It starts <see cref="JobStatus.Unscheduled"/> — creating demand and
     /// planning for it are separate acts.
     /// </summary>
@@ -320,6 +328,14 @@ public sealed class Job : AggregateRoot
     /// </remarks>
     public void RecordNotes(string text, DateTimeOffset observedAt)
     {
+        // Before the emptiness check, because this is the one that is not about the note: a phone
+        // that was holding this job offline when its customer was erased will push what somebody
+        // wrote about their home an hour later, and taking it would put the personal data back.
+        if (IsErased)
+        {
+            throw new DomainException("Notes cannot be recorded against an erased job.");
+        }
+
         if (string.IsNullOrWhiteSpace(text))
         {
             throw new DomainException("A note must say something.");
@@ -363,6 +379,45 @@ public sealed class Job : AggregateRoot
         Money unitPrice,
         DateTimeOffset recordedAt) =>
         _lines.Add(JobLine.Create(kind, description, quantity, unitPrice, recordedAt));
+
+    /// <summary>
+    /// Erases what this job says about a person: where it was, and what the technician wrote about
+    /// being there.
+    /// </summary>
+    /// <param name="at">When the erasure was asked for.</param>
+    /// <remarks>
+    /// <para>
+    /// Called only as part of erasing the customer whose job it is — a job has no separate right to
+    /// be erased, and <c>EraseCustomer</c> is the one command that reaches this.
+    /// </para>
+    /// <para>
+    /// <strong>What stays is what a shop has to keep.</strong> The status, the dates, the estimated
+    /// duration and every line — hours and parts, with their prices — are the record an invoice was
+    /// raised from, so they survive untouched. What goes is the coordinates, which identify a home
+    /// as precisely as the address does, and the notes, which are free text about somebody's house
+    /// and the least predictable thing here.
+    /// </para>
+    /// <para>
+    /// The job keeps pointing at its customer and its service location. Both are still there and
+    /// both now say nothing about anybody, so the shape of the history survives without the person
+    /// in it.
+    /// </para>
+    /// <para>
+    /// Idempotent, for the reason <see cref="Customers.Customer.Erase"/> is.
+    /// </para>
+    /// </remarks>
+    public void Erase(DateTimeOffset at)
+    {
+        if (IsErased)
+        {
+            return;
+        }
+
+        Location = Tombstone.Point;
+        Notes = null;
+        NotesRecordedAt = null;
+        ErasedAt = at;
+    }
 
     /// <summary>Plans the job into someone's day.</summary>
     public void Schedule()

@@ -92,6 +92,11 @@ public static class PersistenceRegistration
         services.AddScoped<TenantContext>();
         services.AddScoped<ITenantContext>(provider => provider.GetRequiredService<TenantContext>());
 
+        // Who, beside what they may see. Resolved by the same middleware from the same principal;
+        // unresolved for a sign-in, a sweep or a verb, which is a state the port allows.
+        services.AddScoped<CallerContext>();
+        services.AddScoped<ICallerContext>(provider => provider.GetRequiredService<CallerContext>());
+
         // Scoped, the same lifetime as the context they share. That sharing is the point: a
         // handler that loads a job through one repository and adds an assignment through another
         // is staging both on one context, which is what lets the unit of work commit them
@@ -111,6 +116,7 @@ public static class PersistenceRegistration
         // The op log stages like a repository and is committed by the same unit of work, so that
         // the record of an operation and its effect land together. The cursor source shares the
         // context for a different reason: a watermark is only true of the connection that asked.
+        services.AddScoped<IAuditLog, AuditLog>();
         services.AddScoped<ISyncOpStore, SyncOpStore>();
         services.AddScoped<ISyncCursorSource, SyncCursorSource>();
 
