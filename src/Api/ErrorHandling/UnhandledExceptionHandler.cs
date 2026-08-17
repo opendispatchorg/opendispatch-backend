@@ -36,11 +36,43 @@ internal sealed class UnhandledExceptionHandler(
     IProblemDetailsService problemDetails,
     ILogger<UnhandledExceptionHandler> logger) : IExceptionHandler
 {
+    /// <summary>
+    /// What nginx calls 499: the client closed the request. Not a status any RFC defines, and the
+    /// one every log pipeline already understands as "nobody was listening any more".
+    /// </summary>
+    private const int ClientClosedRequest = 499;
+
     public async ValueTask<bool> TryHandleAsync(
         HttpContext httpContext,
         Exception exception,
         CancellationToken cancellationToken)
     {
+        // A dispatcher who closed the tab, a phone that drove into a tunnel mid-sync, a browser
+        // that cancelled a slow export and asked again. The work stopped because the caller asked
+        // for it to stop, which is the cancellation token doing its job — not a fault, not a 500,
+        // and not something anybody should be paged about. It was one of the loudest lines in the
+        // error log and every one of them was somebody's train going into a tunnel.
+        if (Disconnected(httpContext, exception))
+        {
+            var path = httpContext.Request.Path.ToString();
+
+            UnhandledExceptionHandlerLog.Disconnected(
+                logger,
+                httpContext.Request.Method,
+                path,
+                httpContext.TraceIdentifier);
+
+            // No body: there is no socket left to write one to. The status is for the log and for
+            // any proxy in front, both of which read it from the response rather than from the
+            // wire.
+            if (!httpContext.Response.HasStarted)
+            {
+                httpContext.Response.StatusCode = ClientClosedRequest;
+            }
+
+            return true;
+        }
+
         if (exception is BadHttpRequestException malformed)
         {
             UnhandledExceptionHandlerLog.Malformed(
@@ -70,6 +102,19 @@ internal sealed class UnhandledExceptionHandler(
             // fragment, a file path — whatever the thing that broke happened to be holding.
             "Something went wrong while handling this request.").ConfigureAwait(false);
     }
+
+    /// <summary>
+    /// Whether this exception is the caller having gone away rather than anything going wrong.
+    /// </summary>
+    /// <remarks>
+    /// Both halves are required. <see cref="OperationCanceledException"/> on its own is not enough —
+    /// a handler that cancels its own work for its own reasons has a bug, and swallowing it as a
+    /// disconnect would hide it. The token being signalled on its own is not enough either: a
+    /// request can be aborted while the exception in hand is a genuine failure that happened first.
+    /// Together they say what happened.
+    /// </remarks>
+    private static bool Disconnected(HttpContext httpContext, Exception exception) =>
+        exception is OperationCanceledException && httpContext.RequestAborted.IsCancellationRequested;
 
     private async ValueTask<bool> WriteAsync(HttpContext httpContext, int status, string title, string detail)
     {

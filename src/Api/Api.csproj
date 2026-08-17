@@ -54,6 +54,17 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      The integration suite reaches two internals directly: the exception handler's decision about
+      what a client disconnect is, and the correlation-id middleware. Both are edge behaviour with
+      no HTTP surface of their own — a disconnected request has nobody left to answer — so testing
+      them through a request would mean testing the test harness's ability to hang up. The same
+      arrangement Scheduling has with its own tests.
+    -->
+    <InternalsVisibleTo Include="OpenDispatch.Api.IntegrationTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Application\Application.csproj" />
     <ProjectReference Include="..\Infrastructure\Infrastructure.csproj" />
     <ProjectReference Include="..\Domain\Domain.csproj" />

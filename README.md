@@ -173,7 +173,7 @@ Optional, and doing nothing until set:
 | Key | Effect |
 |---|---|
 | `Cors:Origins` | Browser origins allowed to call the API and the hub. Empty means no browser client can call it — set it to your dispatch board and technician app origins. |
-| `RateLimit:*` | Sign-in attempts per address per window (`20` per `300`s). Raise it for an office behind one NAT address. |
+| `RateLimit:*` | Three caps. Sign-in attempts per address per window (`20` per `300`s) — raise it for an office behind one NAT address. `PushesPerMinute` per technician (`60`) and `OptimizationsPerMinute` per organization (`10`), which are not about attackers: a phone stuck in a retry loop and a browser with a wedged refresh are ordinary accidents, and both can spend a shop's database. `Enabled` turns all three off. |
 | `ReverseProxy:Enabled` | Read `X-Forwarded-For`/`-Proto`. Turn it on **only** when this host is unreachable except through the proxy, or narrow it with `KnownProxies`/`KnownNetworks`. |
 | `SignalR:Redis` | A StackExchange connection string for the dispatch board's backplane. Unset means in-process, which is correct for exactly one instance — see "More than one instance" above. |
 | `Outbox:*` | How the delivery sweep behaves — `Enabled` (default true), `IntervalSeconds` (10), `GraceSeconds` (30), `BatchSize` (50). Turning it off is an incident measure while a poison message is dealt with, not a configuration: with it off, a reaction lost to a failure or a restart stays lost. |
@@ -256,6 +256,14 @@ draw for a shop with ten years of history.
 `GET /technicians` is deliberately **not** paged: the scheduler must consider every technician to
 place a job, so the port behind it is unpaged by design, and a crew is a crew rather than a
 database.
+
+`POST /schedule/normalize` is the way back from a day a dispatcher has dragged into overlapping
+itself. A manual assignment is an instruction and is carried out literally — nothing re-times the
+run around it — so two stops can end up on the same hour, and from then on the emergency-insert path
+refuses that technician's work because there is no run to insert into. Normalising re-times **one**
+technician's day: same work, same order, stops pushed later where they must be and never pulled
+earlier than the customer was told. A re-plan would fix it too, by rewriting everybody's day to
+repair one.
 
 `GET /export` is unpaged and always will be — it is the whole-business dump Document 1 promises —
 but it is streamed rather than assembled, so its cost to this host does not grow with the shop.

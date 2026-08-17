@@ -3,14 +3,17 @@ using System.Net.Http.Json;
 using OpenDispatch.Api.IntegrationTests.Fixtures;
 using OpenDispatch.Application.Auth;
 using OpenDispatch.Contracts.Auth;
+using OpenDispatch.Contracts.Schedule;
+using OpenDispatch.Contracts.Sync;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.TestSupport;
 
 namespace OpenDispatch.Api.IntegrationTests.Security;
 
 /// <summary>
-/// The two things standing between this API and a browser or a script it did not invite: a cap on
-/// sign-in attempts, and an origin allow-list.
+/// What stands between this API and a caller — invited or not — spending more of it than they
+/// should: a cap on sign-in attempts, caps on the two expensive authenticated paths, and an origin
+/// allow-list.
 /// </summary>
 /// <remarks>
 /// Both are configuration-driven and both do nothing by default, so each fact boots a host
@@ -98,6 +101,86 @@ public sealed class EdgeProtectionTests
 
             Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         }
+    }
+
+    /// <summary>
+    /// The two authenticated paths that are expensive enough to cap, and the thing that makes them
+    /// different from the login limit: the partition is <em>who is calling</em>, not where from.
+    /// </summary>
+    /// <remarks>
+    /// Neither limit is about an attacker. A phone stuck in a retry loop and a browser with a
+    /// wedged refresh are ordinary accidents, and both can spend a shop's database on nothing. An
+    /// office of dispatchers behind one address is not one caller, which is why partitioning by
+    /// address — right for login, where nobody is signed in yet — would be wrong here.
+    /// </remarks>
+    [Fact]
+    public async Task AnOptimiseLoopIsCappedPerOrganization()
+    {
+        await using var factory = new ApiFactory
+        {
+            ConnectionString = _postgres.ConnectionString,
+            Settings =
+            {
+                ["RateLimit:Enabled"] = "true",
+                ["RateLimit:OptimizationsPerMinute"] = "1",
+            },
+        };
+
+        var org = OrgId.New();
+        var username = $"dispatch-{Guid.NewGuid():N}@whitlock.example";
+        await factory.SeedUserAsync(org, username, "riverside-heating", UserRole.Dispatcher);
+
+        using var client = factory.CreateClient();
+        var token = await client.LoginAsync(username, "riverside-heating");
+
+        var day = new DateTimeOffset(2026, 8, 10, 0, 0, 0, TimeSpan.Zero);
+        var body = new OptimizeScheduleRequest(day.AddHours(6), day.AddHours(20), null);
+
+        using var first = await SendAsync(client, token, "/schedule/optimize", body);
+        Assert.Equal(HttpStatusCode.OK, first.StatusCode);
+
+        using var second = await SendAsync(client, token, "/schedule/optimize", body);
+        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+    }
+
+    [Fact]
+    public async Task APhoneStuckInAPushLoopIsCappedPerTechnician()
+    {
+        await using var factory = new ApiFactory
+        {
+            ConnectionString = _postgres.ConnectionString,
+            Settings =
+            {
+                ["RateLimit:Enabled"] = "true",
+                ["RateLimit:PushesPerMinute"] = "1",
+            },
+        };
+
+        var org = OrgId.New();
+        var username = $"field-{Guid.NewGuid():N}@whitlock.example";
+        await factory.SeedUserAsync(org, username, "boiler-service", UserRole.Technician, TechnicianId.New());
+
+        using var client = factory.CreateClient();
+        var token = await client.LoginAsync(username, "boiler-service");
+
+        // An empty batch: this is about the limiter, not about what a push does, and an empty one
+        // is a request a real device makes when it has nothing to say but syncs anyway.
+        var body = new SyncPushRequest([]);
+
+        using var first = await SendAsync(client, token, "/sync/push", body);
+        Assert.NotEqual(HttpStatusCode.TooManyRequests, first.StatusCode);
+
+        using var second = await SendAsync(client, token, "/sync/push", body);
+        Assert.Equal(HttpStatusCode.TooManyRequests, second.StatusCode);
+    }
+
+    private static Task<HttpResponseMessage> SendAsync(
+        HttpClient client, string token, string path, object body)
+    {
+        var request = new HttpRequestMessage(HttpMethod.Post, path).Authorized(token);
+        request.Content = JsonContent.Create(body);
+
+        return client.SendAsync(request);
     }
 
     [Fact]

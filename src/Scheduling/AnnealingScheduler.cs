@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Scheduling.Model;
 using OpenDispatch.Scheduling.Search;
@@ -130,6 +131,18 @@ public sealed class AnnealingScheduler : IScheduler
         ArgumentNullException.ThrowIfNull(problem);
 
         return Insertion.Into(current, problem, job, TravelMatrix.For(problem, _travel));
+    }
+
+    /// <inheritdoc />
+    public ImmutableArray<Stop>? Retime(
+        SchedulingProblem problem,
+        TechnicianId technician,
+        IReadOnlyList<JobId> order,
+        IReadOnlyDictionary<JobId, DateTimeOffset> notBefore)
+    {
+        ArgumentNullException.ThrowIfNull(problem);
+
+        return Retiming.Of(problem, technician, order, notBefore, TravelMatrix.For(problem, _travel));
     }
 
     /// <summary>

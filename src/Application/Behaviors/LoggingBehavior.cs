@@ -61,6 +61,18 @@ internal sealed class LoggingBehavior<TRequest, TResponse>(
 
             return response;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // The caller went away, or the host is shutting down. Neither is this command failing,
+            // and a stack trace at error level for every phone that drives into a tunnel is how an
+            // error log becomes something nobody reads. The edge answers 499; this says how far it
+            // had got, which is the part worth knowing.
+            var elapsed = Stopwatch.GetElapsedTime(started).TotalMilliseconds;
+
+            PipelineLog.Cancelled(logger, name, elapsed);
+
+            throw;
+        }
         catch (Exception exception)
         {
             PipelineLog.Threw(logger, exception, name, Stopwatch.GetElapsedTime(started).TotalMilliseconds);

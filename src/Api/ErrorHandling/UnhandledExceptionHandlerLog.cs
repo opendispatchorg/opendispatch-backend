@@ -21,6 +21,17 @@ internal static partial class UnhandledExceptionHandlerLog
     /// framework parameter binding, and a caller looping on a malformed request must not be able to
     /// fill an error log with dumps.
     /// </summary>
+    /// <summary>
+    /// The caller hung up. Information rather than warning, and without the exception: nothing is
+    /// wrong, nothing is actionable, and a fleet driving through tunnels must not be able to fill
+    /// an error log. It is logged at all because a <em>rise</em> in it is a signal — a client that
+    /// times out too early, or a path that got slow enough for people to give up on.
+    /// </summary>
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Client disconnected during {Method} {Path} (correlation {CorrelationId})")]
+    internal static partial void Disconnected(ILogger logger, string method, string path, string correlationId);
+
     [LoggerMessage(
         Level = LogLevel.Warning,
         Message = "Malformed request on {Method} {Path} answered {StatusCode}: {Reason} "

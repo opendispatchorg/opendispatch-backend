@@ -5,6 +5,7 @@ using Microsoft.Extensions.Options;
 using OpenDispatch.Api.Auth;
 using OpenDispatch.Api.Configuration;
 using OpenDispatch.Api.ErrorHandling;
+using OpenDispatch.Api.Security;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Jobs;
 using OpenDispatch.Application.Observability;
@@ -56,6 +57,7 @@ public static class SyncEndpoints
         // the shared "default" ProblemDetails response otherwise describes, so it is named
         // explicitly here rather than left for that generic entry to (incorrectly) cover.
         sync.MapPost("/push", PushAsync).WithName("PushSyncOps")
+            .RequireRateLimiting(RateLimiting.PushPolicy)
             .Produces<SyncPushResponse>()
             .Produces(StatusCodes.Status401Unauthorized);
         sync.MapGet("/pull", PullAsync).WithName("PullSyncChanges")

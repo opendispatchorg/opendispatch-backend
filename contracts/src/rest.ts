@@ -388,6 +388,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/schedule/normalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["NormalizeSchedule"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/dispatch/board": {
         parameters: {
             query?: never;
@@ -1057,6 +1073,47 @@ export interface components {
              * @description When the token stops being accepted.
              */
             expiresAt: string;
+        };
+        /** @description The body of `POST /schedule/normalize`: whose day to re-time, and over what stretch. */
+        NormalizeDayRequest: {
+            /**
+             * Format: uuid
+             * @description Whose day.
+             */
+            technicianId: string;
+            /**
+             * Format: date-time
+             * @description When the stretch being repaired opens.
+             */
+            from: string;
+            /**
+             * Format: date-time
+             * @description When it closes.
+             */
+            to: string;
+        };
+        /** @description What `POST /schedule/normalize` did. */
+        NormalizeDayResponse: {
+            /**
+             * Format: int32
+             * @description How many stops that technician has in the stretch.
+             */
+            stops: number | string;
+            /**
+             * Format: int32
+             * @description How many had to move. Zero means the day was already drivable.
+             */
+            moved: number | string;
+            /**
+             * Format: date-time
+             * @description When the run now begins, or `null` if there is no work.
+             */
+            firstStart: null | string;
+            /**
+             * Format: date-time
+             * @description When it now ends, or `null` if there is no work.
+             */
+            lastEnd: null | string;
         };
         /** @description What a good schedule is worth, as a caller states it. Optional on OptimizeScheduleRequest. */
         ObjectiveWeightsRequest: {
@@ -2377,6 +2434,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InsertJobResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    NormalizeSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NormalizeDayRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NormalizeDayResponse"];
                 };
             };
             /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */

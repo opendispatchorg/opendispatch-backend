@@ -275,6 +275,15 @@ chown -R 1654:1654 /path/to/attachments
 An unwritable volume does not stop the host from starting — the directory exists, so the startup
 check passes — and shows up as a 500 on the first upload of the day.
 
+### A dispatcher cannot slot in an emergency
+
+`schedule.overlappingDay` means somebody has dragged two of that technician's stops onto the same
+hour, so their day is not a route and there is nothing to insert into. The repair is
+`POST /schedule/normalize` with that technician and the day — it re-times their run and touches
+nobody else's. `schedule.undrivableDay` back from *that* means the day genuinely does not fit their
+shift however it is timed: work has to come off it, which is a dispatcher's decision rather than
+something the system should make for them.
+
 ### The board is not updating for some people
 
 Two instances without `SignalR:Redis`. Each holds its own connections, so a change made through one

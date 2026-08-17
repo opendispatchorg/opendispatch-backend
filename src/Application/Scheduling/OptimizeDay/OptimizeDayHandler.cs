@@ -73,6 +73,13 @@ internal sealed class OptimizeDayHandler(
             Weigh(command.Weights),
             SchedulingDefaults.Seed);
 
+        // The search runs inside the transaction this command is wrapped in, and that is a decision
+        // rather than an oversight: measured on a shop's day it is ~60 ms of CPU holding a
+        // connection, against a rate limit of ten optimisations a minute per organization. Moving
+        // it out means either a self-transacting command — which would leave the audit entry, staged
+        // after this returns, with no transaction to be written by — or splitting the operation into
+        // a solve and an apply that can disagree about the world. Both cost more than they buy at
+        // this size. See DECISIONS.local.md.
         var solution = scheduler.Solve(problem);
         var optimized = await ApplyAsync(problem, solution, schedulable, committed, cancellationToken)
             .ConfigureAwait(false);

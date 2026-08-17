@@ -2,6 +2,7 @@ using System.ComponentModel.DataAnnotations;
 using System.Globalization;
 using System.Threading.RateLimiting;
 using Microsoft.Extensions.Options;
+using OpenDispatch.Infrastructure.Auth;
 
 namespace OpenDispatch.Api.Security;
 
@@ -26,6 +27,33 @@ public sealed record RateLimitOptions
     /// <summary>How long the window is.</summary>
     [Range(1, int.MaxValue)]
     public int WindowSeconds { get; init; } = 300;
+
+    /// <summary>
+    /// Sync pushes allowed per minute, per technician.
+    /// </summary>
+    /// <remarks>
+    /// Not about credentials — this caller is signed in — but about one phone with a broken retry
+    /// loop. A push is a write, in a transaction, with an op-log row per operation; a device stuck
+    /// in a loop is a device writing to the shop's database as fast as its connection allows, and
+    /// nothing else in the fleet gets a turn. Sixty a minute is one per second, which is far more
+    /// than a technician doing their job produces and far less than a loop.
+    /// </remarks>
+    [Range(1, int.MaxValue)]
+    public int PushesPerMinute { get; init; } = 60;
+
+    /// <summary>
+    /// Optimisations allowed per minute, per organization.
+    /// </summary>
+    /// <remarks>
+    /// The most expensive thing this API will do on request: a full re-plan holds a connection and
+    /// a CPU for as long as the search takes — measured at 60 ms for a shop's day on an idle host
+    /// and over a second under load. A dispatcher presses it a handful of times a morning; a browser
+    /// with a stuck refresh, or two dispatchers arguing with the board, should not be able to queue
+    /// them faster than the shop can drive them. Per organization rather than per address, because
+    /// the resource being protected is the shop's own database, not this host's front door.
+    /// </remarks>
+    [Range(1, int.MaxValue)]
+    public int OptimizationsPerMinute { get; init; } = 10;
 }
 
 /// <summary>
@@ -56,6 +84,12 @@ public static class RateLimiting
 {
     /// <summary>The policy name <c>POST /auth/login</c> asks for.</summary>
     public const string LoginPolicy = "login";
+
+    /// <summary>The policy name <c>POST /sync/push</c> asks for.</summary>
+    public const string PushPolicy = "push";
+
+    /// <summary>The policy name <c>POST /schedule/optimize</c> asks for.</summary>
+    public const string OptimizePolicy = "optimize";
 
     /// <summary>Registers the limiter and the login policy.</summary>
     /// <param name="services">The host's service collection.</param>
@@ -100,6 +134,23 @@ public static class RateLimiting
                     : RateLimitPartition.GetNoLimiter("disabled");
             });
 
+            // The two authenticated paths that are expensive enough to be worth a cap. Neither is
+            // about an attacker: a signed-in phone in a retry loop and a browser with a stuck
+            // refresh are both ordinary accidents, and both can spend a shop's database.
+            //
+            // Partitioned by *who is calling* rather than by address, which is the difference from
+            // login: the caller is authenticated by the time these run, and an office of
+            // dispatchers behind one address are not one caller.
+            limiter.AddPolicy(PushPolicy, context => Caller(
+                context,
+                AuthClaimTypes.Technician,
+                options => options.PushesPerMinute));
+
+            limiter.AddPolicy(OptimizePolicy, context => Caller(
+                context,
+                AuthClaimTypes.Org,
+                options => options.OptimizationsPerMinute));
+
             // The refusal is shaped like every other failure this API returns (Document 3,
             // step 46), rather than the framework's default empty 429 body.
             limiter.OnRejected = async (context, cancellationToken) =>
@@ -129,5 +180,48 @@ public static class RateLimiting
         });
 
         return services;
+    }
+
+    /// <summary>
+    /// A per-minute window partitioned by a claim on the caller's own token.
+    /// </summary>
+    /// <param name="context">The request being partitioned.</param>
+    /// <param name="claim">Which claim identifies the caller for this limit — the technician, or the organization.</param>
+    /// <param name="permits">How many that caller gets per minute.</param>
+    /// <remarks>
+    /// <para>
+    /// A token with no such claim falls into one shared partition. That is deliberate and it is the
+    /// safe direction: the request will be refused by authorization a moment later anyway (both
+    /// routes require a role that carries the claim), and the alternative — no limiter for a caller
+    /// this server cannot identify — is the wrong way round.
+    /// </para>
+    /// <para>
+    /// Options are resolved per request for the reason the login policy's are: configuration read
+    /// while the container is being built is read before a host's own sources are applied.
+    /// </para>
+    /// </remarks>
+    private static RateLimitPartition<string> Caller(
+        HttpContext context,
+        string claim,
+        Func<RateLimitOptions, int> permits)
+    {
+        var options = context.RequestServices.GetRequiredService<IOptions<RateLimitOptions>>().Value;
+
+        if (!options.Enabled)
+        {
+            return RateLimitPartition.GetNoLimiter("disabled");
+        }
+
+        return RateLimitPartition.GetFixedWindowLimiter(
+            $"{claim}:{context.User.FindFirst(claim)?.Value ?? "unidentified"}",
+            _ => new FixedWindowRateLimiterOptions
+            {
+                PermitLimit = permits(options),
+                Window = TimeSpan.FromMinutes(1),
+
+                // No queue, for the reason login has none: holding a caller open is a cheaper way
+                // to exhaust this host than the thing being limited.
+                QueueLimit = 0,
+            });
     }
 }

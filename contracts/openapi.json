@@ -1457,6 +1457,51 @@
         ]
       }
     },
+    "/schedule/normalize": {
+      "post": {
+        "tags": [
+          "Schedule"
+        ],
+        "operationId": "NormalizeSchedule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NormalizeDayRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NormalizeDayResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/dispatch/board": {
       "get": {
         "tags": [
@@ -2819,6 +2864,78 @@
           }
         },
         "description": "What a successful `POST /auth/login` returns."
+      },
+      "NormalizeDayRequest": {
+        "required": [
+          "technicianId",
+          "from",
+          "to"
+        ],
+        "type": "object",
+        "properties": {
+          "technicianId": {
+            "type": "string",
+            "description": "Whose day.",
+            "format": "uuid"
+          },
+          "from": {
+            "type": "string",
+            "description": "When the stretch being repaired opens.",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "description": "When it closes.",
+            "format": "date-time"
+          }
+        },
+        "description": "The body of `POST /schedule/normalize`: whose day to re-time, and over what stretch."
+      },
+      "NormalizeDayResponse": {
+        "required": [
+          "stops",
+          "moved",
+          "firstStart",
+          "lastEnd"
+        ],
+        "type": "object",
+        "properties": {
+          "stops": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many stops that technician has in the stretch.",
+            "format": "int32"
+          },
+          "moved": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many had to move. Zero means the day was already drivable.",
+            "format": "int32"
+          },
+          "firstStart": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When the run now begins, or `null` if there is no work.",
+            "format": "date-time"
+          },
+          "lastEnd": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When it now ends, or `null` if there is no work.",
+            "format": "date-time"
+          }
+        },
+        "description": "What `POST /schedule/normalize` did."
       },
       "ObjectiveWeightsRequest": {
         "required": [
