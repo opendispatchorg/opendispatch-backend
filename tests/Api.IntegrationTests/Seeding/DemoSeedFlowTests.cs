@@ -154,7 +154,7 @@ public sealed class DemoSeedFlowTests
         using var scope = services.CreateScope();
 
         return await scope.ServiceProvider.GetRequiredService<DemoSeeder>()
-            .SeedAsync(CancellationToken.None);
+            .SeedAsync(DemoScale.Demo, CancellationToken.None);
     }
 
     private ServiceProvider BuildHost() => TestHost.Over(_postgres)

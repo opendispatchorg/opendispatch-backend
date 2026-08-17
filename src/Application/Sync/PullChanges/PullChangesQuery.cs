@@ -30,7 +30,16 @@ namespace OpenDispatch.Application.Sync.PullChanges;
 /// device does not get to ask for the whole database, and an operator with a slow fleet gets a
 /// lever.
 /// </param>
-public sealed record PullChangesQuery(TechnicianId TechnicianId, SyncCursor Since, int MaxTransactions)
+/// <param name="MaxRows">
+/// The second bound on the same page, and the one that stops a single busy transaction turning a
+/// first sync into megabytes — see <c>SyncOptions.PullPageRows</c>. Approximate, and never applied
+/// by splitting a transaction.
+/// </param>
+public sealed record PullChangesQuery(
+    TechnicianId TechnicianId,
+    SyncCursor Since,
+    int MaxTransactions,
+    int MaxRows)
     : IQuery<PulledChanges>;
 
 /// <summary>

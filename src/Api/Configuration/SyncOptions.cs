@@ -32,6 +32,34 @@ public sealed class SyncOptions
     /// <summary>Transactions per pull. Must be at least one, or no device could ever advance.</summary>
     [Range(1, int.MaxValue)]
     public int PullPageTransactions { get; init; } = 200;
+
+    /// <summary>
+    /// Roughly how many rows a pull may carry, as a second bound on the same page.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Transactions alone bound the wrong thing, which the load measurement made visible: a page of
+    /// two hundred transactions is small when each is one request, and enormous when one of them
+    /// wrote a thousand rows. An optimise writes a day's plan in a single transaction; a bulk import
+    /// writes in batches; the seeded shop wrote a year in twenty. A phone asked for its first sync
+    /// against that received <strong>12,884 changes in one 2.3 MB response</strong> — over whatever
+    /// connection a van has.
+    /// </para>
+    /// <para>
+    /// So a page also stops when it has taken about this many rows. <em>About</em>, and deliberately:
+    /// the count is what the stamps say they carry, before the reader knows which rows overlap
+    /// between a stop and its job, and a transaction is still never split. One transaction larger
+    /// than the whole budget is sent whole and overruns it — the alternative is a device that can
+    /// never advance past it.
+    /// </para>
+    /// <para>
+    /// Two thousand is a few hundred kilobytes of a technician's world: several days of dispatching,
+    /// and a first sync that drains in a handful of round trips rather than one that has to survive
+    /// a single enormous one.
+    /// </para>
+    /// </remarks>
+    [Range(1, int.MaxValue)]
+    public int PullPageRows { get; init; } = 2_000;
 }
 
 /// <summary>

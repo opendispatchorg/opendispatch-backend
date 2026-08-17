@@ -48,6 +48,12 @@ public interface ISyncChangeReader
     /// at the same cursor, so the reader stops between stamps and may overrun a row budget to do
     /// it. See <see cref="SyncScopePage"/>.
     /// </param>
+    /// <param name="maxRows">
+    /// Roughly how many rows a page may carry, as a second bound. Approximate on purpose: it is
+    /// counted from what each transaction's stamps say they hold, and a transaction is still never
+    /// split — one larger than the whole budget is sent whole. Without it a page is bounded only by
+    /// how much work happened to share a stamp, which is unbounded.
+    /// </param>
     /// <param name="ct">Cancellation.</param>
     /// <remarks>
     /// The caller must take the <em>new</em> cursor before calling this, never after: a change
@@ -59,5 +65,6 @@ public interface ISyncChangeReader
         TechnicianId technician,
         SyncCursor since,
         int maxTransactions,
+        int maxRows,
         CancellationToken ct);
 }

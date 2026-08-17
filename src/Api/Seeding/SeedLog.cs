@@ -45,6 +45,29 @@ internal static partial class SeedLog
         Message = "Next: `make run`, log in, then POST /schedule/optimize over {Day} to plan the day.")]
     internal static partial void NextStep(ILogger logger, string day);
 
+    /// <remarks>
+    /// Separate from <see cref="Seeded"/> rather than more fields on it: the demo half is what a
+    /// developer reads before a demonstration, and the history is what somebody reads before a
+    /// measurement. One line each keeps either of them legible on its own.
+    /// </remarks>
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "…and {Days} trading days behind it: {Customers} customers, {Jobs} jobs, {Assignments} "
+            + "stops, {Invoices} invoices and {Ops} field operations in the sync log.")]
+    internal static partial void SeededHistory(
+        ILogger logger,
+        int days,
+        int customers,
+        int jobs,
+        int assignments,
+        int invoices,
+        int ops);
+
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "'{Scale}' is not a scale. Use --scale demo (one day) or --scale big (a year behind it).")]
+    internal static partial void UnknownScale(ILogger logger, string scale);
+
     [LoggerMessage(
         Level = LogLevel.Information,
         Message = "No demo organization in the database, so no demo logins. Run `make seed` to load one.")]

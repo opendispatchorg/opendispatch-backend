@@ -44,5 +44,7 @@ public static class DemoSeeding
     public static IServiceCollection AddDemoSeeding(
         this IServiceCollection services,
         string? environmentName) =>
-        IsAllowedIn(environmentName) ? services.AddScoped<DemoSeeder>() : services;
+        IsAllowedIn(environmentName)
+            ? services.AddScoped<DemoSeeder>().AddScoped<ShopHistory>()
+            : services;
 }

@@ -41,7 +41,8 @@ public sealed class DemoSeeder(
     AppDbContext database,
     IUserStore users,
     IPasswordHasher passwords,
-    IClock clock)
+    IClock clock,
+    ShopHistory history)
 {
     /// <summary>
     /// Loads the demo shop's crew, customers and a day's work, replacing whatever a previous run
@@ -60,8 +61,12 @@ public sealed class DemoSeeder(
     /// touch rows belonging to a tenant called <see cref="DemoData.OrganizationName"/>.
     /// </para>
     /// </remarks>
+    /// <param name="ct">Cancellation.</param>
+    /// <param name="scale">
+    /// One day, or that day with a year of finished business behind it. See <see cref="DemoScale"/>.
+    /// </param>
     /// <returns>What was loaded, for the caller to report.</returns>
-    public async Task<DemoSeed> SeedAsync(CancellationToken ct)
+    public async Task<DemoSeed> SeedAsync(DemoScale scale, CancellationToken ct)
     {
         var organization = await ExistingOrganizationAsync(ct).ConfigureAwait(false);
 
@@ -78,14 +83,21 @@ public sealed class DemoSeeder(
 
         var day = DayOf(clock.UtcNow);
 
+        // Kept, because the history needs the crew it planned work onto and this is the one place
+        // that knows which technicians were just created.
+        var crew = new List<Technician>(DemoData.Technicians.Count);
+
         foreach (var technician in DemoData.Technicians)
         {
-            database.Technicians.Add(Technician.Create(
+            var hired = Technician.Create(
                 organization.Id,
                 technician.Name,
                 technician.Skills,
                 technician.Shift.On(day),
-                new GeoPoint(technician.Lat, technician.Lng)));
+                new GeoPoint(technician.Lat, technician.Lng));
+
+            crew.Add(hired);
+            database.Technicians.Add(hired);
         }
 
         var locations = 0;
@@ -127,6 +139,14 @@ public sealed class DemoSeeder(
 
         await database.SaveChangesAsync(ct).ConfigureAwait(false);
 
+        // The year behind the demo day, when a measurement asked for one. It runs after the day
+        // rather than before it so the demo half is identical at either scale — the same crew, the
+        // same customers, the same forty jobs to optimise — and the only difference is what is
+        // already in the tables underneath.
+        var written = scale is DemoScale.Big
+            ? await history.WriteAsync(organization.Id, day, crew, ct).ConfigureAwait(false)
+            : null;
+
         return new DemoSeed(
             organization.Id,
             organization.Name,
@@ -135,7 +155,8 @@ public sealed class DemoSeeder(
             DemoData.Customers.Count,
             locations,
             jobs,
-            DemoData.Logins);
+            DemoData.Logins,
+            written);
     }
 
     /// <summary>

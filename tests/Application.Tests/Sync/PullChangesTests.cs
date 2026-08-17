@@ -25,6 +25,12 @@ public sealed class PullChangesTests
     private const int APage = 200;
 
     /// <summary>
+    /// A row budget no test here is about: high enough that only the transaction budget ever
+    /// stops a page, so these tests keep saying what they were written to say.
+    /// </summary>
+    private const int AnyRows = 100_000;
+
+    /// <summary>
     /// Taken after the read, a cursor would sit above a change committed while the read was
     /// running — and a change below a device's cursor is never sent again, so the stop cancelled at
     /// that moment is one the technician drives to. The order is the whole handler.
@@ -34,7 +40,7 @@ public sealed class PullChangesTests
     {
         await using var slice = SliceHost.Sync();
 
-        await slice.Send(new PullChangesQuery(TechnicianId.New(), SyncCursor.Beginning, APage));
+        await slice.Send(new PullChangesQuery(TechnicianId.New(), SyncCursor.Beginning, APage, AnyRows));
 
         Assert.Equal(
             [nameof(ISyncCursorSource), nameof(ISyncChangeReader)],
@@ -48,7 +54,7 @@ public sealed class PullChangesTests
         var sam = TechnicianId.New();
         var since = new SyncCursor(4_096);
 
-        var pulled = await slice.Send(new PullChangesQuery(sam, since, APage));
+        var pulled = await slice.Send(new PullChangesQuery(sam, since, APage, AnyRows));
 
         var reader = slice.Fake<RecordingChangeReader>();
         Assert.Equal(sam, reader.Technician);
@@ -66,7 +72,7 @@ public sealed class PullChangesTests
     {
         await using var slice = SliceHost.Sync();
 
-        var pulled = await slice.Send(new PullChangesQuery(TechnicianId.New(), new SyncCursor(-1), APage));
+        var pulled = await slice.Send(new PullChangesQuery(TechnicianId.New(), new SyncCursor(-1), APage, AnyRows));
 
         Assert.IsType<ValidationError>(pulled.Error);
     }
@@ -76,7 +82,7 @@ public sealed class PullChangesTests
     {
         await using var slice = SliceHost.Sync();
 
-        var pulled = await slice.Send(new PullChangesQuery(default, SyncCursor.Beginning, APage));
+        var pulled = await slice.Send(new PullChangesQuery(default, SyncCursor.Beginning, APage, AnyRows));
 
         Assert.IsType<ValidationError>(pulled.Error);
     }

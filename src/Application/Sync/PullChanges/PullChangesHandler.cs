@@ -43,7 +43,7 @@ internal sealed class PullChangesHandler(ISyncCursorSource cursors, ISyncChangeR
         var watermark = await cursors.CurrentAsync(cancellationToken).ConfigureAwait(false);
 
         var page = await changes
-            .ReadAsync(query.TechnicianId, query.Since, query.MaxTransactions, cancellationToken)
+            .ReadAsync(query.TechnicianId, query.Since, query.MaxTransactions, query.MaxRows, cancellationToken)
             .ConfigureAwait(false);
 
         // Two different answers to "where do I stand", and picking the wrong one is how a device

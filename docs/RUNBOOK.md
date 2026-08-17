@@ -135,6 +135,18 @@ back out — including the photograph, compared byte for byte. Everything it cre
 regardless.** It is the only thing in this repository that tests the parts of a deployment no unit
 test can see; the first time it ran it found two defects in the shipped image.
 
+### Knowing whether it is still fast
+
+```bash
+dotnet run --project src/Api -- seed --scale big     # a year of history, on a scratch database
+scripts/measure.sh                                   # the four paths somebody waits on
+```
+
+The budgets are in the README, measured rather than guessed. Run this after a schema change, after a
+query change, and before telling a shop it can grow — it is what makes "it feels slower" a number.
+**Never against production data**: the seed writes tens of thousands of rows under the demo
+organization, and `measure.sh` re-plans whatever day it is run on.
+
 ---
 
 ## Routine operations
@@ -286,6 +298,10 @@ repeatedly from outside is an attack, and the limiter is doing its job.
 - **Disabling a user does not revoke the token they hold.** Up to `Jwt:ExpiryMinutes` (720 by
   default) of continued access. Lower it if that is unacceptable; rotate the signing key if it is
   urgent, accepting that everybody else is signed out too.
+- **The API grows to about half a gigabyte and stays there.** .NET's server garbage collector keeps
+  the heap it has grown; repeated exports take a fresh process from ~200 MB to ~500 MB, where it
+  levels off. That is not a leak, and the fix if a box is tight is `DOTNET_gcServer=0`, which held
+  the same run near 300 MB at 20–40% more latency under load. Size for 2 GB and it is a non-event.
 - **Nothing here is multi-region and nothing fails over automatically.** One database, one API
   deployment. Recovery from losing the database is the restore procedure above, and its speed is
   whatever your backup schedule and the drill say it is.

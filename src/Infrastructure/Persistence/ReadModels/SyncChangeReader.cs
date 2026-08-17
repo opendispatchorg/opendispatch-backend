@@ -52,6 +52,7 @@ internal sealed class SyncChangeReader(AppDbContext context) : ISyncChangeReader
         TechnicianId technician,
         SyncCursor since,
         int maxTransactions,
+        int maxRows,
         CancellationToken ct)
     {
         var mine = context.Assignments.Where(assignment => assignment.TechnicianId == technician);
@@ -59,7 +60,8 @@ internal sealed class SyncChangeReader(AppDbContext context) : ISyncChangeReader
         // Where this page stops, decided before anything is read: the stamp of the last whole
         // transaction that fits. Null means everything waiting fits, which is the ordinary case and
         // the only one where the caller's watermark is the right answer.
-        var ceiling = await CeilingAsync(technician, mine, since, maxTransactions, ct).ConfigureAwait(false);
+        var ceiling = await CeilingAsync(technician, mine, since, maxTransactions, maxRows, ct)
+            .ConfigureAwait(false);
         var upTo = ceiling ?? long.MaxValue;
 
         // A stop is news if it moved, or if the work it is for changed underneath it — the second
@@ -201,11 +203,12 @@ internal sealed class SyncChangeReader(AppDbContext context) : ISyncChangeReader
         IQueryable<Assignment> mine,
         SyncCursor since,
         int maxTransactions,
+        int maxRows,
         CancellationToken ct)
     {
         var wanted = maxTransactions + 1;
 
-        var stamps = new List<long>(wanted * 4);
+        var stamps = new List<(long Stamp, int Rows)>(wanted * 4);
 
         stamps.AddRange(await StampsAsync(mine, since, wanted, ct).ConfigureAwait(false));
 
@@ -233,23 +236,91 @@ internal sealed class SyncChangeReader(AppDbContext context) : ISyncChangeReader
             wanted,
             ct).ConfigureAwait(false));
 
-        var ordered = stamps.Distinct().Order().Take(wanted).ToList();
+        // Summed across the sources, because a stamp's real weight on the page is every row every
+        // source wrote under it — the same optimise that moved this technician's stops also touched
+        // the jobs behind them.
+        var weights = new Dictionary<long, int>(stamps.Count);
 
+        foreach (var (stamp, rows) in stamps)
+        {
+            weights[stamp] = weights.GetValueOrDefault(stamp) + rows;
+        }
+
+        var ordered = weights.Keys.Order().Take(wanted).ToList();
+
+        return Ceiling(ordered, weights, maxTransactions, maxRows);
+    }
+
+    /// <summary>
+    /// Walks the stamps in order and says where the page stops.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Two budgets, and the transaction is the atom either way: a page ends <em>between</em> stamps
+    /// or not at all. It stops at whichever budget runs out first — the transaction count, or the
+    /// row count once a stamp would take it past the budget.
+    /// </para>
+    /// <para>
+    /// <strong>The first transaction is always taken, however big it is.</strong> A stamp larger
+    /// than the whole row budget would otherwise be a wall: the device asks, receives nothing,
+    /// stores the same cursor, and asks again forever.
+    /// </para>
+    /// <para>
+    /// Null means everything waiting fits, which is the ordinary pull and the only case where the
+    /// caller's own watermark is the right cursor to hand back.
+    /// </para>
+    /// </remarks>
+    private static long? Ceiling(
+        List<long> ordered,
+        Dictionary<long, int> weights,
+        int maxTransactions,
+        int maxRows)
+    {
+        var rows = 0;
+
+        for (var taken = 0; taken < ordered.Count; taken++)
+        {
+            var stamp = ordered[taken];
+
+            if (taken > 0 && (taken >= maxTransactions || rows + weights[stamp] > maxRows))
+            {
+                return ordered[taken - 1];
+            }
+
+            rows += weights[stamp];
+        }
+
+        // Everything asked for fit — but the caller asked for one more stamp than a page may carry,
+        // so a full list still means there is more waiting.
         return ordered.Count > maxTransactions ? ordered[maxTransactions - 1] : null;
     }
 
-    /// <summary>The next <paramref name="wanted"/> distinct change stamps in a source, from the cursor.</summary>
-    private static Task<List<long>> StampsAsync<TEntity>(
+    /// <summary>
+    /// The next <paramref name="wanted"/> change stamps in a source, from the cursor, with how many
+    /// rows each one wrote.
+    /// </summary>
+    /// <remarks>
+    /// A grouped count rather than a distinct list: the stamps alone cannot say whether a page is
+    /// forty rows or forty thousand, which is the thing the row budget exists to bound. It is the
+    /// same index scan with a count on top.
+    /// </remarks>
+    private static async Task<List<(long Stamp, int Rows)>> StampsAsync<TEntity>(
         IQueryable<TEntity> source,
         SyncCursor since,
         int wanted,
         CancellationToken ct)
-        where TEntity : class =>
-        source
+        where TEntity : class
+    {
+        var counted = await source
             .Select(row => EF.Property<long>(row, ChangeStamps.PropertyName))
             .Where(stamp => stamp >= since.Value)
-            .Distinct()
-            .OrderBy(stamp => stamp)
+            .GroupBy(stamp => stamp)
+            .OrderBy(group => group.Key)
             .Take(wanted)
-            .ToListAsync(ct);
+            .Select(group => new { Stamp = group.Key, Rows = group.Count() })
+            .ToListAsync(ct)
+            .ConfigureAwait(false);
+
+        return [.. counted.Select(row => (row.Stamp, row.Rows))];
+    }
 }

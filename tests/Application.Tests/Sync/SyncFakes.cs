@@ -47,6 +47,9 @@ internal sealed class RecordingChangeReader(CallOrder order) : ISyncChangeReader
     /// <summary>The page budget the last read was given.</summary>
     public int MaxTransactions { get; private set; }
 
+    /// <summary>The row budget the last read was given.</summary>
+    public int MaxRows { get; private set; }
+
     /// <summary>
     /// What the next read reports as the last whole transaction in its page — null for "that was
     /// everything", which is what a reader with nothing left to give answers.
@@ -57,11 +60,13 @@ internal sealed class RecordingChangeReader(CallOrder order) : ISyncChangeReader
         TechnicianId technician,
         SyncCursor since,
         int maxTransactions,
+        int maxRows,
         CancellationToken ct)
     {
         Since = since;
         Technician = technician;
         MaxTransactions = maxTransactions;
+        MaxRows = maxRows;
         order.Record(nameof(ISyncChangeReader));
 
         return Task.FromResult(new SyncScopePage(new SyncScopeChanges([], [], []), Ceiling));

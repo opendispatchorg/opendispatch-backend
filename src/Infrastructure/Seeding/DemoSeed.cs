@@ -17,6 +17,10 @@ namespace OpenDispatch.Infrastructure.Seeding;
 /// The credentials the day can be driven with. Reported rather than written here — see
 /// <see cref="DemoSeeder.RegisterLoginsAsync"/> for why the host establishes them, not the seeder.
 /// </param>
+/// <param name="History">
+/// The year of finished business behind the day, or <see langword="null"/> at demo scale — see
+/// <see cref="DemoScale"/>.
+/// </param>
 public sealed record DemoSeed(
     OrgId Organization,
     string OrganizationName,
@@ -25,4 +29,5 @@ public sealed record DemoSeed(
     int Customers,
     int Locations,
     int Jobs,
-    IReadOnlyList<DemoLogin> Logins);
+    IReadOnlyList<DemoLogin> Logins,
+    ShopHistorySummary? History = null);

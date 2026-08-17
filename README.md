@@ -180,6 +180,7 @@ Optional, and doing nothing until set:
 | `Otel:Endpoint` | An OTLP collector to export metrics and traces to — `http://collector:4317`. Unset means the instruments are published in-process and sent nowhere, which is what `dotnet-counters` reads. `Otel:Protocol` picks `grpc` (default, usually port 4317) or `http/protobuf` (usually 4318); `Otel:ServiceName` names this deployment in the collector's feed, which is how staging and production are told apart when they share one. A collector that is down costs nothing — the exporter drops what it cannot deliver and never blocks a request. |
 | `Logging:Json` | Write newline-delimited JSON to the console (Serilog's compact format) instead of the human-readable template. Set it wherever the logs are shipped to something that parses them: the correlation id, the request path and every structured property survive as fields rather than being flattened into a sentence. |
 | `Sync:PullPageTransactions` | How much of a technician's change stream one `GET /sync/pull` may carry, counted in transactions (default `200`). Lower it for a fleet on poor connections; a device simply pulls more often, because a capped page says `hasMore`. |
+| `Sync:PullPageRows` | The second bound on the same page, roughly in rows (default `2000`). Transactions alone bound the wrong thing — one transaction can write a whole day's plan, or a whole import — and the load pass found a first sync answering with 12,884 changes in one 2.3 MB response while obeying the transaction cap perfectly. A transaction is still never split, so a single enormous one is sent whole. |
 
 Every command that succeeds writes one row to `audit_entries` — who did it, in which organization,
 what the act was, the ids it named, and when — inside the same transaction as the work, so an audit
@@ -215,6 +216,35 @@ What to do when something is wrong — deploy, roll back, restore, rotate the si
 each alert means — is in [docs/RUNBOOK.md](docs/RUNBOOK.md).
 
 Testing conventions and the shared harness are described in [TESTING.md](TESTING.md).
+
+## What it costs
+
+Measured, not estimated, against a shop with a year behind it: `seed --scale big` writes 12,000 jobs
+across 300 trading days — 424 customers, 11,407 stops, 10,251 invoices, a 30-day sync log, 84 MB of
+database — and `scripts/measure.sh` then times the four paths somebody waits on. Both are repeatable
+commands; the numbers below are from a 2026-era laptop running the API, Postgres **and** the load
+generator together, which is a harsher arrangement than any deployment.
+
+| Path | p95, idle | p95, 10 phones polling | Budget |
+|---|---|---|---|
+| `GET /sync/pull` (routine) | 20–29 ms | 71–305 ms | **< 300 ms** |
+| `GET /sync/pull` (first sync, `since=0`) | 23–40 ms | 78–133 ms | **< 300 ms** |
+| `GET /dispatch/board` (a day) | 6–12 ms | 37–52 ms | **< 150 ms** |
+| `POST /schedule/optimize` (40 jobs, 8 technicians) | 88–196 ms | 1.2–1.4 s | **< 2 s** |
+| `GET /export` (the whole business) | 11 MB in 0.2–0.7 s | — | **< 5 s** |
+
+The load column is ten clients pulling **continuously with no pause** — a fleet of phones polling
+every thirty seconds is nowhere near it. Read it as a floor under a bad moment rather than as normal
+operation.
+
+**A first sync arrives in pages.** Against that year of history a wiped phone catches up in 8 pulls
+of roughly 300 KB, not one response of 2.3 MB; see `Sync:PullPageRows` above for why that bound
+exists and what it cost to find.
+
+**Memory.** The API settles around 200 MB and grows to roughly 500 MB after repeated exports, where
+it levels off — .NET's server garbage collector keeping the heap it has grown rather than a leak
+(with `DOTNET_gcServer=0` the same run stays near 300 MB, at 20–40% more latency under load). A shop
+runs comfortably on 2 vCPU and 2 GB for the API with another 2 GB for Postgres.
 
 ## Reading lists
 

@@ -43,6 +43,12 @@ public sealed class PullChangesFlowTests
     /// <summary>A page budget big enough that nothing these tests write is ever capped.</summary>
     private const int APage = 200;
 
+    /// <summary>
+    /// A row budget no test here is about: high enough that only the transaction budget ever
+    /// stops a page, so these tests keep saying what they were written to say.
+    /// </summary>
+    private const int AnyRows = 100_000;
+
     private static readonly DateTimeOffset MondayMorning = new(2026, 8, 10, 8, 0, 0, TimeSpan.Zero);
 
     private readonly OrgId _tenant = OrgId.New();
@@ -206,7 +212,7 @@ public sealed class PullChangesFlowTests
         using var elsewhere = services.ActingAs(OrgId.New());
         var pulled = await elsewhere.ServiceProvider
             .GetRequiredService<ISender>()
-            .Send(new PullChangesQuery(sam, SyncCursor.Beginning, APage));
+            .Send(new PullChangesQuery(sam, SyncCursor.Beginning, APage, AnyRows));
 
         Assert.Empty(pulled.Value.Changes.Jobs);
         Assert.Empty(pulled.Value.Changes.Stops);
@@ -340,7 +346,7 @@ public sealed class PullChangesFlowTests
 
         while (true)
         {
-            var page = await Send(services, new PullChangesQuery(sam, cursor, 1));
+            var page = await Send(services, new PullChangesQuery(sam, cursor, 1, AnyRows));
             Assert.True(page.IsSuccess);
 
             drained.AddRange(page.Value.Changes.Stops.Select(stop => stop.JobId));
@@ -363,7 +369,7 @@ public sealed class PullChangesFlowTests
             drained.Distinct().Select(job => job.Value).Order());
 
         // And the device is now up to date: one more pull says so and carries nothing new.
-        var settled = await Send(services, new PullChangesQuery(sam, cursor, 1));
+        var settled = await Send(services, new PullChangesQuery(sam, cursor, 1, AnyRows));
         Assert.False(settled.Value.HasMore);
         Assert.Empty(settled.Value.Changes.Stops);
     }
@@ -393,7 +399,7 @@ public sealed class PullChangesFlowTests
         var optimized = await Send(services, new OptimizeDayCommand(MondayMorning, MondayMorning.AddHours(9)));
         Assert.Equal(3, optimized.Value.Planned);
 
-        var caughtUpOnTheJobs = await Send(services, new PullChangesQuery(sam, SyncCursor.Beginning, 1));
+        var caughtUpOnTheJobs = await Send(services, new PullChangesQuery(sam, SyncCursor.Beginning, 1, AnyRows));
 
         // Drain whatever the bookings themselves wrote, then look at the page the optimise landed
         // in: whichever page that is, it carries all three of its stops.
@@ -403,7 +409,7 @@ public sealed class PullChangesFlowTests
 
         while (caughtUpOnTheJobs.Value.HasMore && pages < 20)
         {
-            var page = await Send(services, new PullChangesQuery(sam, cursor, 1));
+            var page = await Send(services, new PullChangesQuery(sam, cursor, 1, AnyRows));
             cursor = page.Value.Cursor;
             stops = Math.Max(stops, page.Value.Changes.Stops.Count);
             pages++;
@@ -417,13 +423,65 @@ public sealed class PullChangesFlowTests
         Assert.Equal(3, stops);
     }
 
+    /// <summary>
+    /// A page stops on the row budget too, not only on the transaction budget.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The defect the load measurement found. Counting transactions bounds the wrong thing: an
+    /// optimise writes a whole day's plan under one stamp, a bulk import writes in batches, and the
+    /// seeded year of history landed in twenty transactions — so a first sync against it answered
+    /// with <strong>12,884 changes in one 2.3 MB response</strong>, to a phone in a van, while
+    /// obeying the page cap perfectly.
+    /// </para>
+    /// <para>
+    /// Here: three jobs planned in one transaction each, a generous transaction budget, and a row
+    /// budget of one. The page still carries a whole transaction — never a split one — and stops
+    /// after it, and the device drains the rest by pulling again.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task StopsOnTheRowBudgetAsWellAsTheTransactionBudget()
+    {
+        await using var services = BuildHost();
+        var sam = await ATechnicianAsync(services, "Sam Rivera");
+
+        for (var hour = 1; hour <= 3; hour++)
+        {
+            var job = await ABookedJobAsync(services);
+            await Send(services, new AssignJobCommand(job, sam, MondayMorning.AddHours(hour)));
+        }
+
+        // A budget the transaction count cannot reach, so only the rows can stop this page.
+        var page = await Send(services, new PullChangesQuery(sam, SyncCursor.Beginning, APage, MaxRows: 1));
+
+        Assert.True(page.IsSuccess);
+        Assert.True(page.Value.HasMore, "a row budget of one should not have taken everything");
+
+        var drained = new List<JobId>(page.Value.Changes.Stops.Select(stop => stop.JobId));
+        var cursor = page.Value.Cursor;
+        var pages = 1;
+
+        while (page.Value.HasMore && pages < 20)
+        {
+            page = await Send(services, new PullChangesQuery(sam, cursor, APage, MaxRows: 1));
+            drained.AddRange(page.Value.Changes.Stops.Select(stop => stop.JobId));
+            cursor = page.Value.Cursor;
+            pages++;
+        }
+
+        // Bounded pages, and nothing lost between them: the device still ends up with all three.
+        Assert.True(pages > 1, "the row budget should have taken more than one page");
+        Assert.Equal(3, drained.Distinct().Count());
+    }
+
     [Fact]
     public async Task RefusesACursorThisServerNeverIssued()
     {
         await using var services = BuildHost();
         var sam = await ATechnicianAsync(services, "Sam Rivera");
 
-        var pulled = await Send(services, new PullChangesQuery(sam, new SyncCursor(-1), APage));
+        var pulled = await Send(services, new PullChangesQuery(sam, new SyncCursor(-1), APage, AnyRows));
 
         Assert.True(pulled.IsFailure);
     }
@@ -440,7 +498,7 @@ public sealed class PullChangesFlowTests
 
     private async Task<PulledChanges> PullAsync(ServiceProvider services, TechnicianId technician, SyncCursor since)
     {
-        var pulled = await Send(services, new PullChangesQuery(technician, since, APage));
+        var pulled = await Send(services, new PullChangesQuery(technician, since, APage, AnyRows));
 
         Assert.True(pulled.IsSuccess);
 

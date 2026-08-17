@@ -270,7 +270,7 @@ try
     // middleware is wired and before app.Run() would start a hosted service or bind a port.
     if (SeedCommand.Requested(args))
     {
-        return await SeedCommand.RunAsync(app).ConfigureAwait(false);
+        return await SeedCommand.RunAsync(app, args).ConfigureAwait(false);
     }
 
     // The two verbs a real deployment runs, in the same shape and for the same reason: applying the

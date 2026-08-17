@@ -132,7 +132,11 @@ public static class SyncEndpoints
 
         var result = await sender
             .Send(
-                new PullChangesQuery(technicianId, since, sync.Value.PullPageTransactions),
+                new PullChangesQuery(
+                    technicianId,
+                    since,
+                    sync.Value.PullPageTransactions,
+                    sync.Value.PullPageRows),
                 cancellationToken)
             .ConfigureAwait(false);
 
