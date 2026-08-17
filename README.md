@@ -104,15 +104,58 @@ Four things a real deployment owns:
 | **Migrations** | Run `migrate` as a one-shot **before** the new version serves, and only once — the host deliberately does not migrate itself on startup, because two replicas rolling out together would race. It is idempotent and says whether it applied anything. |
 | **The first login** | Nothing creates users over HTTP, by design. `create-user` is the only way in, and running it again for an existing username **replaces** that login — which is also the only password reset this system has. |
 | **Somebody leaving** | `disable-user --username <name>` switches a login off; the user row stays, so the audit trail can still say what they did, and `create-user` for the same name switches it back on with a new password. **It does not revoke the token they already hold:** authorization is a signed JWT and nothing reads the user store per request, so a disabled person can keep calling until that token expires — bounded by `Jwt:ExpiryMinutes` (`720` — twelve hours — by default) and no longer. Set that to the longest window you are willing to have; closing the gap entirely needs short tokens plus refresh, which this does not have. |
-| **Attachments** | Photographs and signatures are files, under `Attachments__Root` (`/var/lib/opendispatch/attachments` in the image). Mount a volume and back it up with the database. A **named** volume is handled by the image; a **bind** mount keeps the host directory's ownership, so `chown -R 1654:1654` it or the first upload of the day answers 500. Two API instances need *shared* storage — the local-disk adapter is one machine's disk until an object-store adapter replaces it. |
+| **Attachments** | Photographs and signatures are the only data not in Postgres, and a deployment picks where they live: a **disk** (`Attachments__Root`, `/var/lib/opendispatch/attachments` in the image) or an **S3-compatible bucket** (`Attachments__Bucket`). Choose by what your platform's filesystem is, not by scale — see [Where the photographs live](#where-the-photographs-live) below. |
 | **TLS** | Terminated by a proxy in front; the container serves plain HTTP on 8080. Set `ReverseProxy:Enabled` so the host believes the forwarded address, and only when it is unreachable except through that proxy. |
 | **More than one instance** | Set `SignalR:Redis`. SignalR keeps its groups in the memory of the process holding the connection, so **without a backplane the live board is correct only while there is exactly one API instance** — a dispatcher connected to one would never see a change made through another, silently. One instance is a supported way to run this; two without Redis is not. The host says which it is in its startup log. |
 
-Back up the database and the attachment volume together: an invoice whose photograph is missing is
+Back up the database and the attachment store together: an invoice whose photograph is missing is
 half a record, and Document 1's promise is that the business owns all of it. The exact commands, and
 the restore that goes with them, are in [docs/RUNBOOK.md](docs/RUNBOOK.md) — and `make restore-drill`
 runs the whole cycle against scratch containers, so the procedure is one that has been executed
 rather than one that has been written down.
+
+### Where the photographs live
+
+Attachment content is the one thing this system writes outside Postgres, so it is the one thing a
+database backup does not carry and the one thing a container filesystem can quietly take with it.
+There are two adapters behind a single port, and the host says which one it has in its startup log.
+
+**A disk**, the default. `Attachments__Root` names a directory; mount a volume over it and back it up
+with the database. A **named** volume is handled by the image; a **bind** mount keeps the host
+directory's ownership, so `chown -R 1654:1654` it or the first upload of the day answers 500. This
+is the whole answer for a shop running OpenDispatch on a machine it owns.
+
+**A bucket**, when the filesystem is not yours to keep. Set `Attachments__Bucket` and the content
+goes to any S3-compatible object store — AWS S3, Cloudflare R2, Backblaze B2, MinIO — addressed
+path-style, so no per-bucket DNS is needed.
+
+```bash
+-e Attachments__Bucket=opendispatch-attachments \
+-e Attachments__ServiceUrl=https://<accountid>.r2.cloudflarestorage.com \
+-e Attachments__Region=auto \
+-e AWS_ACCESS_KEY_ID=… -e AWS_SECRET_ACCESS_KEY=…
+```
+
+`ServiceUrl` is the store's endpoint; leave it unset for Amazon S3 itself and give
+`Attachments__Region` instead. **Credentials are read from the environment only** — there is
+deliberately no configuration key for an access key, so there is nowhere for one to be typed into
+`appsettings.json` and committed. A host that names a bucket needs no `Attachments__Root`, and a
+host that names neither refuses to start.
+
+Two things to get right on the bucket itself, because the code cannot check them for you:
+
+- **It must already exist.** The adapter never creates a bucket; that is an account-level act with
+  its own policy and lifecycle.
+- **Versioning and object-lock retention must be off.** Erasure *deletes* a photograph, and a bucket
+  configured to keep previous versions answers a delete by hiding the object rather than removing
+  it — which would leave a picture of somebody's home recoverable after they were told it was gone.
+
+**Pick the bucket if your platform's container filesystem is ephemeral.** On Render, Fly, Cloud Run
+and anything else that hands each release a fresh disk, the local-disk adapter does not degrade
+gracefully — the next deploy destroys every photograph and signature captured since the last one,
+silently, with a perfectly healthy-looking host on the far side. The same applies to running two API
+instances without shared storage: one would store a photograph the other 404s. The startup log's
+disk line says so, every boot.
 
 ### Erasing a customer
 
@@ -130,8 +173,10 @@ photograph refused rather than applied. The tombstoned record reads `[erased]`, 
 the customer and on each job — in the API and in `GET /export` — says it was an answered request
 rather than a row nobody filled in.
 
-The one thing it cannot reach is a backup taken before it ran. Erasure is a live-system operation;
-what your retention policy does about older backups is a decision this software cannot make.
+The one thing it cannot reach is a copy taken before it ran — a backup, or a previous object version
+in a bucket configured to keep them. Erasure is a live-system operation; what your retention policy
+does about older copies is a decision this software cannot make, which is why the bucket must not be
+versioned.
 
 One thing to schedule, from cron or its equivalent:
 
@@ -175,6 +220,7 @@ Optional, and doing nothing until set:
 | `Cors:Origins` | Browser origins allowed to call the API and the hub. Empty means no browser client can call it — set it to your dispatch board and technician app origins. |
 | `RateLimit:*` | Three caps. Sign-in attempts per address per window (`20` per `300`s) — raise it for an office behind one NAT address. `PushesPerMinute` per technician (`60`) and `OptimizationsPerMinute` per organization (`10`), which are not about attackers: a phone stuck in a retry loop and a browser with a wedged refresh are ordinary accidents, and both can spend a shop's database. `Enabled` turns all three off. |
 | `ReverseProxy:Enabled` | Read `X-Forwarded-For`/`-Proto`. Turn it on **only** when this host is unreachable except through the proxy, or narrow it with `KnownProxies`/`KnownNetworks`. |
+| `Attachments:Bucket` | An S3-compatible bucket for photographs and signatures, instead of `Attachments:Root` on a disk. With it, `Attachments:ServiceUrl` (the store's endpoint; unset means Amazon S3) and `Attachments:Region` (required for Amazon, conventionally `auto` or `us-east-1` elsewhere). Access keys come from `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` or a platform role and have no configuration key at all. **Required, not optional, on any platform whose container filesystem is ephemeral** — see "Where the photographs live" above. |
 | `SignalR:Redis` | A StackExchange connection string for the dispatch board's backplane. Unset means in-process, which is correct for exactly one instance — see "More than one instance" above. |
 | `Outbox:*` | How the delivery sweep behaves — `Enabled` (default true), `IntervalSeconds` (10), `GraceSeconds` (30), `BatchSize` (50). Turning it off is an incident measure while a poison message is dealt with, not a configuration: with it off, a reaction lost to a failure or a restart stays lost. |
 | `Otel:Endpoint` | An OTLP collector to export metrics and traces to — `http://collector:4317`. Unset means the instruments are published in-process and sent nowhere, which is what `dotnet-counters` reads. `Otel:Protocol` picks `grpc` (default, usually port 4317) or `http/protobuf` (usually 4318); `Otel:ServiceName` names this deployment in the collector's feed, which is how staging and production are told apart when they share one. A collector that is down costs nothing — the exporter drops what it cannot deliver and never blocks a request. |

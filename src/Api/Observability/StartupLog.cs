@@ -1,3 +1,5 @@
+using OpenDispatch.Api.Configuration;
+
 namespace OpenDispatch.Api.Observability;
 
 /// <summary>
@@ -91,4 +93,39 @@ internal static partial class StartupLog
         Message = "Logging human-readable text to the console. Set Logging:Json for a log pipeline that "
             + "parses properties rather than lines.")]
     private static partial void HumanLogs(ILogger logger);
+
+    /// <remarks>
+    /// The most consequential of the four, and the reason the disk branch names the risk rather than
+    /// merely stating the setting: attachment content is the only data in this system that is not in
+    /// Postgres, so on a platform whose container filesystem is recreated on deploy, a host that
+    /// looks entirely healthy is discarding every photograph the field captures. That cannot be seen
+    /// from outside the process and is not visible until the second release — which is exactly the
+    /// kind of fact these lines exist for.
+    /// </remarks>
+    internal static void AttachmentStore(ILogger logger, AttachmentOptions attachments)
+    {
+        ArgumentNullException.ThrowIfNull(attachments);
+
+        if (attachments.UsesObjectStore)
+        {
+            InBucket(logger, attachments.Bucket, attachments.ServiceUrl is { Length: > 0 } endpoint ? endpoint : "AWS S3");
+        }
+        else
+        {
+            OnDisk(logger, attachments.Root);
+        }
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Attachment content is stored in bucket {Bucket} at {Endpoint}.")]
+    private static partial void InBucket(ILogger logger, string bucket, string endpoint);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Attachment content is stored on the local filesystem at {Root}. It is the only data "
+            + "not in Postgres: back it up with the database, and do not run this host on a platform "
+            + "with an ephemeral container filesystem without configuring Attachments:Bucket — a "
+            + "deploy would destroy every photograph and signature captured since the last one.")]
+    private static partial void OnDisk(ILogger logger, string root);
 }

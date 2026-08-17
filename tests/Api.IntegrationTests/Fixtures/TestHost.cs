@@ -3,6 +3,7 @@ using OpenDispatch.Application;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Infrastructure;
+using OpenDispatch.Infrastructure.Attachments;
 using OpenDispatch.Infrastructure.Auth;
 using OpenDispatch.Infrastructure.Events;
 
@@ -27,17 +28,23 @@ namespace OpenDispatch.Api.IntegrationTests.Fixtures;
 internal static class TestHost
 {
     /// <summary>The real registrations, over the shared container's database.</summary>
-    /// <remarks>
-    /// Attachment content goes to a directory of this run's own, deleted with the fixture. A test
-    /// that wrote photographs into the repository would be one nobody notices until it is committed.
-    /// </remarks>
-    public static IServiceCollection Over(PostgresFixture postgres, OutboxOptions? outbox = null) =>
+    /// <param name="postgres">The shared, migrated database.</param>
+    /// <param name="outbox">How the outbox sweep behaves; off unless a test asks for it.</param>
+    /// <param name="attachments">
+    /// Where photographs go. Defaults to a directory of this run's own, deleted with the fixture —
+    /// a test that wrote photographs into the repository would be one nobody notices until it is
+    /// committed. A test about the bucket adapter passes <c>MinioFixture.Settings</c> instead.
+    /// </param>
+    public static IServiceCollection Over(
+        PostgresFixture postgres,
+        OutboxOptions? outbox = null,
+        AttachmentStorageSettings? attachments = null) =>
         new ServiceCollection()
             .AddLogging()
             .AddApplication()
             .AddInfrastructure(
                 _ => postgres.ConnectionString,
-                _ => postgres.AttachmentRoot,
+                _ => attachments ?? AttachmentStorageSettings.OnDisk(postgres.AttachmentRoot),
                 // None of these tests are about auth, so the signing key only has to satisfy
                 // JwtTokenIssuer's constructor — nothing here issues or reads a real token.
                 _ => new JwtSigningOptions(

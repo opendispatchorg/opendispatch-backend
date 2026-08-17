@@ -27,6 +27,13 @@
          itself resolves a patched version — .github/dependabot.yml exists to be the thing that
          notices, per that entry's own comment. -->
     <PackageReference Include="SSH.NET" Version="2026.0.0" />
+    <!--
+      MinIO, for the object-store half of the storage contract. Its own container rather than a
+      hand-rolled S3 stub: the claim under test is that the adapter works against a real S3 API,
+      and a fake that agreed with our reading of the protocol would prove nothing about the store a
+      deployment actually points at.
+    -->
+    <PackageReference Include="Testcontainers.Minio" Version="4.14.0" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
     <PackageReference Include="Testcontainers.Redis" Version="4.14.0" />
     <PackageReference Include="xunit" Version="2.9.3" />

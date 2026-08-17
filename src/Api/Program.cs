@@ -74,7 +74,7 @@ try
     // connection string it owns. Everything above this line stays ignorant of EF Core.
     builder.Services.AddInfrastructure(
         provider => provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.ConnectionString,
-        provider => provider.GetRequiredService<IOptions<AttachmentOptions>>().Value.Root,
+        provider => provider.GetRequiredService<IOptions<AttachmentOptions>>().Value.ToStorageSettings(),
         provider =>
         {
             var jwt = provider.GetRequiredService<IOptions<JwtOptions>>().Value;
@@ -395,6 +395,11 @@ try
     // lines are, are both invisible from outside and both things an operator gets wrong silently.
     StartupLog.Telemetry(app.Logger, telemetry, app.Configuration[Telemetry.EndpointKey]);
     StartupLog.LogFormat(app.Logger, ConsoleLogging.IsJson(app.Configuration));
+
+    // And the fourth, which is the one that loses data rather than merely behaving oddly: a host on
+    // a platform with an ephemeral filesystem, storing photographs on that filesystem, works
+    // perfectly until it is deployed again. See AttachmentOptions.
+    StartupLog.AttachmentStore(app.Logger, app.Services.GetRequiredService<IOptions<AttachmentOptions>>().Value);
 
     app.Run();
     return 0;

@@ -34,8 +34,9 @@ public static class InfrastructureRegistration
     /// </summary>
     /// <param name="services">The host's service collection.</param>
     /// <param name="connectionString">Reads the connection string once the container is built.</param>
-    /// <param name="attachmentRoot">
-    /// Reads the directory attachment content is stored under, once the container is built.
+    /// <param name="attachmentStore">
+    /// Reads where attachment content is stored — a directory or a bucket — once the container is
+    /// built.
     /// </param>
     /// <param name="jwtSigningOptions">
     /// Reads the JWT signing key, issuer, audience and expiry once the container is built.
@@ -47,7 +48,7 @@ public static class InfrastructureRegistration
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
         Func<IServiceProvider, string> connectionString,
-        Func<IServiceProvider, string> attachmentRoot,
+        Func<IServiceProvider, AttachmentStorageSettings> attachmentStore,
         Func<IServiceProvider, JwtSigningOptions> jwtSigningOptions,
         OutboxOptions? outbox = null) =>
         services
@@ -60,10 +61,11 @@ public static class InfrastructureRegistration
             // record and does not belong in the same registration as the aggregates.
             .AddAuth(jwtSigningOptions)
 
-            // Photographs and signatures on a local disk, which is the whole answer for a shop
-            // hosting this itself (Document 1). A bucket adapter is one class beside it and this
-            // line changed; nothing above the port knows the difference.
-            .AddLocalAttachmentStorage(attachmentRoot)
+            // Photographs and signatures, on whichever store this deployment named: a disk, which
+            // is the whole answer for a shop hosting this on a machine it owns (Document 1), or a
+            // bucket, which is the only correct answer on a platform whose container filesystem is
+            // destroyed by the next deploy. Nothing above the port knows the difference.
+            .AddAttachmentStorage(attachmentStore)
 
             // Straight-line travel: the default that ships with the engine and needs no
             // infrastructure at all. The road-network provider Document 2 §4 describes is a class

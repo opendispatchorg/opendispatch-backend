@@ -14,7 +14,7 @@ to it.
 |---|---|---|
 | **The API** | One stateless process. `dotnet OpenDispatch.Api.dll`, or the image with no arguments. | Nothing serves. Nothing is lost. |
 | **Postgres** (with PostGIS) | Every business record: customers, jobs, the plan, invoices, the audit trail, the sync log. | The API answers 503 on `/health/ready` and 500 on everything else. Nothing is lost. |
-| **The attachment volume** | Photographs and signatures — the **only** data not in Postgres. | Uploads fail; existing photographs 404. `pg_dump` will not bring them back. |
+| **The attachment store** | Photographs and signatures — the **only** data not in Postgres. A volume (`Attachments__Root`) or an S3-compatible bucket (`Attachments__Bucket`). | Uploads fail; existing photographs 404. `pg_dump` will not bring them back. On an ephemeral container filesystem, a volume is not a store at all — the next deploy takes it. |
 | **Redis** (optional) | The SignalR backplane, for more than one API instance. | With one instance: nothing. With two and no Redis: the live board silently shows one instance's changes only. |
 
 Everything else — the outbox sweep, the demo seeder, the CLI verbs — runs inside the API process or
@@ -75,9 +75,12 @@ photograph is gone is half a record.
 # The database. -Fc is the custom format: compressed, and restorable selectively.
 docker exec <postgres> pg_dump -U opendispatch -d opendispatch -Fc > opendispatch-$(date +%F).dump
 
-# The attachments. Whatever holds the volume — this is the Docker case.
+# The attachments, on a volume. Whatever holds it — this is the Docker case.
 docker run --rm -v opendispatch-attachments:/data:ro -v "$PWD:/backup" busybox \
   tar czf /backup/attachments-$(date +%F).tar.gz -C /data .
+
+# The attachments, in a bucket. Same artifact, different shelf.
+aws s3 sync s3://opendispatch-attachments ./attachments-$(date +%F)/ --endpoint-url "$STORE"
 ```
 
 Do **not** narrow the dump with `-n public`, however tidy it looks: schema filtering drops the
@@ -156,7 +159,7 @@ organization, and `measure.sh` re-plans whatever day it is run on.
 | **Create a login** | `<image> create-user --username <name> --org "<Organization>" --role <Admin\|Dispatcher\|Technician> [--technician <guid>]` — the password is read from stdin if `--password` is not given, which is how to keep it out of your shell history. Running it again for an existing username **replaces** that login: the only password reset there is. |
 | **Somebody leaves** | `<image> disable-user --username <name>`. The login stops working; the user row stays, so the audit trail can still say what they did. |
 | **Somebody returns** | `create-user` again with the same username: it switches the login back on with a new password. |
-| **Erase a customer** | `POST /customers/{id}/erase` as an admin. See the README for exactly what goes and what stays. It is irreversible and it deletes photographs from the disk. |
+| **Erase a customer** | `POST /customers/{id}/erase` as an admin. See the README for exactly what goes and what stays. It is irreversible and it deletes the photographs' bytes from whichever store this host has. |
 | **Prune protocol tables** | `<image> prune --days 30`, from cron. Deletes the sync op log and removal notes older than the window — bookkeeping, not business records. Nothing else in this system is ever pruned. |
 
 Every one of these except `prune` shows up in the audit trail or the logs with a name attached.
@@ -300,10 +303,15 @@ repeatedly from outside is an attack, and the limiter is doing its job.
 
 ## Known limits, so you find them here rather than at 2am
 
-- **Two instances need shared attachment storage.** The local-disk adapter is one machine's disk. Two
-  API instances without a shared volume will store a photograph on one and 404 it from the other,
-  silently. Shared volume now; an object-store adapter is one class and one registration when it is
-  worth it.
+- **The disk adapter is one machine's disk, and on some platforms it is nobody's.** Two API instances
+  without shared storage will store a photograph on one and 404 it from the other, silently; a
+  platform with an ephemeral container filesystem destroys the lot on the next deploy, which is
+  worse and quieter. Both are answered by `Attachments__Bucket` — the object-store adapter — and the
+  startup log says which store this host has.
+- **A versioned bucket makes erasure a lie.** If `Attachments__Bucket` points at a store with
+  versioning or object-lock retention turned on, a delete hides the object instead of removing it,
+  and a photograph somebody asked you to erase stays recoverable. Nothing in the software can check
+  this; check it on the bucket.
 - **Disabling a user does not revoke the token they hold.** Up to `Jwt:ExpiryMinutes` (720 by
   default) of continued access. Lower it if that is unacceptable; rotate the signing key if it is
   urgent, accepting that everybody else is signed out too.

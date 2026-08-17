@@ -11,19 +11,18 @@ using OpenDispatch.TestSupport;
 namespace OpenDispatch.Api.IntegrationTests.Attachments;
 
 /// <summary>
-/// The two halves of an attachment, against a real database and a real disk.
+/// The metadata half of an attachment, and how it pairs with the bytes.
 /// </summary>
 /// <remarks>
 /// <para>
-/// The metadata is an ordinary tenant-scoped row and is covered as such. What earns its own tests
-/// is the pair of guarantees the technician app leans on: the bytes come back exactly as they went
-/// in, and the same capture arriving twice does not become two attachments — which is what a
-/// retried upload over a bad connection looks like.
+/// What the store itself must do — round-trip, missing keys, deleting, overwriting — is
+/// <see cref="AttachmentStorageContractTests"/>, written once and run against both adapters. What
+/// is left here is the half that is about the database: the row records what was captured and where
+/// its bytes are, one capture can only produce one row, and neither is visible to another tenant.
 /// </para>
 /// <para>
-/// There is no upload command yet (step 50b), so these exercise the port and the store directly.
-/// That is deliberate rather than a shortcut: this step's deliverable is the storage, and its
-/// contract is what step 50b will be written against.
+/// The one test that still spans both is the retry, which is the guarantee the technician app
+/// leans on and is only meaningful when the row and the bytes are looked at together.
 /// </para>
 /// </remarks>
 [Collection(PostgresCollectionDefinition.Name)]
@@ -63,48 +62,6 @@ public sealed class AttachmentStoreTests
         // Derived from the tenant and the attachment, never from anything a device sent — which is
         // what makes the key safe to turn into a path.
         Assert.Equal(StorageKey.For(_tenant, captured.Id), stored.StorageKey);
-    }
-
-    /// <summary>
-    /// The bytes, through the port a bucket adapter will implement later. Binary rather than text,
-    /// because a photograph is not UTF-8 and a store that quietly re-encoded would pass a
-    /// friendlier test.
-    /// </summary>
-    [Fact]
-    public async Task RoundTripsContentByItsKey()
-    {
-        await using var services = BuildHost();
-        var storage = services.GetRequiredService<IAttachmentStorage>();
-        var key = StorageKey.For(_tenant, AttachmentId.From(Guid.NewGuid()));
-        var photograph = Photograph();
-
-        await storage.SaveAsync(key, new MemoryStream(photograph), CancellationToken.None);
-
-        await using var content = await storage.OpenAsync(key, CancellationToken.None);
-        Assert.NotNull(content);
-
-        using var read = new MemoryStream();
-        await content.CopyToAsync(read);
-
-        Assert.Equal(photograph, read.ToArray());
-    }
-
-    /// <summary>
-    /// A metadata row whose blob is missing is something a caller can report on. Nothing produces
-    /// that state today, and the day something does — a cleared volume, a half-restored backup —
-    /// the answer is a 404 rather than a 500.
-    /// </summary>
-    [Fact]
-    public async Task SaysNothingIsThereForAKeyItHasNeverSeen()
-    {
-        await using var services = BuildHost();
-        var storage = services.GetRequiredService<IAttachmentStorage>();
-
-        var content = await storage.OpenAsync(
-            StorageKey.For(_tenant, AttachmentId.From(Guid.NewGuid())),
-            CancellationToken.None);
-
-        Assert.Null(content);
     }
 
     /// <summary>
@@ -185,27 +142,6 @@ public sealed class AttachmentStoreTests
             .GetAsync(captured.Id, CancellationToken.None);
 
         Assert.Null(found);
-    }
-
-    /// <summary>
-    /// One tenant's content cannot be reached by asking for another's key, because the tenant is
-    /// part of the key — a device that guessed an attachment id still cannot name the file.
-    /// </summary>
-    [Fact]
-    public async Task KeysContentByTenantSoOneCannotNameAnothersFile()
-    {
-        await using var services = BuildHost();
-        var storage = services.GetRequiredService<IAttachmentStorage>();
-        var id = AttachmentId.From(Guid.NewGuid());
-
-        await storage.SaveAsync(
-            StorageKey.For(_tenant, id),
-            new MemoryStream(Photograph()),
-            CancellationToken.None);
-
-        var elsewhere = await storage.OpenAsync(StorageKey.For(OrgId.New(), id), CancellationToken.None);
-
-        Assert.Null(elsewhere);
     }
 
     // Not text: a photograph is bytes, and a store that re-encoded on the way through would pass a

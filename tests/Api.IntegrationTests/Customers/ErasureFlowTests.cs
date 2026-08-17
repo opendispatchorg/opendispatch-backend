@@ -24,6 +24,7 @@ using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Invoices;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.ValueObjects;
+using OpenDispatch.Infrastructure.Attachments;
 using OpenDispatch.TestSupport;
 
 namespace OpenDispatch.Api.IntegrationTests.Customers;
@@ -67,10 +68,47 @@ public sealed class ErasureFlowTests : IClassFixture<ApiFactory>
         _factory.ConnectionString = postgres.ConnectionString;
     }
 
+    /// <summary>
+    /// The whole duty, with photographs on a disk — what a shop hosting this on its own machine
+    /// runs.
+    /// </summary>
     [Fact]
-    public async Task ErasesThePersonAndKeepsTheBusiness()
+    public Task ErasesThePersonAndKeepsTheBusiness() =>
+        ErasesEverywhere(
+            AttachmentStorageSettings.OnDisk(_postgres.AttachmentRoot),
+            key => Task.FromResult(File.Exists(Path.Combine(_postgres.AttachmentRoot, key))));
+
+    /// <summary>
+    /// The same duty with photographs in a bucket, which is where a deployment on a container
+    /// platform keeps them.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Not a duplicate of the test above. Erasure is the one thing in this system that destroys
+    /// bytes, and it now has two stores to destroy them in: a delete that reached a disk says
+    /// nothing about whether it reached a bucket, and "the photograph is still recoverable after we
+    /// told them it was gone" is not a failure anybody would notice from the outside. So the claim
+    /// is made where it will actually run.
+    /// </para>
+    /// <para>
+    /// The object store is started inside this test rather than for the class, so the three cases
+    /// beside it — which are about rows, not bytes — do not pay for a container.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ErasesThePersonAndKeepsTheBusinessWithContentInABucket()
     {
-        await using var services = TestHost.Over(_postgres).BuildServiceProvider(validateScopes: true);
+        await using var minio = await MinioFixture.StartAsync();
+
+        await ErasesEverywhere(minio.Settings, minio.ExistsAsync);
+    }
+
+    private async Task ErasesEverywhere(
+        AttachmentStorageSettings storage,
+        Func<string, Task<bool>> storedContent)
+    {
+        await using var services = TestHost.Over(_postgres, attachments: storage)
+            .BuildServiceProvider(validateScopes: true);
 
         var customer = await Send(services, new CreateCustomerCommand(Name, Email, Phone));
         var location = await Send(services, new AddServiceLocationCommand(
@@ -107,8 +145,9 @@ public sealed class ErasureFlowTests : IClassFixture<ApiFactory>
             ByteLength: 4,
             new MemoryStream(Encoding.UTF8.GetBytes("JPEG"))));
 
-        var onDisk = Path.Combine(_postgres.AttachmentRoot, stored.Value.ServerId);
-        Assert.True(File.Exists(onDisk), $"the arrange step did not write {onDisk}");
+        Assert.True(
+            await storedContent(stored.Value.ServerId),
+            $"the arrange step did not store {stored.Value.ServerId}");
 
         await Send(services, new ChangeJobStatusCommand(job.Value, JobStatus.Completed));
 
@@ -143,10 +182,12 @@ public sealed class ErasureFlowTests : IClassFixture<ApiFactory>
         Assert.Equal(Tombstone.Point, theirJob.Location);
         Assert.NotNull(theirJob.ErasedAt);
 
-        // The photograph is gone from the database and from the disk — the half a database-only
-        // erasure leaves behind, and the half nobody notices.
+        // The photograph is gone from the database and from wherever its bytes were — the half a
+        // database-only erasure leaves behind, and the half nobody notices.
         Assert.Empty(await context.Attachments.Where(row => row.JobId == job.Value).ToListAsync());
-        Assert.False(File.Exists(onDisk), $"{onDisk} is still on the disk");
+        Assert.False(
+            await storedContent(stored.Value.ServerId),
+            $"{stored.Value.ServerId} is still in the store");
 
         // And the shop's books are untouched: the work still happened and still cost what it cost.
         var bill = await context.Invoices.SingleAsync(row => row.Id == invoice.Value.Id);
