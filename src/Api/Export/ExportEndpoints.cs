@@ -4,6 +4,7 @@ using Microsoft.AspNetCore.Http.Json;
 using Microsoft.Extensions.Options;
 using OpenDispatch.Api.Auth;
 using OpenDispatch.Api.ErrorHandling;
+using OpenDispatch.Api.Security;
 using OpenDispatch.Application.Customers.GetCustomer;
 using OpenDispatch.Application.Export;
 using OpenDispatch.Application.Export.GetExport;
@@ -37,7 +38,14 @@ public static class ExportEndpoints
             .RequireAuthorization(AuthPolicies.AdminOnly)
             .WithTags("Export")
             .WithName("ExportTenant")
-            .Produces<ExportResponse>();
+            .Produces<ExportResponse>()
+
+            // Last in the chain because it returns the weaker builder type. The one request whose
+            // honest duration grows with the shop: it streams a whole tenant's history rather than
+            // answering from a page, so the default thirty-second ceiling would cut a large one off
+            // mid-array. Five minutes is generous for the biggest dataset the load pass measured and
+            // still finite. See RequestLimits.
+            .WithRequestTimeout(RequestLimits.LongRunningPolicy);
 
         return endpoints;
     }

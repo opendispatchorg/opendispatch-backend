@@ -105,7 +105,8 @@ Four things a real deployment owns:
 | **The first login** | Nothing creates users over HTTP, by design. `create-user` is the only way in, and running it again for an existing username **replaces** that login — which is also the only password reset this system has. |
 | **Somebody leaving** | `disable-user --username <name>` switches a login off; the user row stays, so the audit trail can still say what they did, and `create-user` for the same name switches it back on with a new password. **It does not revoke the token they already hold:** authorization is a signed JWT and nothing reads the user store per request, so a disabled person can keep calling until that token expires — bounded by `Jwt:ExpiryMinutes` (`720` — twelve hours — by default) and no longer. Set that to the longest window you are willing to have; closing the gap entirely needs short tokens plus refresh, which this does not have. |
 | **Attachments** | Photographs and signatures are the only data not in Postgres, and a deployment picks where they live: a **disk** (`Attachments__Root`, `/var/lib/opendispatch/attachments` in the image) or an **S3-compatible bucket** (`Attachments__Bucket`). Choose by what your platform's filesystem is, not by scale — see [Where the photographs live](#where-the-photographs-live) below. |
-| **TLS** | Terminated by a proxy in front; the container serves plain HTTP on 8080. Set `ReverseProxy:Enabled` so the host believes the forwarded address, and only when it is unreachable except through that proxy. |
+| **TLS** | Terminated by a proxy in front; the container serves plain HTTP on 8080. Set `ReverseProxy:Enabled` so the host believes the forwarded address, and only when it is unreachable except through that proxy. **`Strict-Transport-Security` is only sent once the host can see the request arrived over HTTPS**, which behind a proxy means this flag is on — otherwise a browser would be told never to use plain HTTP for this origin again, which no server-side change undoes. |
+| **Connection pool** | Sized in the connection string, not in code, so it can match the database you actually have: `Maximum Pool Size` (Npgsql's default is 100) should be at or below what Postgres will grant this deployment across every instance, `Minimum Pool Size=2` keeps a connection warm, and `Timeout=15` bounds waiting for one. A single command is capped at 30 seconds regardless. |
 | **More than one instance** | Set `SignalR:Redis`. SignalR keeps its groups in the memory of the process holding the connection, so **without a backplane the live board is correct only while there is exactly one API instance** — a dispatcher connected to one would never see a change made through another, silently. One instance is a supported way to run this; two without Redis is not. The host says which it is in its startup log. |
 
 Back up the database and the attachment store together: an invoice whose photograph is missing is
@@ -156,6 +157,23 @@ gracefully — the next deploy destroys every photograph and signature captured 
 silently, with a perfectly healthy-looking host on the far side. The same applies to running two API
 instances without shared storage: one would store a photograph the other 404s. The startup log's
 disk line says so, every boot.
+
+### What the edge enforces
+
+Four bounds, none of them configurable, all of them chosen far above every measured path — they
+exist to stop a request running or growing without end, not to shape ordinary traffic.
+
+| | |
+|---|---|
+| **Request timeout** | 30 seconds by default; **5 minutes** for `GET /export`, which streams a whole tenant's history and is the one request whose honest duration grows with the shop. A request that hits it gets a 503. The SignalR hub is exempt — its fallback transports hold a request open on purpose. |
+| **Command timeout** | 30 seconds on any single database command, so a lock nobody meant to hold cannot pin a connection until the caller gives up. |
+| **Request body** | 26 MB, refused by the server before a handler sees it. That is the 25 MB attachment cap plus a megabyte for multipart framing — the framework's own default sat *above* the cap, so oversized uploads were read in full and only then rejected. |
+| **Response headers** | `nosniff`, `X-Frame-Options: DENY` with `frame-ancestors 'none'`, `Referrer-Policy: no-referrer` and a minimal `Permissions-Policy` on every response, including failures. HSTS only over HTTPS — see the TLS row above. |
+
+`GET /health/ready` checks the database, the attachment store, and the SignalR backplane when one is
+configured. An unreachable store or backplane reports **degraded** rather than unhealthy — a shop
+can still dispatch and invoice without either — and readiness still answers 503, because a load
+balancer is asking a yes/no question. The body names which check failed.
 
 ### Telling customers
 

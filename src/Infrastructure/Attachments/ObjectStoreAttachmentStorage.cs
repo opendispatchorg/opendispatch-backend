@@ -44,6 +44,12 @@ namespace OpenDispatch.Infrastructure.Attachments;
 /// </remarks>
 internal sealed class ObjectStoreAttachmentStorage : IAttachmentStorage, IDisposable
 {
+    /// <summary>
+    /// The object the readiness probe asks about. Not a <see cref="StorageKey"/>, because it names
+    /// nothing and must never collide with something that does — no tenant has this id.
+    /// </summary>
+    private const string ProbeKey = "00000000-0000-0000-0000-000000000000/health";
+
     private readonly IAmazonS3 _s3;
     private readonly string _bucket;
     private readonly ILogger<ObjectStoreAttachmentStorage> _log;
@@ -111,6 +117,38 @@ internal sealed class ObjectStoreAttachmentStorage : IAttachmentStorage, IDispos
         await _s3.DeleteObjectAsync(_bucket, key.Value, ct).ConfigureAwait(false);
 
         AttachmentStorageLog.Deleted(_log, key.Value);
+    }
+
+    /// <remarks>
+    /// <para>
+    /// A metadata request for a key that will never exist. The answer this wants is
+    /// <em>404 NoSuchKey</em> — which proves the endpoint answered, the credentials were accepted
+    /// and the bucket is there — while a missing bucket, a wrong key or an unreachable endpoint all
+    /// fail differently and report false.
+    /// </para>
+    /// <para>
+    /// A HEAD rather than a list or a <c>GetBucketLocation</c>, deliberately: those need bucket-level
+    /// permissions this adapter otherwise never uses, and a readiness probe should not be the reason
+    /// a deployment has to widen its policy.
+    /// </para>
+    /// </remarks>
+    public async Task<bool> IsReachableAsync(CancellationToken ct)
+    {
+        try
+        {
+            await _s3.GetObjectMetadataAsync(_bucket, ProbeKey, ct).ConfigureAwait(false);
+
+            return true;
+        }
+        catch (AmazonS3Exception missing) when (IsMissingObject(missing))
+        {
+            // The expected answer: the store is there and said this object is not.
+            return true;
+        }
+        catch (Exception unreachable) when (unreachable is not OperationCanceledException)
+        {
+            return false;
+        }
     }
 
     public void Dispose() => _s3.Dispose();

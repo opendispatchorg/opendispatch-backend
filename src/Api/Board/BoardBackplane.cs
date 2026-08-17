@@ -69,6 +69,18 @@ public static class BoardBackplane
         signalR.AddStackExchangeRedis(connection, options =>
             options.Configuration.ChannelPrefix = StackExchange.Redis.RedisChannel.Literal(ChannelPrefix));
 
+        // Readiness, only when there is something to be ready for. A deployment with no backplane is
+        // supported, so a check that reported its absence would page somebody about their own
+        // decision; a deployment with one has a load-bearing dependency that /health/ready never
+        // asked about until now.
+        services.AddHealthChecks()
+            .AddCheck(
+                BoardBackplaneHealthCheck.Name,
+                new BoardBackplaneHealthCheck(connection),
+                failureStatus: null,
+                tags: null,
+                timeout: TimeSpan.FromSeconds(5));
+
         return true;
     }
 }

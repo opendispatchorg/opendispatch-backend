@@ -27,6 +27,17 @@ namespace OpenDispatch.Infrastructure.Persistence;
 public static class PersistenceRegistration
 {
     /// <summary>
+    /// The longest any single database command may take before it is abandoned.
+    /// </summary>
+    /// <remarks>
+    /// Stated here rather than left to the provider's default, so it is a number somebody chose and
+    /// can change, and so a reader can tell that unbounded queries are not the arrangement. Pool
+    /// sizing is deliberately not set in code — it belongs in the connection string, where a
+    /// deployment can match it to the database it actually has; the README says what to put there.
+    /// </remarks>
+    internal const int CommandTimeoutSeconds = 30;
+
+    /// <summary>
     /// Registers <see cref="AppDbContext"/> against PostgreSQL with the PostGIS/NetTopologySuite
     /// plugin enabled, and the persistence ports over it.
     /// </summary>
@@ -77,7 +88,21 @@ public static class PersistenceRegistration
                     // Three attempts over five seconds: enough to ride out a failover, short
                     // enough that a request does not sit behind a database that is genuinely gone
                     // — that case is readiness' to report, not this one's to wait for.
-                    .EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null))
+                    .EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null)
+
+                    // A ceiling on any single command. Npgsql's own default is thirty seconds and
+                    // it is not the number that matters — what matters is that there *is* one and
+                    // that it is stated: without it in the source, nobody reading this can tell
+                    // whether an unbounded query is a decision or an oversight, and a lock nobody
+                    // is holding deliberately can otherwise pin a connection until the request is
+                    // abandoned.
+                    //
+                    // Thirty seconds is far above every measured path (the worst deliberate abuse
+                    // in the load pass was a 1.4-second optimise and a 5-second export) and far
+                    // below "forever". The export, which is the one legitimately long request, runs
+                    // as a stream of ordinary-sized commands rather than one enormous one, so it is
+                    // bounded by the request timeout rather than by this.
+                    .CommandTimeout(CommandTimeoutSeconds))
             // Tables and columns are snake_case. This runs over whatever names the model ends
             // up with, so a configuration names a table once, in the words the database uses.
             .UseSnakeCaseNamingConvention()

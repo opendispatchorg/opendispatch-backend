@@ -220,11 +220,21 @@ give you one from an error message, it is the fastest way into the logs.
 
 ### `/health/ready` is 503
 
-The API cannot reach Postgres, or a health check is failing. It recovers on its own when the
-database comes back — **do not restart the API for this**; a restart loses nothing but tells you
-nothing either. Check the database first (`pg_isready`, disk, connection count). The API retries
-transient failures three times over five seconds before answering at all, so a 503 means the
-database has been unreachable for longer than a blip.
+**Read the body first — it names the check that failed**, and the three mean different things:
+
+```json
+{"status":"degraded","service":"opendispatch-api",
+ "checks":{"database":"healthy","attachments":"degraded","board-backplane":"healthy"}}
+```
+
+| Check | What it means | What to do |
+|---|---|---|
+| `database` **unhealthy** | The API cannot reach Postgres. Nothing works. | Check the database first (`pg_isready`, disk, connection count). It recovers on its own when the database comes back — **do not restart the API**; a restart loses nothing but tells you nothing either. The API retries transient failures three times over five seconds before answering at all, so this means longer than a blip. |
+| `attachments` **degraded** | The volume is not mounted, or the bucket is unreachable with the credentials this host holds. Dispatch, invoicing and sync are all fine; **uploads and downloads 500**. | On a disk: check the mount and its ownership (`chown -R 1654:1654`). On a bucket: check `Attachments__Bucket`, the endpoint, and that the access key still works. This is the one that used to answer "healthy" while every technician's photograph failed. |
+| `board-backplane` **degraded** | Redis is configured and not answering. Everything works except the live board across instances. | Check Redis. With more than one API instance running, dispatchers are now seeing only their own host's changes — the same silent failure the backplane exists to prevent. |
+
+A degraded host answers 503 deliberately: readiness is a yes/no question for a load balancer, and
+the body is where the nuance lives.
 
 ### Rows are accumulating in `outbox_messages`
 
@@ -313,6 +323,10 @@ repeatedly from outside is an attack, and the limiter is doing its job.
   versioning or object-lock retention turned on, a delete hides the object instead of removing it,
   and a photograph somebody asked you to erase stays recoverable. Nothing in the software can check
   this; check it on the bucket.
+- **A request is cut off at 30 seconds, and `GET /export` at five minutes.** Both answer 503. A shop
+  large enough to hit the export ceiling has outgrown a single streamed dump, and the answer is a
+  paged export rather than a larger number — but the number is in `RequestLimits` if you disagree at
+  two in the morning.
 - **A customer notification that fails is not retried.** A send throws, it is logged at error level
   ("A customer notification (…) could not be delivered and will not be retried") and the request it
   was raised by still succeeds — because the alternative is a dispatcher getting a 500 for a status

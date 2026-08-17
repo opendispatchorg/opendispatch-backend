@@ -274,6 +274,12 @@ try
     builder.Services.AddClientCors();
     builder.Services.AddReverseProxyForwarding();
 
+    // A ceiling on how long a request may run and how large a body may be. Neither had one: a
+    // request could run until the caller gave up while holding a database connection, and Kestrel's
+    // default body limit sat above the attachment cap, so oversized uploads were read in full and
+    // then refused. See RequestLimits.
+    builder.Services.AddRequestLimits();
+
     var app = builder.Build();
 
     // `make seed` (Document 3, step 53). The host exists at this point but serves nothing: the
@@ -324,6 +330,11 @@ try
     // reports the one id this establishes, and a caller that sent its own gets that one back.
     app.UseCorrelationId();
 
+    // Beside the correlation id, and above everything that can write a response — including the
+    // exception handler, so a 500 carries them as surely as a 200 does. Until now the only security
+    // header anywhere in this host was the nosniff on attachment downloads.
+    app.UseSecurityHeaders();
+
     // NotFound/Conflict/Unauthorized/Validation log nothing of their own beyond this one
     // request-summary line, so it is what has to carry the id AddProblemDetails above puts on a
     // failure response, or that id has nothing server-side to correlate against.
@@ -365,6 +376,11 @@ try
     // for a policy are limited; everything else passes through untouched.
     app.UseRateLimiter();
 
+    // After the limiter, so a refused caller costs nothing, and before routing hands the request to
+    // a handler, which is what the timeout has to be able to cancel. The default policy applies to
+    // every endpoint that does not opt out — see RequestLimits, and the hub below, which does.
+    app.UseRequestTimeouts();
+
     // Authentication before authorization before tenant resolution, all three before any
     // endpoint: an anonymous or wrong-role caller is rejected before routing hands the request
     // to a handler, and a caller who passed both of those but carries no valid org claim
@@ -396,7 +412,13 @@ try
     app.MapExportEndpoints();
     app.MapSyncEndpoints();
     app.MapAttachmentEndpoints();
-    app.MapHub<DispatchHub>("/hubs/dispatch");
+    // No request timeout on the hub, and this is not an oversight: SignalR's fallback transports
+    // are long polling and server-sent events, both of which hold a request open on purpose — for
+    // ninety seconds at a time under the default keep-alive. The default policy would cut every one
+    // of them at thirty seconds and break the live board on exactly the transports a browser falls
+    // back to when WebSockets are unavailable, which is the case this host is most likely to meet
+    // behind somebody's corporate proxy.
+    app.MapHub<DispatchHub>("/hubs/dispatch").DisableRequestTimeout();
 
     // Said once, at startup, because it is the one property of this host that cannot be discovered
     // by looking at it: a board with no backplane works perfectly until a second instance exists.

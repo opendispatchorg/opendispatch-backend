@@ -33,7 +33,8 @@ public static class AttachmentStorageRegistration
     /// </remarks>
     public static IServiceCollection AddAttachmentStorage(
         this IServiceCollection services,
-        Func<IServiceProvider, AttachmentStorageSettings> settings) =>
+        Func<IServiceProvider, AttachmentStorageSettings> settings)
+    {
         services.AddSingleton<IAttachmentStorage>(provider =>
         {
             var store = settings(provider);
@@ -47,6 +48,19 @@ public static class AttachmentStorageRegistration
                     store.Root!,
                     provider.GetRequiredService<ILogger<LocalDiskAttachmentStorage>>());
         });
+
+        // Registered beside the adapter for the reason the database check is registered beside the
+        // context: whether this host can serve is a question about its store, and a composition
+        // root that has to remember to ask it is one that will eventually forget. The timeout is
+        // the probe's own guarantee — a bucket that has stopped answering must produce a "no"
+        // rather than a health endpoint that hangs.
+        services.AddHealthChecks()
+            .AddCheck<AttachmentStoreHealthCheck>(
+                AttachmentStoreHealthCheck.Name,
+                timeout: TimeSpan.FromSeconds(5));
+
+        return services;
+    }
 
     /// <summary>
     /// The S3 client for a bucket, addressed path-style so one adapter serves every S3-compatible

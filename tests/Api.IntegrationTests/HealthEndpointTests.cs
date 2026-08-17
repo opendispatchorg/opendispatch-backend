@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Http.Json;
 using OpenDispatch.Api.Health;
 using OpenDispatch.Api.IntegrationTests.Fixtures;
+using OpenDispatch.Infrastructure.Attachments;
 using OpenDispatch.Infrastructure.Persistence;
 using OpenDispatch.TestSupport;
 
@@ -87,6 +88,56 @@ public sealed class HealthEndpointTests : IClassFixture<ApiFactory>
 
         Assert.Equal("healthy", body?.Status);
         Assert.Equal("healthy", body?.Checks[DatabaseHealthCheck.Name]);
+    }
+
+    /// <summary>
+    /// Readiness asks about the attachment store too, which is the dependency it never asked about.
+    /// </summary>
+    /// <remarks>
+    /// Attachment content is the only data in this system that is not in Postgres, so a database
+    /// check cannot stand in for it: a host with an unmounted volume or a mistyped bucket answered
+    /// "healthy" and then 500'd every upload a technician made. The store going away is
+    /// <em>degraded</em> rather than unhealthy — a shop can still dispatch and invoice — but
+    /// readiness still says no, because a load balancer is asking a yes/no question.
+    /// </remarks>
+    [Fact]
+    public async Task ReadinessNamesTheAttachmentStoreAndNoticesWhenItGoesAway()
+    {
+        var root = Path.Combine(Path.GetTempPath(), $"opendispatch-readiness-{Guid.NewGuid():N}");
+
+        await using var connected = new ApiFactory
+        {
+            ConnectionString = _postgres.ConnectionString,
+            Settings = { ["Attachments:Root"] = root },
+        };
+
+        using var client = connected.CreateClient();
+
+        using (var healthy = await client.GetAsync("/health/ready"))
+        {
+            Assert.Equal(HttpStatusCode.OK, healthy.StatusCode);
+
+            var body = await healthy.Content.ReadFromJsonAsync<ReadinessResponse>();
+
+            Assert.Equal("healthy", body?.Checks[AttachmentStoreHealthCheck.Name]);
+        }
+
+        // The volume goes away under a running host — a bind mount that was unmounted, a container
+        // that lost its disk. Nothing about the database changed.
+        Directory.Delete(root, recursive: true);
+
+        using var degraded = await client.GetAsync("/health/ready");
+
+        Assert.Equal(HttpStatusCode.ServiceUnavailable, degraded.StatusCode);
+
+        var report = await degraded.Content.ReadFromJsonAsync<ReadinessResponse>();
+
+        Assert.Equal("degraded", report?.Status);
+        Assert.Equal("degraded", report?.Checks[AttachmentStoreHealthCheck.Name]);
+
+        // And the report still says the database is fine, which is what tells an operator where to
+        // look rather than that "something" is wrong.
+        Assert.Equal("healthy", report?.Checks[DatabaseHealthCheck.Name]);
     }
 
     /// <summary>

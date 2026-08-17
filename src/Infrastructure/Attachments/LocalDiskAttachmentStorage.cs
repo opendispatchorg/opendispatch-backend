@@ -110,6 +110,13 @@ internal sealed class LocalDiskAttachmentStorage : IAttachmentStorage
         return Task.CompletedTask;
     }
 
+    /// <remarks>
+    /// The root exists by construction — it is created in the constructor — so a root that is no
+    /// longer there means the volume behind it went away, which is precisely the state this probe
+    /// is for and the one a database check would never notice.
+    /// </remarks>
+    public Task<bool> IsReachableAsync(CancellationToken ct) => Task.FromResult(Directory.Exists(_root));
+
     private string PathFor(StorageKey key)
     {
         // The key is two uuids and a slash by construction, so this cannot escape the root today.

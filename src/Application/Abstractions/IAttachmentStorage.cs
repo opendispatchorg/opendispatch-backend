@@ -71,4 +71,29 @@ public interface IAttachmentStorage
     /// </para>
     /// </remarks>
     Task DeleteAsync(StorageKey key, CancellationToken ct);
+
+    /// <summary>
+    /// Whether the store can currently be reached at all.
+    /// </summary>
+    /// <param name="ct">Cancellation.</param>
+    /// <returns><see langword="true"/> if this host could store or fetch a blob right now.</returns>
+    /// <remarks>
+    /// <para>
+    /// For readiness, and it is on the port because only an adapter knows what "reachable" means:
+    /// a directory that is still mounted, or a bucket that answers with the credentials this host
+    /// holds. A health check written outside could only guess.
+    /// </para>
+    /// <para>
+    /// <strong>Reachability, not correctness</strong> — the same line <c>DatabaseHealthCheck</c>
+    /// draws. It does not write anything, and a probe that ran every few seconds for the life of a
+    /// deployment must not: what it answers is "would an upload have somewhere to go", which is the
+    /// question a load balancer is asking.
+    /// </para>
+    /// <para>
+    /// It reports rather than throws, because an unreachable store is an ordinary state of the world
+    /// for a probe rather than an error. The reason lands in this host's logs when a request
+    /// actually tries to use it.
+    /// </para>
+    /// </remarks>
+    Task<bool> IsReachableAsync(CancellationToken ct);
 }
