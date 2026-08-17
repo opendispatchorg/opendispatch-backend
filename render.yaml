@@ -1,0 +1,132 @@
+# OpenDispatch on Render, as a blueprint.
+#
+# One web service, one managed Postgres, one cron job. It is the smallest shape that runs a real
+# shop: everything else this repository supports — a Redis backplane, an OTLP collector, a mail
+# server — is optional and switched on by adding an environment variable.
+#
+# Apply it with Render's Blueprints ("New > Blueprint"), pointed at this repository. Everything
+# marked `sync: false` is a secret you set once in the dashboard; nothing secret is in this file.
+#
+# ---------------------------------------------------------------------------------------------
+# THE THREE THINGS THAT WILL OTHERWISE BITE, all handled below:
+#
+#   1. Render's Postgres connection string is a `postgres://` URL. Npgsql does not read one and
+#      fails at startup with a message that names nothing useful. `PostgresConnectionString`
+#      translates it, which is why `fromDatabase` can be wired straight in.
+#   2. The container's disk is ephemeral. Attachments MUST go to a bucket — a deploy would
+#      otherwise destroy every photograph and signature the field has captured, silently. There is
+#      no Render-managed object store, so `Attachments__*` points at S3, R2 or B2.
+#   3. The port. The image sets ASPNETCORE_HTTP_PORTS=8080, so PORT is set to match explicitly
+#      rather than left to detection.
+# ---------------------------------------------------------------------------------------------
+
+databases:
+  - name: opendispatch-db
+    databaseName: opendispatch
+    user: opendispatch
+    # PostGIS is available on Render's Postgres; the initial migration enables the extension
+    # itself, so nothing here has to.
+    postgresMajorVersion: '17'
+    plan: basic-256mb
+
+services:
+  - type: web
+    name: opendispatch-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: frankfurt
+    healthCheckPath: /health/ready
+
+    # The runbook's order, enforced by the platform: the schema is applied before the new version
+    # serves, once, rather than by every replica racing on startup. A non-zero exit here stops the
+    # deploy, which is the behaviour that makes it a gate rather than a hope.
+    preDeployCommand: dotnet OpenDispatch.Api.dll migrate
+
+    envVars:
+      # (2) above. There is no managed bucket to wire with `fromService`, so these are set once by
+      # hand — and the credentials never appear in configuration at all: the S3 client reads them
+      # from the environment itself.
+      - key: Attachments__Bucket
+        sync: false
+      - key: Attachments__ServiceUrl
+        sync: false
+      - key: Attachments__Region
+        sync: false
+      - key: AWS_ACCESS_KEY_ID
+        sync: false
+      - key: AWS_SECRET_ACCESS_KEY
+        sync: false
+
+      # (1) above. Render emits a postgres:// URL; the host translates it.
+      - key: Database__ConnectionString
+        fromDatabase:
+          name: opendispatch-db
+          property: connectionString
+
+      # (3) above. The image binds 8080; this tells Render the same number rather than letting it
+      # guess from an open socket.
+      - key: PORT
+        value: 8080
+
+      - key: ASPNETCORE_ENVIRONMENT
+        value: Production
+
+      # Render collects stdout. JSON so the correlation id, the request path and every structured
+      # property survive as fields rather than being flattened into a sentence.
+      - key: Logging__Json
+        value: 'true'
+
+      # Render terminates TLS and forwards; without this every request appears to come from the
+      # proxy over plain HTTP, so the login rate limiter would partition the whole internet into one
+      # bucket and HSTS would never be sent.
+      - key: ReverseProxy__Enabled
+        value: 'true'
+
+      # Generate once (`openssl rand -base64 48`) and set it. The host refuses to start outside
+      # Development while it still carries the key this repository commits.
+      - key: Jwt__SigningKey
+        generateValue: true
+
+      # The browser origins allowed to call this API and its hub. Set to the dispatch board and the
+      # technician app; with none configured, no browser client can reach it.
+      - key: Cors__Origins__0
+        sync: false
+
+      # Optional, and doing nothing until set: a mail server for customer notifications, and a
+      # Redis backplane for running more than one instance. Left here as the list of what a
+      # deployment turns on next.
+      - key: Mail__Host
+        sync: false
+      - key: Mail__From
+        sync: false
+      - key: Mail__Username
+        sync: false
+      - key: Mail__Password
+        sync: false
+
+  # The one thing a deployment must schedule. The sync op log and the removal notes are the only
+  # tables nothing else ever deletes from, and both grow forever without this. Nothing scheduled it
+  # before; the runbook said to run it "from cron" and there was no cron.
+  - type: cron
+    name: opendispatch-prune
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    region: frankfurt
+    # 03:15 UTC daily — off the hour, so it does not contend with everything else in the world
+    # that runs at midnight, and outside any shop's working day.
+    schedule: '15 3 * * *'
+    dockerCommand: dotnet OpenDispatch.Api.dll prune --days 30
+    envVars:
+      - key: Database__ConnectionString
+        fromDatabase:
+          name: opendispatch-db
+          property: connectionString
+      # The verb builds the same host as the API, so it binds and validates the same options — it
+      # needs a signing key to start even though it never issues a token.
+      - key: Jwt__SigningKey
+        generateValue: true
+      # And somewhere to say attachments live, for the same reason. It touches none of them.
+      - key: Attachments__Root
+        value: /var/lib/opendispatch/attachments

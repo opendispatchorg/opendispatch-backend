@@ -10,8 +10,19 @@ public sealed class DatabaseOptions
 {
     public const string SectionName = "Database";
 
+    /// <summary>
+    /// The database, as an Npgsql connection string or as a <c>postgres://</c> URL.
+    /// </summary>
+    /// <remarks>
+    /// Both are accepted because managed platforms hand out the URL form and Npgsql does not read
+    /// it — see <see cref="PostgresConnectionString"/> for why that is worth a class. What is read
+    /// back here is whatever was configured; <see cref="ForNpgsql"/> is what the provider is given.
+    /// </remarks>
     [Required(AllowEmptyStrings = false)]
     public string ConnectionString { get; init; } = string.Empty;
+
+    /// <summary>The same value in the shape Npgsql accepts.</summary>
+    public string ForNpgsql() => PostgresConnectionString.Normalize(ConnectionString);
 }
 
 /// <summary>

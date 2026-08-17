@@ -13,6 +13,19 @@ namespace OpenDispatch.Api.Observability;
 internal static partial class StartupLog
 {
     /// <remarks>
+    /// First, before anything else this host says, because it is the line every other line in the
+    /// run should be read against: which build produced them. A container that cannot name its own
+    /// commit turns "is the fix deployed" into archaeology across a deployment log and somebody's
+    /// memory.
+    /// </remarks>
+    internal static void Build(ILogger logger) => Running(logger, BuildVersion.Version, BuildVersion.Revision);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "OpenDispatch {Version} (commit {Revision}) starting.")]
+    private static partial void Running(ILogger logger, string version, string revision);
+
+    /// <remarks>
     /// Both branches are logged, and neither is a warning. A single-instance deployment with no
     /// backplane is a supported, ordinary way to run this; what is not supported is finding out
     /// which one you have by scaling to two and watching half the office stop receiving updates.

@@ -23,9 +23,28 @@ as the same image with a different argument.
 
 ---
 
+## Which version is running
+
+```bash
+docker logs <container> | head -1
+# OpenDispatch 0.1.0 (commit 4fe9ae6…) starting.
+```
+
+The first line of every run. `local` instead of a SHA means the image was built from somebody's
+working tree rather than by CI, which may contain anything. Images are at
+`ghcr.io/<owner>/opendispatch-backend/api`, tagged by commit SHA — so the log line and the image tag
+are the same string, and neither depends on anybody having written it down.
+
+On Render, the blueprint deploys from the repository rather than from a pushed image; the log line
+is still the answer.
+
+---
+
 ## Deploying a new version
 
-Order matters, and it is the one thing here that cannot be improvised.
+Order matters, and it is the one thing here that cannot be improvised. **On Render this is the
+`preDeployCommand` in `render.yaml`, not a thing you run** — the platform applies the schema before
+the new version serves and stops the deploy if it fails.
 
 ```bash
 # 1. Apply the schema. One-shot, before the new version serves, and only once —
@@ -83,6 +102,12 @@ docker run --rm -v opendispatch-attachments:/data:ro -v "$PWD:/backup" busybox \
 # The attachments, in a bucket. Same artifact, different shelf.
 aws s3 sync s3://opendispatch-attachments ./attachments-$(date +%F)/ --endpoint-url "$STORE"
 ```
+
+**On Render**, the database half is the platform's: managed Postgres takes daily backups and offers
+point-in-time recovery on paid plans — check the retention window matches what you have told the
+shop. The bucket half is still yours, and still has to be scheduled: nothing in the blueprint backs
+up object storage, because the bucket is not Render's. A daily `aws s3 sync` from anywhere with the
+credentials is enough, and it is the half that a database backup silently does not carry.
 
 Do **not** narrow the dump with `-n public`, however tidy it looks: schema filtering drops the
 `CREATE EXTENSION postgis` along with everything else, and the restore then fails on the first

@@ -21,7 +21,7 @@ OPENAPI_EXPORT := src/Api/obj/openapi/Api.json
 EF := dotnet ef --project src/Infrastructure --startup-project src/Api
 
 .PHONY: up run migrate migration seed test test-fast test-watch gen-contracts check-contracts \
-	check-contracts-sample publish-contracts image up-app down-app restore-drill
+	check-contracts-sample check-ci publish-contracts image up-app down-app restore-drill
 
 ## up: start Postgres/PostGIS via docker compose
 up:
@@ -152,6 +152,17 @@ check-contracts: gen-contracts
 		exit 1; \
 	fi
 	@echo "check-contracts: $(CONTRACTS)/ matches the sources it is generated from"
+
+## check-ci: fail if a GitHub Actions workflow is not valid YAML
+##
+## Cheap, and it exists because the alternative already happened: a single `run:` line whose
+## command contained "Usage: create-user" — a colon and a space, which terminates a plain YAML
+## scalar — made ci.yml unparseable from the day it was written. An unparseable workflow does not
+## fail loudly. It does not run at all, so the tree looked green because nothing was checking it.
+check-ci:
+	@python3 -c "import sys, yaml; [yaml.safe_load(open(p)) for p in sys.argv[1:]]" \
+		.github/workflows/*.yml
+	@echo "check-ci: every workflow parses"
 
 ## check-contracts-sample: prove a real importer compiles against $(CONTRACTS) (Document 3, step 52)
 ##

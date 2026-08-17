@@ -31,9 +31,17 @@ COPY src/Api/Api.csproj src/Api/
 RUN dotnet restore src/Api/Api.csproj
 
 COPY src/ src/
+
+# The commit this image was built from. Defaulted rather than required, so `docker build .` on a
+# working tree still works and honestly reports `local` — CI passes the real SHA. It reaches the
+# running container through AssemblyInformationalVersion, which BuildVersion reads and the host logs
+# at startup: a container that cannot name its own commit makes every incident longer.
+ARG SOURCE_REVISION_ID=local
+
 # No --no-restore: the copy above brings in sources the restore layer has not seen. Release,
 # because this is what runs in production, and warnings are errors here exactly as they are in CI.
-RUN dotnet publish src/Api/Api.csproj -c Release -o /app --no-restore
+RUN dotnet publish src/Api/Api.csproj -c Release -o /app --no-restore \
+    -p:SourceRevisionId="$SOURCE_REVISION_ID"
 
 # ---- runtime ----------------------------------------------------------------------------------
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS runtime

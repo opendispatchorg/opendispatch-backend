@@ -1,10 +1,18 @@
 name: CI
 
-# Commits landing on main, and every pull request. A PR from a feature branch fires
+# Commits landing on main, release tags, and every pull request. A PR from a feature branch fires
 # only the pull_request trigger, so nothing is built twice.
+#
+# `tags` is not decoration. Without it a push trigger filtered to `branches` matches **no tag at
+# all**, so this workflow never started for one — and `publish-contracts` below, which is gated on
+# `refs/tags/contracts-v*`, could not fire under any circumstance. It has been unreachable since the
+# day it was written. `v*` is the same door for the release image.
 on:
   push:
     branches: [main]
+    tags:
+      - 'v*'
+      - 'contracts-v*'
   pull_request:
 
 # A newer push to the same branch or PR supersedes an in-flight run.
@@ -41,6 +49,11 @@ jobs:
           restore-keys: |
             nuget-${{ runner.os }}-
 
+      # Cheap, and first, because a workflow that does not parse does not fail — it does not run,
+      # which is how this file spent its whole life unexecuted. See the Makefile target.
+      - name: Workflows parse
+        run: make check-ci
+
       - name: Restore
         run: dotnet restore OpenDispatch.sln
 
@@ -49,33 +62,90 @@ jobs:
       - name: Build
         run: dotnet build OpenDispatch.sln --configuration Release --no-restore
 
+      # A gate that was run by hand and therefore only when somebody remembered. It needs the
+      # solution named explicitly: with both OpenDispatch.sln and OpenDispatch.Unit.slnf in the
+      # root, a bare `dotnet format` aborts on "Multiple MSBuild solution files found" — which
+      # would fail this step for the wrong reason and teach everybody to ignore it.
+      - name: Format
+        run: dotnet format OpenDispatch.sln --verify-no-changes --no-restore
+
       # Unit + integration. The integration category starts a PostGIS container through
       # Testcontainers, which works on ubuntu-latest because Docker is preinstalled.
       # The build above already produced Release output, so this rebuild is a no-op.
       - name: Test
         run: make test CONFIGURATION=Release
 
-  # Builds the deployment artifact, and nothing else: no registry, no push, no tag. A Dockerfile
-  # that is never built is a Dockerfile that stops working — a moved file, a renamed project, an
-  # SDK band that no longer satisfies global.json — and the first person to find out would be
-  # somebody trying to deploy. Pushing needs a registry and a credential this repository does not
-  # hold; adding one is a step for whoever runs a real deployment, and it goes here.
+  # Builds the deployment artifact and, on main and release tags, pushes it to GHCR.
+  #
+  # A Dockerfile that is never built is a Dockerfile that stops working — a moved file, a renamed
+  # project, an SDK band that no longer satisfies global.json — and the first person to find out
+  # would be somebody trying to deploy. Until now it was also never *pushed*: the image was tagged
+  # `:ci`, lived and died on the runner, and the runbook's `opendispatch-api:<new>` was a
+  # placeholder for an artifact nothing produced.
+  #
+  # GHCR because it needs no credential this repository does not already have: GITHUB_TOKEN with
+  # `packages: write` is the whole authentication story, so a fork or a self-hoster gets a working
+  # registry without setting anything up.
   image:
-    name: Container image builds
+    name: Container image
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
 
     steps:
       - name: Checkout
         uses: actions/checkout@v7
 
+      # Every image says which commit it is, in the same place BuildVersion reads it from at
+      # startup: the deployed container and the deployment log agree by construction rather than by
+      # somebody writing the SHA down.
       - name: Build the image
-        run: docker build -t opendispatch-api:ci .
+        run: |
+          docker build \
+            --build-arg SOURCE_REVISION_ID="${GITHUB_SHA}" \
+            -t opendispatch-api:ci .
+
+      # Only for pushes to main and for release tags. A pull request builds the image — which is
+      # the check that matters — and publishes nothing, because a PR from a fork must not be able
+      # to put bytes in this org's registry.
+      - name: Log in to GHCR
+        if: github.event_name == 'push'
+        uses: docker/login-action@v3
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      # Tagged with the commit SHA always, so any deployment can be traced to a source tree; with
+      # the release tag when there is one; and `latest` only from main, never from a tag, so
+      # `latest` cannot go backwards when an old release is re-tagged.
+      - name: Push the image
+        if: github.event_name == 'push'
+        run: |
+          image="ghcr.io/${GITHUB_REPOSITORY,,}/api"
+
+          docker tag opendispatch-api:ci "${image}:${GITHUB_SHA}"
+          docker push "${image}:${GITHUB_SHA}"
+
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            docker tag opendispatch-api:ci "${image}:${GITHUB_REF_NAME}"
+            docker push "${image}:${GITHUB_REF_NAME}"
+          else
+            docker tag opendispatch-api:ci "${image}:latest"
+            docker push "${image}:latest"
+          fi
 
       # The image is only as good as what it can do, and the cheapest proof it is a working
       # application rather than a set of files is that it answers about itself.
+      #
+      # A block scalar, not a plain one. `Usage: create-user` contains a colon followed by a space,
+      # which terminates a plain YAML scalar — this single line made the whole workflow file
+      # unparseable, and an unparseable workflow does not fail: it does not run. See `make check-ci`.
       - name: The image runs the application
-        run: docker run --rm opendispatch-api:ci create-user | grep -q "Usage: create-user"
+        run: |
+          docker run --rm opendispatch-api:ci create-user | grep -q "Usage: create-user"
 
   # Regenerate the shared contract package and fail if it differs from what is committed.
   # This is what makes a backend change a client compile error instead of a runtime surprise:
@@ -171,6 +241,21 @@ jobs:
           key: nuget-${{ runner.os }}-${{ hashFiles('**/*.csproj', 'Directory.Build.props', 'global.json') }}
           restore-keys: |
             nuget-${{ runner.os }}-
+
+      # The tag and the package must agree. `contracts-v0.2.0` against a PackageManifest still
+      # saying 0.1.0 would either publish the wrong version or fail deep inside npm with a message
+      # about neither — and the version is hand-bumped in C#, which is exactly the kind of thing
+      # somebody forgets while cutting a tag.
+      - name: The tag matches the package version
+        run: |
+          tagged="${GITHUB_REF_NAME#contracts-v}"
+          packaged="$(node -p "require('./contracts/package.json').version")"
+
+          if [ "${tagged}" != "${packaged}" ]; then
+            echo "Tag ${GITHUB_REF_NAME} says ${tagged}; the package says ${packaged}." >&2
+            echo "Bump PackageManifest.Version, run make gen-contracts, and re-tag." >&2
+            exit 1
+          fi
 
       # Refuses to publish anything that is not freshly regenerated and drift-free — see the
       # Makefile target's own comment.

@@ -97,6 +97,38 @@ To see the whole shape locally instead, `make up-app` runs the database, the mig
 in containers on `http://localhost:8080` (as `Development`, using the credentials this repository
 commits), and `make down-app` stops it.
 
+CI publishes the image to `ghcr.io/<owner>/opendispatch-backend/api`, tagged with the commit SHA on
+every push to `main` (plus `latest`) and with the release tag when one is pushed. Every image
+carries the commit it was built from: the host says
+`OpenDispatch 0.1.0 (commit abc1234) starting` in its first log line, so a running container can
+answer "is the fix deployed" without anyone consulting a deployment log.
+
+### On Render
+
+[`render.yaml`](render.yaml) is a Blueprint: a web service from this Dockerfile, a managed Postgres,
+and a cron job that prunes the protocol tables. Point Render's **New > Blueprint** at a fork of this
+repository and fill in the values marked `sync: false`. Three things it handles that would otherwise
+each cost an afternoon:
+
+- **Render's connection string is a `postgres://` URL and Npgsql does not read one.** It is wired
+  straight through with `fromDatabase`, because the host translates it (see the `Database` section
+  of [.env.example](.env.example)). Fly, Heroku, Supabase, Neon and Railway all hand out the same
+  shape.
+- **The container's disk is ephemeral, so attachments must go to a bucket.** There is no
+  Render-managed object store, so `Attachments__Bucket` and its endpoint are set by hand — and this
+  is not optional there. A deploy would otherwise destroy every photograph and signature captured
+  since the last one, silently.
+- **The port.** The image binds 8080, so the blueprint sets `PORT=8080` explicitly rather than
+  relying on detection.
+
+The schema is applied by `preDeployCommand`, which is the runbook's order made structural: `migrate`
+runs once, before the new version serves, and a non-zero exit stops the deploy. `healthCheckPath` is
+`/health/ready`, so Render will not route to an instance whose database or attachment store is not
+answering.
+
+`.env.example` is the whole configuration surface in one file — every key, what it does, and which
+ones are required. It replaces reading three sections of this README and hoping.
+
 Four things a real deployment owns:
 
 | | |

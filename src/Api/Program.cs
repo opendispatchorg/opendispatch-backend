@@ -75,7 +75,9 @@ try
     // The one place Api reaches into Infrastructure: registration, at startup, with the
     // connection string it owns. Everything above this line stays ignorant of EF Core.
     builder.Services.AddInfrastructure(
-        provider => provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.ConnectionString,
+        // ForNpgsql rather than the raw value: a managed platform hands out a postgres:// URL and
+        // Npgsql does not read one. See PostgresConnectionString.
+        provider => provider.GetRequiredService<IOptions<DatabaseOptions>>().Value.ForNpgsql(),
         provider => provider.GetRequiredService<IOptions<AttachmentOptions>>().Value.ToStorageSettings(),
         provider =>
         {
@@ -422,6 +424,9 @@ try
 
     // Said once, at startup, because it is the one property of this host that cannot be discovered
     // by looking at it: a board with no backplane works perfectly until a second instance exists.
+    // First, because every line below it should be read against the build that produced it.
+    StartupLog.Build(app.Logger);
+
     StartupLog.BoardRealtime(app.Logger, backplane);
 
     // The same reasoning, twice more: where this host's measurements go, and what shape its log
