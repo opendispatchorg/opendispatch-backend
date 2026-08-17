@@ -128,4 +128,33 @@ internal static partial class StartupLog
             + "with an ephemeral container filesystem without configuring Attachments:Bucket — a "
             + "deploy would destroy every photograph and signature captured since the last one.")]
     private static partial void OnDisk(ILogger logger, string root);
+
+    /// <remarks>
+    /// The fifth, and the one whose "off" state is most easily mistaken for a fault: a shop that
+    /// expected its customers to be emailed and configured no mail server gets silence — no failed
+    /// request, no error, nothing per message, because a message nobody can send is not an incident.
+    /// This line is the only place that difference is visible.
+    /// </remarks>
+    internal static void Notifications(ILogger logger, bool sending, string? host)
+    {
+        if (sending)
+        {
+            Sending(logger, host ?? "(unset)");
+        }
+        else
+        {
+            NotSending(logger);
+        }
+    }
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Customer notifications are sent over SMTP through {MailHost}.")]
+    private static partial void Sending(ILogger logger, string mailHost);
+
+    [LoggerMessage(
+        Level = LogLevel.Information,
+        Message = "Customer notifications are not being sent (no Mail:Host configured). Jobs and "
+            + "invoices behave exactly as they do with mail on; nobody is told about them.")]
+    private static partial void NotSending(ILogger logger);
 }

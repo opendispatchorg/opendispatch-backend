@@ -16,6 +16,7 @@ to it.
 | **Postgres** (with PostGIS) | Every business record: customers, jobs, the plan, invoices, the audit trail, the sync log. | The API answers 503 on `/health/ready` and 500 on everything else. Nothing is lost. |
 | **The attachment store** | Photographs and signatures — the **only** data not in Postgres. A volume (`Attachments__Root`) or an S3-compatible bucket (`Attachments__Bucket`). | Uploads fail; existing photographs 404. `pg_dump` will not bring them back. On an ephemeral container filesystem, a volume is not a store at all — the next deploy takes it. |
 | **Redis** (optional) | The SignalR backplane, for more than one API instance. | With one instance: nothing. With two and no Redis: the live board silently shows one instance's changes only. |
+| **An SMTP server** (optional) | Customer notifications: technician on the way, invoice settled. | Nothing is sent and nothing fails. With one configured but unreachable: an error log line per message, and the message is gone. |
 
 Everything else — the outbox sweep, the demo seeder, the CLI verbs — runs inside the API process or
 as the same image with a different argument.
@@ -312,6 +313,12 @@ repeatedly from outside is an attack, and the limiter is doing its job.
   versioning or object-lock retention turned on, a delete hides the object instead of removing it,
   and a photograph somebody asked you to erase stays recoverable. Nothing in the software can check
   this; check it on the bucket.
+- **A customer notification that fails is not retried.** A send throws, it is logged at error level
+  ("A customer notification (…) could not be delivered and will not be retried") and the request it
+  was raised by still succeeds — because the alternative is a dispatcher getting a 500 for a status
+  change that already happened, and the board's own repaint failing with it. A mail outage therefore
+  costs exactly the messages that fell inside it. Alert on that log line if a shop cares; a durable
+  queue for outbound messages is the thing that would buy the retry back, and it does not exist.
 - **Disabling a user does not revoke the token they hold.** Up to `Jwt:ExpiryMinutes` (720 by
   default) of continued access. Lower it if that is unacceptable; rotate the signing key if it is
   urgent, accepting that everybody else is signed out too.

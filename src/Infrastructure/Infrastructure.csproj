@@ -10,6 +10,14 @@
     -->
     <PackageReference Include="AWSSDK.S3" Version="4.0.102.1" />
     <!--
+      The SMTP client behind SmtpNotificationSender. MailKit rather than the framework's obsolete
+      System.Net.Mail.SmtpClient, which Microsoft marks as not recommended for new development and
+      which cannot do STARTTLS negotiation properly. SMTP rather than a provider's HTTP API for the
+      reason the adapter gives: every provider a shop might use speaks it, so this repository does
+      not have to pick one.
+    -->
+    <PackageReference Include="MailKit" Version="4.17.0" />
+    <!--
       The NetTopologySuite plugin rather than the base provider alone: GeoPoint is mapped to
       geography(Point) in step 25, and the plugin is what teaches Npgsql to read and write NTS
       geometries. It brings Npgsql.EntityFrameworkCore.PostgreSQL with it, but the base package

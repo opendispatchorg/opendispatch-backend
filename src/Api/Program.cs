@@ -30,6 +30,7 @@ using OpenDispatch.Application.Auth;
 using OpenDispatch.Infrastructure;
 using OpenDispatch.Infrastructure.Auth;
 using OpenDispatch.Infrastructure.Events;
+using OpenDispatch.Infrastructure.Notifications;
 using OpenDispatch.Infrastructure.Seeding;
 using Serilog;
 
@@ -64,6 +65,7 @@ try
     builder.Services.AddSyncOptions(builder.Configuration);
     builder.Services.AddOutboxOptions(builder.Configuration);
     builder.Services.AddJwtOptions(builder.Configuration, builder.Environment);
+    builder.Services.AddMailOptions(builder.Configuration);
 
     // The request pipeline every feature slice rides on: MediatR, the validators, and the
     // logging/validation/transaction behaviors in that order. The order lives with the
@@ -255,6 +257,15 @@ try
     // Telemetry for why it is OTLP and why a dead collector cannot take the API with it.
     var telemetry = builder.Services.AddOpenDispatchTelemetry(builder.Configuration);
 
+    // The two customer-facing messages this system sends, if this deployment named a mail server.
+    // Registration-time like the backplane and the exporter, and for the same reason: whether a
+    // process can reach the outside world is structural. Nothing is registered when nothing is
+    // configured, so CustomerNotifications' own "no sender" branch is the truth rather than a no-op
+    // reporting success for messages nobody sent. See MailOptions.
+    var mail = builder.Services.AddNotifications(
+        MailOptions.IsConfiguredIn(builder.Configuration),
+        provider => provider.GetRequiredService<IOptions<MailOptions>>().Value.ToMailSettings());
+
     // The three edge concerns a host that faces something other than curl needs, each doing
     // nothing at all unless configured: a cap on credential guessing, the browser origins the two
     // client repositories are served from, and whether this host is behind a proxy whose forwarded
@@ -400,6 +411,9 @@ try
     // a platform with an ephemeral filesystem, storing photographs on that filesystem, works
     // perfectly until it is deployed again. See AttachmentOptions.
     StartupLog.AttachmentStore(app.Logger, app.Services.GetRequiredService<IOptions<AttachmentOptions>>().Value);
+
+    // And the fifth: whether anybody outside the shop is told anything at all.
+    StartupLog.Notifications(app.Logger, mail, app.Configuration[$"{MailOptions.SectionName}:Host"]);
 
     app.Run();
     return 0;

@@ -157,6 +157,47 @@ silently, with a perfectly healthy-looking host on the far side. The same applie
 instances without shared storage: one would store a photograph the other 404s. The startup log's
 disk line says so, every boot.
 
+### Telling customers
+
+Set `Mail:Host` and this system emails a customer at the two moments a customer actually wants to
+hear from a service business:
+
+| When | What |
+|---|---|
+| The technician goes **en route** | "Your technician is on the way." |
+| Their invoice is **marked paid** | A receipt naming the amount. |
+
+```bash
+-e Mail__Host=smtp.resend.com -e Mail__Port=587 \
+-e Mail__From=dispatch@yourshop.example -e Mail__FromName="Your Shop" \
+-e Mail__Username=resend -e Mail__Password=…
+```
+
+SMTP, because every provider speaks it — Resend, SES, Postmark, or the shop's own mailbox are all a
+host, a port and a login, so nothing here picks a vendor for you.
+
+Four things this does deliberately, each of which is the sort of thing that is embarrassing when it
+is wrong:
+
+- **Leave `Mail:Host` unset and nothing is sent and nothing fails.** A shop that does not want
+  automated email is not a misconfigured deployment. The host says which it is in its startup log,
+  and no adapter is registered at all — there is no no-op quietly reporting success for messages
+  nobody sent.
+- **An erased customer is never emailed.** `POST /customers/{id}/erase` removes their contact
+  details, and the notification path checks the erasure itself rather than trusting the field to be
+  empty. Writing to whoever holds that address now, about work done for somebody who asked to be
+  forgotten, is the failure this prevents.
+- **A customer with no email address is not an error.** Plenty have a phone number and nothing else,
+  and their jobs run exactly as everybody else's.
+- **A mail server that is down does not fail the dispatcher's action.** The status change has already
+  committed by the time anything is sent, so a send that throws is logged at error level and the
+  request succeeds. **The message is not retried** — the log line is the only record. See the
+  runbook's known limits.
+
+Messages can arrive twice. Domain-event delivery is at-least-once, so a "your technician is on the
+way" that the outbox re-delivers is sent again. That is tolerable for email and is exactly why email
+is the first channel; it is also why nothing that costs money is triggered this way.
+
 ### Erasing a customer
 
 `POST /customers/{id}/erase`, admin only, is how a shop answers a request to be forgotten. It is
@@ -221,6 +262,7 @@ Optional, and doing nothing until set:
 | `RateLimit:*` | Three caps. Sign-in attempts per address per window (`20` per `300`s) — raise it for an office behind one NAT address. `PushesPerMinute` per technician (`60`) and `OptimizationsPerMinute` per organization (`10`), which are not about attackers: a phone stuck in a retry loop and a browser with a wedged refresh are ordinary accidents, and both can spend a shop's database. `Enabled` turns all three off. |
 | `ReverseProxy:Enabled` | Read `X-Forwarded-For`/`-Proto`. Turn it on **only** when this host is unreachable except through the proxy, or narrow it with `KnownProxies`/`KnownNetworks`. |
 | `Attachments:Bucket` | An S3-compatible bucket for photographs and signatures, instead of `Attachments:Root` on a disk. With it, `Attachments:ServiceUrl` (the store's endpoint; unset means Amazon S3) and `Attachments:Region` (required for Amazon, conventionally `auto` or `us-east-1` elsewhere). Access keys come from `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` or a platform role and have no configuration key at all. **Required, not optional, on any platform whose container filesystem is ephemeral** — see "Where the photographs live" above. |
+| `Mail:*` | An SMTP server, and customers get told two things: their technician is on the way, and their invoice has been settled. `Mail:Host` is what turns it on; with it, `Mail:From` is required, and `Mail:Port` (587), `Mail:FromName`, `Mail:Username` and `Mail:Password` fill in the rest. Supply the password through the environment (`Mail__Password`). Unset means **nothing is sent and nothing fails** — see "Telling customers" below. |
 | `SignalR:Redis` | A StackExchange connection string for the dispatch board's backplane. Unset means in-process, which is correct for exactly one instance — see "More than one instance" above. |
 | `Outbox:*` | How the delivery sweep behaves — `Enabled` (default true), `IntervalSeconds` (10), `GraceSeconds` (30), `BatchSize` (50). Turning it off is an incident measure while a poison message is dealt with, not a configuration: with it off, a reaction lost to a failure or a restart stays lost. |
 | `Otel:Endpoint` | An OTLP collector to export metrics and traces to — `http://collector:4317`. Unset means the instruments are published in-process and sent nowhere, which is what `dotnet-counters` reads. `Otel:Protocol` picks `grpc` (default, usually port 4317) or `http/protobuf` (usually 4318); `Otel:ServiceName` names this deployment in the collector's feed, which is how staging and production are told apart when they share one. A collector that is down costs nothing — the exporter drops what it cannot deliver and never blocks a request. |
