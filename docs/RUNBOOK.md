@@ -162,6 +162,34 @@ able to mint an admin token for any organization.
 
 ---
 
+## Alerts
+
+Nothing here assumes a particular monitoring stack. Set `Otel:Endpoint` and a collector receives the
+`OpenDispatch` meter, ASP.NET Core's HTTP metrics, .NET runtime metrics and traces; the queries below
+are written in PromQL because that is the most common thing on the far side of a collector, and they
+translate.
+
+**Five alerts. They are few on purpose** — a page that fires weekly is a page nobody reads.
+
+| Alert | Condition | Why this threshold | First thing to do |
+|---|---|---|---|
+| **The host is not serving** | `GET /health/ready` != 200 for 2 minutes, from outside the host | Under two minutes is a deploy or a database blip, and the API recovers from both by itself. Two minutes of 503 is an outage a shop is feeling. | [`/health/ready` is 503](#healthready-is-503) below. Check the database before the API. |
+| **Requests are failing** | `sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])) / sum(rate(http_server_request_duration_seconds_count[5m])) > 0.02` for 10 minutes | 5xx is *this system's* fault by definition — a refusal is a 4xx and a sync conflict is a 200. Two percent over ten minutes is a bug affecting real requests rather than one bad client. | Find the `traceId` in the logs and read the exception; one endpoint or all of them is the first question. |
+| **Reactions are not being delivered** | `SELECT count(*) FROM outbox_messages WHERE occurred_at < now() - interval '5 minutes'` > 0 for 15 minutes | The sweep clears an ordinary backlog within a minute (10s interval, 30s grace). Anything older than five minutes and still there has failed repeatedly. | [Rows accumulating in `outbox_messages`](#rows-are-accumulating-in-outbox_messages) below. Every row is work a shop believes happened. |
+| **Planning a day has got slow** | `histogram_quantile(0.95, sum by (le) (rate(opendispatch_scheduling_optimize_duration_milliseconds_bucket[15m]))) > 5000` for 30 minutes | A dispatcher presses this button and waits at their desk; five seconds is the edge of tolerable, and the p95 rather than the max so one enormous day does not page anybody. | Compare against the day's size. A shop that has grown needs the budget re-measured, not the alert raised. |
+| **Somebody is guessing passwords** | `sum(rate(aspnetcore_rate_limiting_requests_rejected_total[5m])) > 1` for 10 minutes | The limiter only guards `/auth/login` (20 attempts per address per 300s). Sustained rejections are either an attack or an office behind one NAT address. | If it is one address from outside, the limiter is doing its job and there is nothing to do. If it is the shop, raise `RateLimit:PermitLimit`. |
+
+Two things worth watching without paging anybody:
+
+- **`opendispatch.sync.ops.conflicted`, by its `reason` tag.** A steady trickle is the protocol
+  working. A step change in one reason is a client release behaving differently — the shape that
+  matters is `sync.unsupportedOperation` appearing at all, which means a phone is newer than this
+  host. Graph it beside `opendispatch.sync.ops.applied`.
+- **`opendispatch.scheduling.optimize.duration` as a trend.** It grows with the shop, and it is the
+  number that says when the box needs to be bigger — long before the alert above fires.
+
+---
+
 ## When something is wrong
 
 ### Start here

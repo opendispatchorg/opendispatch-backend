@@ -45,10 +45,15 @@ try
 {
     var builder = WebApplication.CreateBuilder(args);
 
+    // The console sink is chosen here rather than in Serilog:WriteTo, so `Logging:Json` is one
+    // boolean instead of an assembly-qualified formatter name typed into JSON. Everything else about
+    // the logger — levels, overrides, enrichers, any additional sink — still comes from
+    // configuration. See ConsoleLogging.
     builder.Host.UseSerilog((context, services, logger) => logger
         .ReadFrom.Configuration(context.Configuration)
         .ReadFrom.Services(services)
-        .Enrich.FromLogContext());
+        .Enrich.FromLogContext()
+        .WriteToConsole(context.Configuration));
 
     // The environment is passed in because two of these validate against it: the signing key and
     // the database password this repository commits are development conveniences, and a host
@@ -245,6 +250,11 @@ try
     var backplane = builder.Services.AddDispatchBoardRealtime(builder.Configuration);
     builder.Services.AddScoped<IBoardNotifier, SignalRBoardNotifier>();
 
+    // Metrics and traces to a collector, if this deployment named one. Registration-time like the
+    // backplane, and for the same reason: which exporter a process holds is structural. See
+    // Telemetry for why it is OTLP and why a dead collector cannot take the API with it.
+    var telemetry = builder.Services.AddOpenDispatchTelemetry(builder.Configuration);
+
     // The three edge concerns a host that faces something other than curl needs, each doing
     // nothing at all unless configured: a cap on credential guessing, the browser origins the two
     // client repositories are served from, and whether this host is behind a proxy whose forwarded
@@ -380,6 +390,11 @@ try
     // Said once, at startup, because it is the one property of this host that cannot be discovered
     // by looking at it: a board with no backplane works perfectly until a second instance exists.
     StartupLog.BoardRealtime(app.Logger, backplane);
+
+    // The same reasoning, twice more: where this host's measurements go, and what shape its log
+    // lines are, are both invisible from outside and both things an operator gets wrong silently.
+    StartupLog.Telemetry(app.Logger, telemetry, app.Configuration[Telemetry.EndpointKey]);
+    StartupLog.LogFormat(app.Logger, ConsoleLogging.IsJson(app.Configuration));
 
     app.Run();
     return 0;

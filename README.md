@@ -177,6 +177,8 @@ Optional, and doing nothing until set:
 | `ReverseProxy:Enabled` | Read `X-Forwarded-For`/`-Proto`. Turn it on **only** when this host is unreachable except through the proxy, or narrow it with `KnownProxies`/`KnownNetworks`. |
 | `SignalR:Redis` | A StackExchange connection string for the dispatch board's backplane. Unset means in-process, which is correct for exactly one instance — see "More than one instance" above. |
 | `Outbox:*` | How the delivery sweep behaves — `Enabled` (default true), `IntervalSeconds` (10), `GraceSeconds` (30), `BatchSize` (50). Turning it off is an incident measure while a poison message is dealt with, not a configuration: with it off, a reaction lost to a failure or a restart stays lost. |
+| `Otel:Endpoint` | An OTLP collector to export metrics and traces to — `http://collector:4317`. Unset means the instruments are published in-process and sent nowhere, which is what `dotnet-counters` reads. `Otel:Protocol` picks `grpc` (default, usually port 4317) or `http/protobuf` (usually 4318); `Otel:ServiceName` names this deployment in the collector's feed, which is how staging and production are told apart when they share one. A collector that is down costs nothing — the exporter drops what it cannot deliver and never blocks a request. |
+| `Logging:Json` | Write newline-delimited JSON to the console (Serilog's compact format) instead of the human-readable template. Set it wherever the logs are shipped to something that parses them: the correlation id, the request path and every structured property survive as fields rather than being flattened into a sentence. |
 | `Sync:PullPageTransactions` | How much of a technician's change stream one `GET /sync/pull` may carry, counted in transactions (default `200`). Lower it for a fleet on poor connections; a device simply pulls more often, because a capped page says `hasMore`. |
 
 Every command that succeeds writes one row to `audit_entries` — who did it, in which organization,
@@ -195,9 +197,13 @@ size of that table is the alert worth having.
 Metrics are published on the `OpenDispatch` meter (`System.Diagnostics.Metrics`) — optimize
 latency as `opendispatch.scheduling.optimize.duration`, and sync as
 `opendispatch.sync.ops.applied` / `opendispatch.sync.ops.conflicted` (tagged with the reason a
-field operation was refused, which is the one failure this API answers with a 200). Point an
-OpenTelemetry exporter or `dotnet-counters` at that meter name; no exporter is registered here,
-because which one to use is the deployment's decision.
+field operation was refused, which is the one failure this API answers with a 200).
+
+Set `Otel:Endpoint` and those instruments go to a collector over OTLP, together with ASP.NET Core's
+HTTP metrics, .NET runtime metrics, and traces — including Npgsql's spans, so a slow request shows
+*which query* it waited on rather than only that it was slow. Leave it unset and nothing is
+exported; `dotnet-counters` against the meter name still works. The alerts worth having, with
+thresholds and what to do when each fires, are in [docs/RUNBOOK.md](docs/RUNBOOK.md#alerts).
 
 The schema lives in `src/Infrastructure/Persistence/Migrations` and is generated with
 `make migration NAME=AddSomething`; it is *applied* by `make migrate` on a developer machine and by
