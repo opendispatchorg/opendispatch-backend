@@ -691,8 +691,10 @@ export interface components {
         };
         /** @description The body of `POST /jobs/{id}/invoice`. The job comes from the route. */
         CreateInvoiceRequest: {
-            /** @description What to charge for — time on the job, and parts fitted. */
-            lines: components["schemas"]["InvoiceLineRequest"][];
+            /** @description What to charge for, when the caller is stating it. Omit it — or send `null` — to bill what
+             *     the technician recorded against the job: their labour and their parts, exactly as they entered
+             *     them in the field. */
+            lines?: null | components["schemas"]["InvoiceLineRequest"][];
         };
         /** @description The body of `POST /jobs`. */
         CreateJobRequest: {
@@ -1045,6 +1047,10 @@ export interface components {
              *     this knows the job is finished business and that nothing more may be written about it.
              */
             erasedAt: null | string;
+            /** @description What the work has taken — the labour and parts the technician recorded on site, in the order
+             *     they were recorded. Empty for a job nobody has worked yet, and what `POST /jobs/{id}/invoice`
+             *     bills when the request states no lines of its own. */
+            lines: components["schemas"]["SyncJobLinePayload"][];
         };
         /**
          * @description Where a job has got to in its life, as the clients see it.
@@ -1282,6 +1288,28 @@ export interface components {
          * @enum {unknown}
          */
         SyncConflictReason: "IllegalTransition" | "VersionConflict" | "Unsupported";
+        /** @description One line of what a job's work has taken, inside a SyncJobPayload. */
+        SyncJobLinePayload: {
+            /**
+             * Format: uuid
+             * @description The line's identity within its job.
+             */
+            id: string;
+            /** @description Labour or a part. */
+            kind: components["schemas"]["LineItemKind"];
+            /** @description What it was. */
+            description: string;
+            /**
+             * Format: double
+             * @description How many.
+             */
+            quantity: number | string;
+            /**
+             * Format: double
+             * @description What one costs, in dollars.
+             */
+            unitPrice: number | string;
+        };
         /** @description One thing a technician did in the field: started a job, added a note, added a part,
          *     finished. Queued on the device and pushed in batches (Document 2 §10). */
         SyncOp: {

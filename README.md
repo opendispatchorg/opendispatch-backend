@@ -329,7 +329,13 @@ It has two halves and both land in `contracts/`:
 - **REST** — the Api exports an OpenAPI document at build time; `contracts/src/rest.ts` is
   generated from it.
 - **Real-time and sync** — OpenAPI cannot describe a SignalR message or a sync batch, so those
-  shapes are written once in `src/Contracts` and emitted to `contracts/src/index.ts`.
+  shapes are written once in `src/Contracts` and emitted to `contracts/src/index.ts`. The board
+  sends two events, `job.updated` and `assignment.updated`; the latter covers a stop newly planned
+  as well as one that moved, because a board draws where a stop is and has no separate rendering for
+  an arrival. **`technician.moved` was removed**: it was published as a name and a payload shape for
+  a message nothing has ever sent — nothing models a technician's live position — and a contract
+  that promises a message the server cannot send is one a client writes a handler against and waits
+  forever on. It comes back the day a real location source does.
 - **The job state machine** — the transition table is read out of the `Job` aggregate and
   emitted alongside `JobStatus` with a `canTransition(from, to)` helper, so the offline
   technician app decides which action to offer from the rule the server enforces.

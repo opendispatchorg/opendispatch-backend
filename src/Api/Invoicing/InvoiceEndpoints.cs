@@ -47,7 +47,10 @@ public static class InvoiceEndpoints
         ISender sender,
         CancellationToken cancellationToken)
     {
-        var lines = request.Lines
+        // Null travels all the way down rather than becoming an empty array here: it is the
+        // request's way of saying "bill the visit", and flattening it at the edge would turn the
+        // ordinary case into the one the validator refuses.
+        var lines = request.Lines?
             .Select(line => new InvoiceLine(
                 (Domain.Invoices.LineItemKind)line.Kind, line.Description, line.Quantity, line.UnitPrice))
             .ToArray();

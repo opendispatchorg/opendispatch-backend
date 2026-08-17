@@ -119,18 +119,5 @@ public static class JobEndpoints
         return result.ToHttpResult(assignmentId => Results.Ok(new AssignJobResponse(assignmentId.Value)));
     }
 
-    private static JobResponse ToResponse(JobSummary job) => new(
-        job.Id.Value,
-        job.CustomerId.Value,
-        job.LocationId.Value,
-        job.Latitude,
-        job.Longitude,
-        job.RequiredSkill,
-        (Contracts.JobPriority)job.Priority,
-        job.WindowStart,
-        job.WindowEnd,
-        job.EstimatedDuration,
-        (Contracts.JobStatus)job.Status,
-        job.Notes,
-        job.ErasedAt);
+    private static JobResponse ToResponse(JobSummary job) => JobWire.ToResponse(job);
 }

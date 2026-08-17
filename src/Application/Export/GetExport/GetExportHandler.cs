@@ -98,7 +98,8 @@ internal sealed class GetExportHandler(
         job.EstimatedDuration,
         job.Status,
         job.Notes,
-        job.ErasedAt);
+        job.ErasedAt,
+        JobLineProjection.Of(job));
 
     private static AssignmentSummary ProjectAssignment(Assignment assignment) => new(
         assignment.Id,

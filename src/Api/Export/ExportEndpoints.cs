@@ -165,20 +165,7 @@ public static class ExportEndpoints
             new ServiceLocationResponse(location.Id.Value, location.Label, location.Address, location.Latitude, location.Longitude))],
         customer.ErasedAt);
 
-    private static JobResponse ToResponse(JobSummary job) => new(
-        job.Id.Value,
-        job.CustomerId.Value,
-        job.LocationId.Value,
-        job.Latitude,
-        job.Longitude,
-        job.RequiredSkill,
-        (Contracts.JobPriority)job.Priority,
-        job.WindowStart,
-        job.WindowEnd,
-        job.EstimatedDuration,
-        (Contracts.JobStatus)job.Status,
-        job.Notes,
-        job.ErasedAt);
+    private static JobResponse ToResponse(JobSummary job) => Jobs.JobWire.ToResponse(job);
 
     private static AssignmentExport ToResponse(AssignmentSummary assignment) => new(
         assignment.Id.Value,

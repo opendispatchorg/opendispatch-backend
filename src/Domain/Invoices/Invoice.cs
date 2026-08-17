@@ -1,6 +1,7 @@
 using OpenDispatch.Domain.Common;
 using OpenDispatch.Domain.Events;
 using OpenDispatch.Domain.Identifiers;
+using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.ValueObjects;
 
 namespace OpenDispatch.Domain.Invoices;
@@ -71,6 +72,52 @@ public sealed class Invoice : AggregateRoot
     /// </remarks>
     public static Invoice CreateFromJob(OrgId orgId, JobId jobId, DateTimeOffset issued) =>
         new(InvoiceId.New(), orgId, jobId, issued);
+
+    /// <summary>
+    /// Raises a draft invoice billing exactly what the technician recorded against the job.
+    /// </summary>
+    /// <param name="orgId">The tenant billing for the work.</param>
+    /// <param name="job">The finished work, with the lines the field wrote down.</param>
+    /// <param name="issued">When the bill is raised.</param>
+    /// <exception cref="DomainException">
+    /// The job records nothing to bill. A zero invoice is not the answer: an empty bill sent to a
+    /// customer is worse than a refusal an office can see and act on, and the two ways to get here
+    /// — nobody recorded anything, or somebody meant to type the lines — both want a human.
+    /// </exception>
+    /// <remarks>
+    /// <para>
+    /// <strong>What may be billed is an invoicing rule, so it lives here.</strong> A handler that
+    /// walked the job's lines and called <see cref="AddLineItem"/> would be a second opinion about
+    /// which of a job's records are billable, sitting outside the aggregate that owns the question —
+    /// and the day "labour under fifteen minutes is not charged" or "warranty parts are recorded but
+    /// not billed" arrives, it would be the place that quietly disagreed.
+    /// </para>
+    /// <para>
+    /// <strong>A copy, not a reference.</strong> A <c>JobLine</c> is a record of what happened and a
+    /// <see cref="LineItem"/> is a statement of what is owed — <c>JobLine</c>'s own remarks draw the
+    /// distinction, and this is the meeting it anticipated. Copying is what keeps them separate
+    /// afterwards: correcting a bill must not rewrite the technician's account of the visit, and a
+    /// line recorded after the invoice was raised must not silently change what was billed.
+    /// </para>
+    /// </remarks>
+    public static Invoice FromJob(OrgId orgId, Job job, DateTimeOffset issued)
+    {
+        ArgumentNullException.ThrowIfNull(job);
+
+        if (job.Lines.Count == 0)
+        {
+            throw new DomainException($"Job {job.Id.Value} records nothing that can be billed.");
+        }
+
+        var invoice = new Invoice(InvoiceId.New(), orgId, job.Id, issued);
+
+        foreach (var recorded in job.Lines)
+        {
+            invoice.AddLineItem(recorded.Kind, recorded.Description, recorded.Quantity, recorded.UnitPrice);
+        }
+
+        return invoice;
+    }
 
     /// <summary>Bills for something — time on the job, or a part fitted.</summary>
     /// <exception cref="DomainException">The invoice is settled, or the line bills nothing.</exception>

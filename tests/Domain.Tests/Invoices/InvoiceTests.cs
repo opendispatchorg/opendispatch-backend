@@ -2,6 +2,7 @@ using OpenDispatch.Domain.Common;
 using OpenDispatch.Domain.Events;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Invoices;
+using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.ValueObjects;
 using OpenDispatch.TestSupport;
 using OpenDispatch.TestSupport.Builders;
@@ -15,6 +16,12 @@ namespace OpenDispatch.Domain.Tests.Invoices;
 [Trait(TestCategories.Name, TestCategories.Unit)]
 public sealed class InvoiceTests
 {
+    /// <summary>When the technician wrote a line down, by their own clock.</summary>
+    private static readonly DateTimeOffset OnSite = new(2026, 8, 10, 11, 30, 0, TimeSpan.Zero);
+
+    /// <summary>When the office raised the bill.</summary>
+    private static readonly DateTimeOffset Issued = new(2026, 8, 10, 17, 0, 0, TimeSpan.Zero);
+
     [Fact]
     public void ANewInvoiceIsADraftOwingNothing()
     {
@@ -137,5 +144,70 @@ public sealed class InvoiceTests
 
         Assert.Single(invoice.Lines);
         Assert.Equal(Money.FromDollars(120m), invoice.Total);
+    }
+
+    /// <summary>
+    /// Document 1's "turn a completed job into an invoice from its labor and parts", as one
+    /// assertion: what the technician wrote down on site is what the customer is billed for, with
+    /// nobody in the office re-typing it.
+    /// </summary>
+    [Fact]
+    public void BillsExactlyWhatTheTechnicianRecorded()
+    {
+        var job = JobBuilder.Any().InStatus(JobStatus.Completed).Build();
+
+        job.RecordLine(LineItemKind.Labor, "Two hours on the roof", 2m, Money.FromDollars(85m), OnSite);
+        job.RecordLine(LineItemKind.Part, "Capacitor", 1m, Money.FromDollars(42.50m), OnSite);
+
+        var invoice = Invoice.FromJob(OrgId.New(), job, Issued);
+
+        // 170.00 + 42.50
+        Assert.Equal(Money.FromDollars(212.50m), invoice.Total);
+        Assert.Equal(InvoiceStatus.Draft, invoice.Status);
+        Assert.Equal(job.Id, invoice.JobId);
+
+        Assert.Collection(
+            invoice.Lines,
+            labour =>
+            {
+                Assert.Equal(LineItemKind.Labor, labour.Kind);
+                Assert.Equal("Two hours on the roof", labour.Description);
+                Assert.Equal(2m, labour.Quantity);
+                Assert.Equal(Money.FromDollars(85m), labour.UnitPrice);
+            },
+            part => Assert.Equal("Capacitor", part.Description));
+    }
+
+    /// <summary>
+    /// The two records stay separate afterwards. Correcting a bill must not rewrite the
+    /// technician's account of the visit, and work recorded after the invoice was raised must not
+    /// silently change what was billed — which is what a shared collection would do.
+    /// </summary>
+    [Fact]
+    public void TheBillIsACopyOfTheRecordAndNotTheRecordItself()
+    {
+        var job = JobBuilder.Any().InStatus(JobStatus.Completed).Build();
+        job.RecordLine(LineItemKind.Labor, "Callout", 1m, Money.FromDollars(120m), OnSite);
+
+        var invoice = Invoice.FromJob(OrgId.New(), job, Issued);
+
+        job.RecordLine(LineItemKind.Part, "Thermostat, fitted next day", 1m, Money.FromDollars(180m), OnSite);
+
+        Assert.Single(invoice.Lines);
+        Assert.Equal(Money.FromDollars(120m), invoice.Total);
+        Assert.Equal(2, job.Lines.Count);
+    }
+
+    /// <summary>
+    /// A visit that recorded nothing is refused rather than billed for nothing. A zero invoice is
+    /// arithmetic the type permits and a document no shop sends, and raising one would spend the
+    /// job's single <c>Completed → Invoiced</c> transition on an empty bill.
+    /// </summary>
+    [Fact]
+    public void RefusesToBillAJobThatRecordedNothing()
+    {
+        var job = JobBuilder.Any().InStatus(JobStatus.Completed).Build();
+
+        Assert.Throws<DomainException>(() => Invoice.FromJob(OrgId.New(), job, Issued));
     }
 }

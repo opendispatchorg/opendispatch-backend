@@ -15,6 +15,9 @@ public static class InvoiceErrors
     /// <summary>The code every attempt to bill unfinished or already-billed work carries.</summary>
     public const string JobNotCompletedCode = "invoice.jobNotCompleted";
 
+    /// <summary>The code a job with nothing billable on it carries.</summary>
+    public const string NothingToBillCode = "invoice.nothingToBill";
+
     /// <summary>The code every attempt to settle a settled invoice carries.</summary>
     public const string AlreadyPaidCode = "invoice.alreadyPaid";
 
@@ -46,6 +49,29 @@ public static class InvoiceErrors
         Error.Conflict(
             JobNotCompletedCode,
             $"Only completed work can be invoiced, and this job is {status}.");
+
+    /// <summary>
+    /// Reports a completed job that records nothing an invoice could be built from.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Reachable only when the caller left the lines out — "bill what the visit took" — and the
+    /// visit recorded nothing: no labour, no parts, because nobody entered any on the phone. A
+    /// refusal rather than a zero invoice, because an empty bill sent to a customer is worse than
+    /// an answer the office can see, and because raising one would spend the job's single
+    /// <c>Completed → Invoiced</c> transition on a document with nothing on it.
+    /// </para>
+    /// <para>
+    /// The fix is either half: record the work on the phone, or state the lines in the request.
+    /// The message says so, because the person reading it is a dispatcher rather than a developer.
+    /// </para>
+    /// </remarks>
+    /// <param name="id">The job that has nothing to bill.</param>
+    public static Error NothingToBill(JobId id) =>
+        Error.Conflict(
+            NothingToBillCode,
+            $"Job {id.Value} has no recorded labour or parts to bill. Record them on the job, or "
+            + "state the lines on the invoice.");
 
     /// <summary>Reports an invoice that has already been settled.</summary>
     /// <remarks>

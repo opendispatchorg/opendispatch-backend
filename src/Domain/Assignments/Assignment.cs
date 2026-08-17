@@ -80,10 +80,24 @@ public sealed class Assignment : AggregateRoot
     public double TravelMin { get; private set; }
 
     /// <summary>
-    /// Plans a job into a technician's day. Raises nothing: an assignment coming into
-    /// existence is announced by the slice that created it, not by the aggregate.
+    /// Plans a job into a technician's day, and announces that it is there.
     /// </summary>
     /// <exception cref="DomainException">The placement is not one a route can contain.</exception>
+    /// <remarks>
+    /// <para>
+    /// <strong>The aggregate announces its own creation</strong>, which is a reversal of step 8's
+    /// choice that "an assignment coming into existence is announced by the slice that made it".
+    /// The slices did not: two of them create stops — a dispatcher's drag and the optimiser — and
+    /// neither said anything, so a whole day's worth of newly planned work reached no board until
+    /// somebody refreshed. A rule that every caller has to remember is a rule the next caller
+    /// forgets, and here the next caller was the flagship feature.
+    /// </para>
+    /// <para>
+    /// It raises <see cref="AssignmentPlanned"/> rather than <see cref="AssignmentChanged"/>: a
+    /// stop appearing and a stop moving are different facts, even though the board draws them the
+    /// same way. See the event's own remarks.
+    /// </para>
+    /// </remarks>
     public static Assignment Create(
         OrgId orgId,
         JobId jobId,
@@ -94,7 +108,7 @@ public sealed class Assignment : AggregateRoot
     {
         ValidatePlacement(sequence, travelMin);
 
-        return new Assignment(
+        var assignment = new Assignment(
             AssignmentId.New(),
             orgId,
             jobId,
@@ -102,6 +116,13 @@ public sealed class Assignment : AggregateRoot
             sequence,
             scheduledStart,
             travelMin);
+
+        assignment.Raise(new AssignmentPlanned(
+            assignment.Id,
+            assignment.JobId,
+            assignment.TechnicianId));
+
+        return assignment;
     }
 
     /// <summary>

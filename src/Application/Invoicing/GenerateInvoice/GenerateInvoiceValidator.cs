@@ -20,6 +20,12 @@ namespace OpenDispatch.Application.Invoicing.GenerateInvoice;
 /// rather than nonsense — but a bill for nothing is not something a shop sends, and it would move
 /// the job to <c>Invoiced</c>, which is the transition that can only happen once.
 /// </para>
+/// <para>
+/// <strong>Omitted lines are not empty lines.</strong> A null <c>Lines</c> means "bill what the job
+/// recorded", which is a question about a job this validator has not read; the emptiness rule
+/// therefore applies only when the caller actually supplied a list. Whether the job has anything to
+/// bill is answered by the handler, which can name the job in the failure.
+/// </para>
 /// </remarks>
 internal sealed class GenerateInvoiceValidator : AbstractValidator<GenerateInvoiceCommand>
 {
@@ -35,7 +41,8 @@ internal sealed class GenerateInvoiceValidator : AbstractValidator<GenerateInvoi
             .NotEqual(default(JobId)).WithMessage("A job must be named.");
 
         RuleFor(command => command.Lines)
-            .NotEmpty().WithMessage("An invoice must bill for something.");
+            .NotEmpty().WithMessage("An invoice must bill for something.")
+            .When(command => command.Lines is not null);
 
         RuleForEach(command => command.Lines).ChildRules(line =>
         {

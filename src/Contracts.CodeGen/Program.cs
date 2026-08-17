@@ -1,3 +1,4 @@
+using System.Reflection;
 using OpenDispatch.Contracts.CodeGen;
 using OpenDispatch.Contracts.Sync;
 using OpenDispatch.Domain.Jobs;
@@ -31,9 +32,9 @@ try
     // only resolves a reference to another type if that type is in the set it was handed —
     // dropping JobStatus here would break the very shapes this filter exists to keep.
     var restDescribed = OpenApiSchemaNames.FromOutputDirectory(output);
-    var typescriptTypes = contracts.GetExportedTypes()
-        .Where(type => type.IsEnum || (type.IsAbstract && type.IsSealed) || !restDescribed.Contains(type.Name))
-        .ToArray();
+    var typescriptTypes = Closed(
+        contracts.GetExportedTypes()
+            .Where(type => type.IsEnum || (type.IsAbstract && type.IsSealed) || !restDescribed.Contains(type.Name)));
 
     // The wire shapes, then the one rule that travels with them. Both land in the same file
     // because the transition table is expressed in JobStatus and reads as a footnote to it.
@@ -64,4 +65,46 @@ string? Argument(string name)
     var position = Array.IndexOf(args, name);
 
     return position >= 0 && position + 1 < args.Length ? args[position + 1] : null;
+}
+
+// The kept set, plus everything it refers to.
+//
+// The filter above drops a shape that OpenAPI already describes, on the sound principle that
+// rest.ts is its home. That is only sound while nothing in *this* file points at it — and a shape
+// can belong to both halves of the contract at once. SyncJobLinePayload is the first: /sync/pull
+// publishes a job's recorded lines, and since JobResponse carries the same lines in the same shape
+// (deliberately, so a phone and a browser read one thing), it is now a REST schema too.
+//
+// Without this the filter drops it and the emitter refuses SyncJobPayload.Lines — correctly, since
+// it would otherwise emit a name nothing in the file declares. Closing the set is the same argument
+// the filter already makes for enums and constant classes ("shared vocabulary a non-REST shape can
+// still refer to"), applied to records now that one exists. A type in both halves appears in both
+// files, which is what already happens to JobStatus.
+static Type[] Closed(IEnumerable<Type> kept)
+{
+    var declared = new HashSet<Type>(kept);
+    var pending = new Queue<Type>(declared);
+
+    while (pending.Count > 0)
+    {
+        foreach (var referenced in Referenced(pending.Dequeue()))
+        {
+            if (declared.Add(referenced))
+            {
+                pending.Enqueue(referenced);
+            }
+        }
+    }
+
+    return [.. declared];
+
+    // Property types this shape names, unwrapped through nullables and one level of sequence —
+    // the same three cases TypeScriptEmitter.MapCore resolves. Anything from another assembly, or
+    // a primitive, is not a shape this file could declare.
+    static IEnumerable<Type> Referenced(Type shape) => shape
+        .GetProperties(BindingFlags.Public | BindingFlags.Instance)
+        .Select(property => property.PropertyType)
+        .Select(type => Nullable.GetUnderlyingType(type) ?? type)
+        .SelectMany(type => type.IsGenericType ? type.GetGenericArguments() : [type])
+        .Where(type => type.Assembly == typeof(SyncOp).Assembly && !type.IsGenericParameter);
 }

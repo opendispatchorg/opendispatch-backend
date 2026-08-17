@@ -11,6 +11,7 @@ using OpenDispatch.Application.Scheduling.OptimizeDay;
 using OpenDispatch.Application.Technicians.CreateTechnician;
 using OpenDispatch.Application.Tests.Fakes;
 using OpenDispatch.Domain.Assignments;
+using OpenDispatch.Domain.Events;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.ValueObjects;
@@ -147,7 +148,12 @@ public sealed class InsertJobTests
             .ToList();
 
         Assert.All(announced, stop => Assert.Equal(inserted.Value.TechnicianId, stop.TechnicianId));
-        Assert.Equal(inserted.Value.Displaced, announced.Count);
+
+        // The displaced stops, plus the emergency's own — which is new rather than moved, and says
+        // so with an AssignmentPlanned. It is not counted in Displaced, because "how much of my
+        // afternoon just changed" is a question about work that was already planned.
+        Assert.Equal(inserted.Value.Displaced + 1, announced.Count);
+        Assert.Single(announced, stop => stop.DomainEvents.OfType<AssignmentPlanned>().Any());
 
         // Not a vacuous pass: the emergency did push somebody's afternoon along, and the stops on
         // the other technician's lane said nothing at all.

@@ -15,11 +15,17 @@ namespace OpenDispatch.Application.Abstractions;
 /// </para>
 /// <para>
 /// Only two methods, not three. Document 2 §9 names a third event, <c>technician.moved</c>, but
-/// nothing in this system tracks a technician's live position and nothing should (step 21's own
-/// entry on <c>TechnicianMoved</c>) — there is no caller for a third method, and one here with
-/// nothing to call it would be an abstraction built ahead of the data that would justify it. The
-/// wire shape and the event name stay defined in <c>Contracts</c> for whenever a real location
-/// source exists; this port gains the method the day something calls it.
+/// nothing in this system tracks a technician's live position and nothing on the roadmap adds one
+/// — there is no caller for a third method, and one here with nothing to call it would be an
+/// abstraction built ahead of the data that would justify it. The wire shape and the event name
+/// were published in <c>Contracts</c> anyway, which was worse: a client could write a handler for
+/// a message the server can never send. They are gone. This port and that contract both gain the
+/// event the day a real location source exists, together.
+/// </para>
+/// <para>
+/// <see cref="AssignmentUpdatedAsync"/> serves both a stop that was just planned and one that
+/// moved. A board draws where a stop is and has no separate rendering for an arrival, so a second
+/// method would be one every implementation had to write twice identically.
 /// </para>
 /// </remarks>
 public interface IBoardNotifier

@@ -2073,17 +2073,17 @@
         "description": "The body of `POST /customers`."
       },
       "CreateInvoiceRequest": {
-        "required": [
-          "lines"
-        ],
         "type": "object",
         "properties": {
           "lines": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/InvoiceLineRequest"
             },
-            "description": "What to charge for — time on the job, and parts fitted."
+            "description": "What to charge for, when the caller is stating it. Omit it — or send `null` — to bill what\nthe technician recorded against the job: their labour and their parts, exactly as they entered\nthem in the field."
           }
         },
         "description": "The body of `POST /jobs/{id}/invoice`. The job comes from the route."
@@ -2724,7 +2724,8 @@
           "estimatedDuration",
           "status",
           "notes",
-          "erasedAt"
+          "erasedAt",
+          "lines"
         ],
         "type": "object",
         "properties": {
@@ -2802,6 +2803,13 @@
             ],
             "description": "When this job's customer was erased, or `null` if they were not. A phone reading\nthis knows the job is finished business and that nothing more may be written about it.",
             "format": "date-time"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncJobLinePayload"
+            },
+            "description": "What the work has taken — the labour and parts the technician recorded on site, in the order\nthey were recorded. Empty for a job nobody has worked yet, and what `POST /jobs/{id}/invoice`\nbills when the request states no lines of its own."
           }
         },
         "description": "One job, as the clients see it: the demand, and nothing about the plan."
@@ -3312,6 +3320,50 @@
           "Unsupported"
         ],
         "description": "The kinds of refusal a pushed operation can meet."
+      },
+      "SyncJobLinePayload": {
+        "required": [
+          "id",
+          "kind",
+          "description",
+          "quantity",
+          "unitPrice"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The line's identity within its job.",
+            "format": "uuid"
+          },
+          "kind": {
+            "description": "Labour or a part.",
+            "$ref": "#/components/schemas/LineItemKind"
+          },
+          "description": {
+            "type": "string",
+            "description": "What it was."
+          },
+          "quantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "How many.",
+            "format": "double"
+          },
+          "unitPrice": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "What one costs, in dollars.",
+            "format": "double"
+          }
+        },
+        "description": "One line of what a job's work has taken, inside a SyncJobPayload."
       },
       "SyncOp": {
         "required": [

@@ -8,23 +8,33 @@ namespace OpenDispatch.Application.Invoicing.GenerateInvoice;
 /// Bills a finished job.
 /// </summary>
 /// <param name="JobId">The work being billed. Must be completed.</param>
-/// <param name="Lines">What to charge for — time on the job, and parts fitted.</param>
+/// <param name="Lines">
+/// What to charge for, when the caller is stating it. <see langword="null"/> — the ordinary case —
+/// means bill what the technician recorded against the job.
+/// </param>
 /// <remarks>
 /// <para>
-/// The lines are stated rather than derived, because nothing in the system knows what the work
-/// actually took: a job carries an <em>estimated</em> duration and no parts at all, and billing the
-/// estimate would invoice for the plan rather than the visit. When the technician app starts
-/// recording labour and parts in the field (Documents 6–7), those become the source and this
-/// command is what they arrive through.
+/// <strong>Null and empty mean different things, and that is the whole point of the nullable.</strong>
+/// Null is "bill the visit": the technician's own labour and parts, pushed up from the field as
+/// <c>add_line_item</c> ops, become the invoice without the office re-typing them — which is
+/// Document 1's "turn a completed job into an invoice from its labor and parts" rather than a
+/// paraphrase of it. An empty list is a caller who supplied lines and supplied none, which is
+/// refused by the validator as it always was.
+/// </para>
+/// <para>
+/// Stated lines still win when they are given. A job whose field record is wrong, a warranty visit
+/// billed differently, a call-out fee nobody stood in a house and typed — the office has the last
+/// word, and taking it away would make the honest case easy and the ordinary correction impossible.
 /// </para>
 /// <para>
 /// It is a command a person sends, not something that happens on completion. Document 2 §12 names
 /// automatic invoicing as the flagship example of reacting to <c>JobCompleted</c> with a new
 /// handler, and leaving it out is what keeps that a demonstration rather than a claim: nothing here
-/// changes when somebody writes it.
+/// changes when somebody writes it — and now that the lines derive themselves, that handler is a
+/// single <c>Send</c> with no line-building of its own.
 /// </para>
 /// </remarks>
-public sealed record GenerateInvoiceCommand(JobId JobId, IReadOnlyList<InvoiceLine> Lines)
+public sealed record GenerateInvoiceCommand(JobId JobId, IReadOnlyList<InvoiceLine>? Lines = null)
     : ICommand<InvoiceSummary>;
 
 /// <summary>

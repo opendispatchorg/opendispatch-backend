@@ -216,22 +216,36 @@ public sealed class CallToCashFlowTests : IClassFixture<ApiFactory>
         Assert.Equal(2, finishedJob.Lines.Count);
 
         // The office sees the same field work through its own endpoint, which is the seam this
-        // whole test exists for: nothing is stranded in the sync tables.
-        Assert.Equal(finishedJob.Notes, (await JobAsync(client, dispatcher, booked.Id)).Notes);
+        // whole test exists for: nothing is stranded in the sync tables. The lines as well as the
+        // note, now that the dispatcher's own view carries them — until it did, the one screen
+        // where somebody decides to bill a job could not show them what they were billing.
+        var asTheOfficeSeesIt = await JobAsync(client, dispatcher, booked.Id);
+
+        Assert.Equal(finishedJob.Notes, asTheOfficeSeesIt.Notes);
+        Assert.Equal(
+            finishedJob.Lines.Select(line => (line.Kind, line.Description, line.Quantity, line.UnitPrice)),
+            asTheOfficeSeesIt.Lines.Select(line => (line.Kind, line.Description, line.Quantity, line.UnitPrice)));
 
         // ── Stage 8: the bill, raised from what the technician recorded ─────────────────────
+        // No lines in the request. This is the promise Document 1 makes — "turn a completed job
+        // into an invoice from its labor and parts" — and until now this test kept it by hand,
+        // reading the lines back off the sync payload and typing them into the request, which is
+        // exactly the work a real office was being made to do.
         var invoice = await PostAsync<InvoiceResponse>(
             client,
             admin,
             $"/jobs/{booked.Id}/invoice",
-            new CreateInvoiceRequest(
-                [.. finishedJob.Lines.Select(line =>
-                    new InvoiceLineRequest(line.Kind, line.Description, line.Quantity, line.UnitPrice))]),
+            new CreateInvoiceRequest(),
             HttpStatusCode.Created);
 
-        // 28.50 for the capacitor, 1.5 hours at 95.00 for the labour.
+        // 28.50 for the capacitor, 1.5 hours at 95.00 for the labour — the two ops pushed from the
+        // van in stage 6, and nothing anybody re-entered.
         Assert.Equal(InvoiceStatus.Draft, invoice.Status);
         Assert.Equal(171.00m, invoice.Total);
+        Assert.Equal(
+            finishedJob.Lines.Select(line => (line.Description, line.Quantity, line.UnitPrice)),
+            invoice.Lines.Select(line => (line.Description, line.Quantity, line.UnitPrice)));
+
         Assert.Equal(JobStatus.Invoiced, (await JobAsync(client, dispatcher, booked.Id)).Status);
 
         // ── Stage 9: paid ──────────────────────────────────────────────────────────────────
@@ -251,6 +265,10 @@ public sealed class CallToCashFlowTests : IClassFixture<ApiFactory>
         var exportedJob = Assert.Single(export.Jobs);
         Assert.Equal(JobStatus.Paid, exportedJob.Status);
         Assert.Equal(finishedJob.Notes, exportedJob.Notes);
+
+        // The record of what the work took leaves with the business too, and separately from the
+        // bill: a job that was never invoiced still took an hour and a capacitor.
+        Assert.Equal(2, exportedJob.Lines.Count);
 
         var exportedAssignment = Assert.Single(export.Assignments);
         Assert.Equal(technician.Id, exportedAssignment.TechnicianId);

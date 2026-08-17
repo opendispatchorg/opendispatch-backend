@@ -39,5 +39,6 @@ internal sealed class ListJobsHandler(IJobRepository jobs)
         job.EstimatedDuration,
         job.Status,
         job.Notes,
-        job.ErasedAt);
+        job.ErasedAt,
+        JobLineProjection.Of(job));
 }
