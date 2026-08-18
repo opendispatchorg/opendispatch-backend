@@ -104,10 +104,16 @@ public sealed class AssignJobTests
         Assert.Equal(second, stop.TechnicianId);
         Assert.Equal(MondayMorning.AddHours(3), stop.ScheduledStart);
 
-        // Two events for one drag: the stop changed hands, and then it changed time. Step 8 chose
-        // that, and the board is told both things.
+        // Three events across the two commands, and the sequence is the point. The stop was
+        // planned once — which is the announcement the board had been missing entirely until the
+        // factory started making it — and then the drag changed it twice: it changed hands, and
+        // then it changed time. Step 8 chose that split, and the board is told both things.
+        //
+        // A real deployment sees these in two batches, because the SaveChanges interceptor
+        // collects and clears after each commit. The in-memory store here keeps them all, which is
+        // what makes the whole sequence readable in one assertion.
         Assert.Equal(
-            [typeof(AssignmentChanged), typeof(AssignmentChanged)],
+            [typeof(AssignmentPlanned), typeof(AssignmentChanged), typeof(AssignmentChanged)],
             stop.DomainEvents.Select(raised => raised.GetType()));
     }
 

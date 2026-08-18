@@ -70,12 +70,70 @@ public sealed class CustomersSliceTests
         Assert.True(listed.IsSuccess);
         Assert.Equal(
             ["Ivy Fabrication", "Vance Refrigeration"],
-            listed.Value.Select(customer => customer.Name));
+            listed.Value.Items.Select(customer => customer.Name));
+
+        // The page says how many there are altogether, which is what a caller needs to know
+        // whether to ask for another one.
+        Assert.Equal(2, listed.Value.Total);
 
         // A customer nobody left contact details for is still a customer, and the summary says so
         // rather than inventing an empty string for the form field that was never filled in.
-        Assert.Null(listed.Value[0].Email);
-        Assert.Null(listed.Value[0].Phone);
+        Assert.Null(listed.Value.Items[0].Email);
+        Assert.Null(listed.Value.Items[0].Phone);
+    }
+
+    /// <summary>
+    /// A page is a window on the list, not the list: the second page carries on where the first
+    /// stopped, and both report the same total.
+    /// </summary>
+    /// <remarks>
+    /// The arithmetic is the fake repository's here and the database's in production, and the two
+    /// are written to agree — skip, take, and a count over the whole tenant. What this pins is the
+    /// slice's half: that the page a caller asked for is the page it is told it got, which is what
+    /// a "page 3 of 7" control is built from.
+    /// </remarks>
+    [Fact]
+    public async Task ServesOneWindowOfTheListAtATime()
+    {
+        await using var slice = SliceHost.Customers();
+
+        foreach (var name in new[] { "Ada Plumbing", "Ivy Fabrication", "Vance Refrigeration" })
+        {
+            await slice.Send(new CreateCustomerCommand(name, null, null));
+        }
+
+        var first = await slice.Send(new ListCustomersQuery(Page: 1, PageSize: 2));
+        var second = await slice.Send(new ListCustomersQuery(Page: 2, PageSize: 2));
+
+        Assert.Equal(["Ada Plumbing", "Ivy Fabrication"], first.Value.Items.Select(customer => customer.Name));
+        Assert.Equal(["Vance Refrigeration"], second.Value.Items.Select(customer => customer.Name));
+
+        // Both pages say how many there are altogether, and which page they are.
+        Assert.Equal(3, first.Value.Total);
+        Assert.Equal(3, second.Value.Total);
+        Assert.Equal(2, second.Value.Page);
+        Assert.Equal(2, second.Value.PageSize);
+
+        // Past the end is empty rather than an error: a client that keeps going finds the end.
+        var past = await slice.Send(new ListCustomersQuery(Page: 9, PageSize: 2));
+        Assert.Empty(past.Value.Items);
+        Assert.Equal(3, past.Value.Total);
+    }
+
+    /// <summary>
+    /// The cap is what stops the paged endpoint being the unpaged one under a new name.
+    /// </summary>
+    [Theory]
+    [InlineData(0, 50)]
+    [InlineData(1, 0)]
+    [InlineData(1, ListCustomersQuery.MaxPageSize + 1)]
+    public async Task RefusesAPageNobodyShouldBeAskingFor(int page, int size)
+    {
+        await using var slice = SliceHost.Customers();
+
+        var listed = await slice.Send(new ListCustomersQuery(page, size));
+
+        Assert.IsType<ValidationError>(listed.Error);
     }
 
     /// <summary>

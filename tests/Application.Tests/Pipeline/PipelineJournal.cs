@@ -37,6 +37,17 @@ internal sealed class PipelineJournal
     /// </summary>
     public const string RolledBack = "rolled back";
 
+    /// <summary>
+    /// An attempt ended in a transient database failure and the whole operation began again.
+    /// </summary>
+    /// <remarks>
+    /// What a retry looks like from outside: the transaction from the failed attempt is gone, and
+    /// the next entry is another <see cref="Begun"/>. It is in the journal rather than counted
+    /// separately so the ordering — that nothing was committed in between — is what an assertion
+    /// reads.
+    /// </remarks>
+    public const string RetriedAfterFailure = "retried after a transient failure";
+
     private readonly List<string> _entries = [];
 
     /// <summary>What happened, oldest first.</summary>

@@ -26,7 +26,7 @@ public sealed class AttachmentTests
         var org = OrgId.New();
         var job = JobId.New();
 
-        var captured = Attachment.Create(id, org, job, AttachmentKind.Photo, InTheField);
+        var captured = Attachment.Create(id, org, job, AttachmentKind.Photo, "image/jpeg", 128L, InTheField);
 
         Assert.Equal(id, captured.Id);
         Assert.Equal(job, captured.JobId);
@@ -51,6 +51,8 @@ public sealed class AttachmentTests
             OrgId.New(),
             JobId.New(),
             AttachmentKind.Photo,
+            "image/jpeg",
+            128L,
             InTheField));
     }
 
@@ -62,6 +64,60 @@ public sealed class AttachmentTests
             OrgId.New(),
             new JobId(Guid.Empty),
             AttachmentKind.Photo,
+            "image/jpeg",
+            128L,
+            InTheField));
+    }
+
+    /// <summary>
+    /// The allow-list, which is the reason a content type is stored rather than guessed: a system
+    /// that serves uploaded bytes back decides how a browser treats them.
+    /// </summary>
+    [Theory]
+    [InlineData("image/svg+xml")]
+    [InlineData("text/html")]
+    [InlineData("application/pdf")]
+    [InlineData("")]
+    public void RefusesAKindOfFileItDoesNotStore(string contentType)
+    {
+        Assert.Throws<DomainException>(() => Attachment.Create(
+            AttachmentId.From(Guid.NewGuid()),
+            OrgId.New(),
+            JobId.New(),
+            AttachmentKind.Photo,
+            contentType,
+            128L,
+            InTheField));
+    }
+
+    /// <summary>A type is what it is whatever case or padding a client sent it in.</summary>
+    [Theory]
+    [InlineData("IMAGE/JPEG")]
+    [InlineData("  image/png  ")]
+    public void TakesAContentTypeHoweverItWasWritten(string contentType)
+    {
+        var captured = Attachment.Create(
+            AttachmentId.From(Guid.NewGuid()),
+            OrgId.New(),
+            JobId.New(),
+            AttachmentKind.Photo,
+            contentType,
+            128L,
+            InTheField);
+
+        Assert.Equal(contentType.Trim(), captured.ContentType);
+    }
+
+    [Fact]
+    public void RefusesACaptureOfNothing()
+    {
+        Assert.Throws<DomainException>(() => Attachment.Create(
+            AttachmentId.From(Guid.NewGuid()),
+            OrgId.New(),
+            JobId.New(),
+            AttachmentKind.Photo,
+            "image/jpeg",
+            0L,
             InTheField));
     }
 
@@ -73,6 +129,8 @@ public sealed class AttachmentTests
             OrgId.New(),
             JobId.New(),
             (AttachmentKind)9,
+            "image/jpeg",
+            128L,
             InTheField));
     }
 

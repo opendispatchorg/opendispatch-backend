@@ -59,7 +59,21 @@ internal sealed class UploadAttachmentHandler(
             return Result.Failure<UploadedAttachment>(JobErrors.NotFound(command.JobId));
         }
 
-        var attachment = Attachment.Create(command.AttachmentId, tenant.OrgId, command.JobId, command.Kind, clock.UtcNow);
+        // A photograph is of somebody's home, so a capture that arrives after they were erased —
+        // from a phone that had been out of signal since before it — is refused rather than stored.
+        if (job.IsErased)
+        {
+            return Result.Failure<UploadedAttachment>(JobErrors.Erased(command.JobId));
+        }
+
+        var attachment = Attachment.Create(
+            command.AttachmentId,
+            tenant.OrgId,
+            command.JobId,
+            command.Kind,
+            command.ContentType,
+            command.ByteLength,
+            clock.UtcNow);
 
         await storage.SaveAsync(attachment.StorageKey, command.Content, cancellationToken).ConfigureAwait(false);
 

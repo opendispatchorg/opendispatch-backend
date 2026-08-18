@@ -1,3 +1,4 @@
+using OpenDispatch.Domain.Assignments;
 using OpenDispatch.Domain.Common;
 using OpenDispatch.Domain.Events;
 using OpenDispatch.Domain.Identifiers;
@@ -17,12 +18,35 @@ public sealed class AssignmentTests
 {
     private static readonly DateTimeOffset Midday = new(2026, 8, 10, 12, 0, 0, TimeSpan.Zero);
 
+    /// <summary>
+    /// The assertion that had to change, and the defect it was quietly protecting: nothing
+    /// announced a stop coming into existence, so optimising a day — which creates stops and moves
+    /// none — repainted no board at all. The aggregate says it itself now, because the two slices
+    /// that plan work both go through this factory and neither remembered to.
+    /// </summary>
     [Fact]
-    public void CreatingAnAssignmentAnnouncesNothingByItself()
+    public void PlanningAStopAnnouncesItOnce()
     {
         var assignment = AssignmentBuilder.Any().Build();
 
-        Assert.Empty(assignment.DomainEvents);
+        var planned = Assert.IsType<AssignmentPlanned>(Assert.Single(assignment.DomainEvents));
+
+        Assert.Equal(assignment.Id, planned.AssignmentId);
+        Assert.Equal(assignment.JobId, planned.JobId);
+        Assert.Equal(assignment.TechnicianId, planned.TechnicianId);
+    }
+
+    /// <summary>
+    /// A stop appearing and a stop moving stay different facts, even though the board draws them
+    /// the same way — a subscriber that wants "this work has just been booked" must not have to
+    /// guess from a change event whether it was the first one.
+    /// </summary>
+    [Fact]
+    public void APlannedStopIsNotAChangedOne()
+    {
+        var assignment = AssignmentBuilder.Any().Build();
+
+        Assert.IsNotType<AssignmentChanged>(Assert.Single(assignment.DomainEvents));
     }
 
     [Theory]
@@ -48,7 +72,7 @@ public sealed class AssignmentTests
     {
         var job = JobId.New();
         var technician = TechnicianId.New();
-        var assignment = AssignmentBuilder.Any().ForJob(job).ForTechnician(technician).Build();
+        var assignment = Planned(AssignmentBuilder.Any().ForJob(job).ForTechnician(technician).Build());
 
         assignment.Reschedule(Midday, sequence: 3, travelMin: 22.5d);
 
@@ -68,7 +92,7 @@ public sealed class AssignmentTests
     [InlineData(0, double.NaN)]
     public void ARefusedRescheduleLeavesThePlanExactlyAsItWas(int sequence, double travelMin)
     {
-        var assignment = AssignmentBuilder.Any().AtSequence(1).StartingAt(Midday).AfterTravel(5d).Build();
+        var assignment = Planned(AssignmentBuilder.Any().AtSequence(1).StartingAt(Midday).AfterTravel(5d).Build());
 
         Assert.Throws<DomainException>(() => assignment.Reschedule(Midday.AddHours(2), sequence, travelMin));
 
@@ -81,7 +105,7 @@ public sealed class AssignmentTests
     [Fact]
     public void ReassigningHandsTheStopOverAndAnnouncesTheNewOwner()
     {
-        var assignment = AssignmentBuilder.Any().Build();
+        var assignment = Planned(AssignmentBuilder.Any().Build());
         var cover = TechnicianId.New();
 
         assignment.Reassign(cover);
@@ -95,7 +119,7 @@ public sealed class AssignmentTests
     [Fact]
     public void EveryRewriteIsAnnouncedSoTheBoardNeverMissesOne()
     {
-        var assignment = AssignmentBuilder.Any().Build();
+        var assignment = Planned(AssignmentBuilder.Any().Build());
 
         assignment.Reassign(TechnicianId.New());
         assignment.Reschedule(Midday, sequence: 0, travelMin: 0d);
@@ -104,5 +128,21 @@ public sealed class AssignmentTests
             assignment.DomainEvents,
             e => Assert.IsType<AssignmentChanged>(e),
             e => Assert.IsType<AssignmentChanged>(e));
+    }
+
+    /// <summary>
+    /// A stop as it exists once it has been saved: planned, and its creation already announced.
+    /// </summary>
+    /// <remarks>
+    /// The clear is what a real save does — the <c>SaveChanges</c> interceptor collects and clears
+    /// each aggregate's events after committing — so a test about what a <em>rewrite</em> announces
+    /// starts where the next request starts. Without it every such test would assert on the
+    /// creation event as well, which is a different claim and has its own case above.
+    /// </remarks>
+    private static Assignment Planned(Assignment assignment)
+    {
+        assignment.ClearDomainEvents();
+
+        return assignment;
     }
 }

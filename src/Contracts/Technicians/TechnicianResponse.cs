@@ -8,6 +8,12 @@ namespace OpenDispatch.Contracts.Technicians;
 /// <param name="ShiftEnd">When their working hours close.</param>
 /// <param name="Latitude">Their home base, in decimal degrees.</param>
 /// <param name="Longitude">Their home base, in decimal degrees.</param>
+/// <param name="RetiredAt">
+/// When they were taken off the books, or <see langword="null"/> while they are current. Retired
+/// records are left out of the list, so a client that has one in hand — from a bookmark, an
+/// export, or a job that predates the retirement — needs this to say why it looks inert, and to
+/// know that reinstating is the way back.
+/// </param>
 public sealed record TechnicianResponse(
     Guid Id,
     string Name,
@@ -15,4 +21,5 @@ public sealed record TechnicianResponse(
     DateTimeOffset ShiftStart,
     DateTimeOffset ShiftEnd,
     double Latitude,
-    double Longitude);
+    double Longitude,
+    DateTimeOffset? RetiredAt);

@@ -20,8 +20,8 @@ OPENAPI_EXPORT := src/Api/obj/openapi/Api.json
 # the Api host's configuration, so every `dotnet ef` command needs both projects.
 EF := dotnet ef --project src/Infrastructure --startup-project src/Api
 
-.PHONY: up run migrate migration test test-fast test-watch gen-contracts check-contracts \
-	check-contracts-sample publish-contracts
+.PHONY: up run migrate migration seed test test-fast test-watch gen-contracts check-contracts \
+	check-contracts-sample check-ci publish-contracts image up-app down-app restore-drill
 
 ## up: start Postgres/PostGIS via docker compose
 up:
@@ -32,6 +32,10 @@ run:
 	dotnet run --project src/Api
 
 ## migrate: apply EF migrations to the compose database (needs `make up` first)
+##
+## The developer's path, through `dotnet ef`. A deployment has no SDK and no tool manifest, so it
+## applies the schema with the published application instead: `dotnet OpenDispatch.Api.dll migrate`,
+## which is what the compose `migrate` service and the README's deployment section run.
 migrate:
 	dotnet tool restore
 	$(EF) database update
@@ -50,6 +54,50 @@ migration:
 	dotnet tool restore
 	$(EF) migrations add $(NAME) --output-dir Persistence/Migrations
 
+## seed: load the dev demo dataset (needs `make up` and `make migrate` first)
+##
+## Re-runnable: it finds the demo organization by name and rewrites everything under it, so a demo
+## driven into a state you would rather undo costs one command rather than a dropped database.
+##
+## ASPNETCORE_ENVIRONMENT is deliberately not set here, and that is worth being precise about:
+## `dotnet run` applies src/Api/Properties/launchSettings.json, whose profile sets Development and
+## *overrides* any ambient value — so this target is always a development host, which is correct,
+## because a machine running `dotnet run` out of this working tree is one. launchSettings.json is
+## not part of publish output, so a deployed host has whatever its environment says, and there the
+## seeder refuses (exit 1, having written nothing). Setting the variable here would replace that
+## with a claim this Makefile made on the host's behalf.
+seed:
+	dotnet run --project src/Api -- seed
+
+## restore-drill: prove a backup restores, by taking one and restoring it (Document 3, workstream J)
+##
+## Stands up a deployment, does a shop's work through the API, backs up the database and the
+## attachment volume, restores both into scratch containers, and reads the business back out of the
+## restored system — the photograph's bytes included, which is the half `pg_dump` does not carry.
+## Everything it creates is named `opendispatch-drill-*` and removed on exit. See docs/RUNBOOK.md.
+restore-drill:
+	./scripts/restore-drill.sh
+
+## image: build the deployable container image
+##
+## The same build CI runs. Tagged `local` because nothing here publishes: pushing needs a registry
+## and a credential this repository does not hold.
+image:
+	docker build -t opendispatch-api:local .
+
+## up-app: run the whole system in containers - database, migration, API on :8080
+##
+## `make up` is still just the database, for a developer running the host from their own SDK. This
+## is the other shape: the image built by `make image`, the schema applied by the one-shot migrate
+## service, and the API waiting on both. It runs as Development because it uses the credentials
+## this repository commits - see the compose file and DevelopmentDefaults.
+up-app:
+	docker compose --profile app up -d --build
+
+## down-app: stop the containerised system (leaves the volumes)
+down-app:
+	docker compose --profile app down
+
 ## test: everything - unit + integration (integration needs Docker running)
 test:
 	dotnet test OpenDispatch.sln --configuration $(CONFIGURATION)
@@ -63,8 +111,15 @@ test-watch:
 	dotnet watch --project $(WATCH_PROJECT) test --filter Category=Unit
 
 ## gen-contracts: rebuild @opendispatch/contracts from the C# types and the OpenAPI document
+##
+## ASPNETCORE_ENVIRONMENT is set here and only here. The export works by building the real host in
+## a child process to read its endpoints, and that process has no environment of its own — so it
+## lands outside Development, where the startup guards refuse the development signing key and
+## database password appsettings.json commits (see DevelopmentDefaults). Generating a document is a
+## development-time act on a working tree, so it says so; nothing about the guards is relaxed.
 gen-contracts:
-	dotnet build src/Api --configuration $(CONFIGURATION) -p:OpenApiGenerateDocuments=true
+	ASPNETCORE_ENVIRONMENT=Development \
+		dotnet build src/Api --configuration $(CONFIGURATION) -p:OpenApiGenerateDocuments=true
 	mkdir -p $(CONTRACTS)/src
 	cp $(OPENAPI_EXPORT) $(CONTRACTS)/openapi.json
 	npm ci --prefix tools --silent
@@ -97,6 +152,17 @@ check-contracts: gen-contracts
 		exit 1; \
 	fi
 	@echo "check-contracts: $(CONTRACTS)/ matches the sources it is generated from"
+
+## check-ci: fail if a GitHub Actions workflow is not valid YAML
+##
+## Cheap, and it exists because the alternative already happened: a single `run:` line whose
+## command contained "Usage: create-user" — a colon and a space, which terminates a plain YAML
+## scalar — made ci.yml unparseable from the day it was written. An unparseable workflow does not
+## fail loudly. It does not run at all, so the tree looked green because nothing was checking it.
+check-ci:
+	@python3 -c "import sys, yaml; [yaml.safe_load(open(p)) for p in sys.argv[1:]]" \
+		.github/workflows/*.yml
+	@echo "check-ci: every workflow parses"
 
 ## check-contracts-sample: prove a real importer compiles against $(CONTRACTS) (Document 3, step 52)
 ##

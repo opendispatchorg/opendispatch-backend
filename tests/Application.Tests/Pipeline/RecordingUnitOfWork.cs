@@ -25,6 +25,36 @@ internal sealed class RecordingUnitOfWork(PipelineJournal journal) : IUnitOfWork
         return Task.FromResult<IUnitOfWorkTransaction>(new Transaction(journal));
     }
 
+    /// <remarks>
+    /// <see cref="TransientFailures"/> is how many times the database is imagined to have failed
+    /// transiently before succeeding — zero for the ordinary case. The real strategy re-runs
+    /// everything inside the boundary, transaction included, which is what this reproduces.
+    /// </remarks>
+    public async Task<TResult> ExecuteInTransactionAsync<TResult>(
+        Func<IUnitOfWorkTransaction, CancellationToken, Task<TResult>> work,
+        CancellationToken ct)
+    {
+        for (var attempt = 0; ; attempt++)
+        {
+            await using var transaction = await BeginTransactionAsync(ct).ConfigureAwait(false);
+
+            if (attempt < TransientFailures)
+            {
+                journal.Record(PipelineJournal.RetriedAfterFailure);
+
+                continue;
+            }
+
+            return await work(transaction, ct).ConfigureAwait(false);
+        }
+    }
+
+    /// <summary>
+    /// How many attempts fail transiently before one is allowed through — the retry the persistence
+    /// layer performs, without a database to unplug.
+    /// </summary>
+    public int TransientFailures { get; set; }
+
     private sealed class Transaction(PipelineJournal journal) : IUnitOfWorkTransaction
     {
         private bool _settled;

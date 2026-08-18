@@ -8,6 +8,8 @@ using OpenDispatch.Contracts;
 using OpenDispatch.Contracts.Board;
 using OpenDispatch.Contracts.Customers;
 using OpenDispatch.Contracts.Jobs;
+using OpenDispatch.Contracts.Schedule;
+using OpenDispatch.Contracts.Technicians;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.TestSupport;
 
@@ -29,6 +31,7 @@ namespace OpenDispatch.Api.IntegrationTests.Board;
 public sealed class DispatchHubFlowTests : IClassFixture<ApiFactory>
 {
     private static readonly TimeSpan ReceiveTimeout = TimeSpan.FromSeconds(10);
+    private static readonly DateTimeOffset MorningOf = new(2026, 8, 10, 8, 0, 0, TimeSpan.Zero);
 
     private readonly ApiFactory _factory;
 
@@ -85,6 +88,75 @@ public sealed class DispatchHubFlowTests : IClassFixture<ApiFactory>
         Assert.Empty(elsewhereReceived);
     }
 
+    /// <summary>
+    /// The case that had never worked: optimising a day repaints the boards watching it.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A newly planned stop is created, never rescheduled, and <c>Assignment.Create</c> raised
+    /// nothing — so the flagship feature, the live board, went dark on exactly the act it exists to
+    /// show. The dispatcher who pressed Optimise saw the new plan on their own next read; everybody
+    /// else's screen kept yesterday's until they refreshed.
+    /// </para>
+    /// <para>
+    /// Asserted through <c>assignment.updated</c> rather than <c>job.updated</c> deliberately. The
+    /// job transition to <c>Scheduled</c> has always pushed, which is what made this look like it
+    /// worked — a board that redraws a job's status chip while its stop is missing from the lane is
+    /// the failure, not the absence of any message at all.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task OptimisingADayPutsItsNewStopsOnTheBoard()
+    {
+        var org = OrgId.New();
+
+        using var httpClient = _factory.CreateClient();
+        var token = await httpClient.LoginAsync(
+            await SeedAdminAsync(org, $"admin-{Guid.NewGuid():N}@vance.example"), "vance-refrigeration");
+
+        await using var connection = await ConnectedAsync(token);
+
+        var received = new List<AssignmentUpdated>();
+        var arrived = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+
+        connection.On<AssignmentUpdated>(BoardEvents.AssignmentUpdated, payload =>
+        {
+            received.Add(payload);
+            arrived.TrySetResult();
+        });
+
+        var job = await ABookedJobAsync(httpClient, token);
+
+        using var technicianResponse = await SendAsync(
+            httpClient,
+            token,
+            HttpMethod.Post,
+            "/technicians",
+            new CreateTechnicianRequest(
+                "Sam Rivera",
+                ["hvac"],
+                MorningOf,
+                MorningOf.AddHours(9),
+                51.5074d,
+                -0.1278d));
+        Assert.Equal(HttpStatusCode.Created, technicianResponse.StatusCode);
+
+        using var optimized = await SendAsync(
+            httpClient,
+            token,
+            HttpMethod.Post,
+            "/schedule/optimize",
+            new OptimizeScheduleRequest(MorningOf, MorningOf.AddHours(9)));
+        Assert.Equal(HttpStatusCode.OK, optimized.StatusCode);
+
+        var won = await Task.WhenAny(arrived.Task, Task.Delay(ReceiveTimeout));
+        Assert.True(won == arrived.Task, "optimising the day put a stop on nobody's board.");
+
+        var stop = Assert.Single(received);
+        Assert.Equal(job.Id, stop.JobId);
+        Assert.Equal(0, stop.Sequence);
+    }
+
     private async Task<HubConnection> ConnectedAsync(string token)
     {
         var connection = new HubConnectionBuilder()
@@ -108,9 +180,20 @@ public sealed class DispatchHubFlowTests : IClassFixture<ApiFactory>
         return username;
     }
 
+    /// <summary>
+    /// An admin rather than a dispatcher, because creating a technician is an admin's act — and the
+    /// optimise this test is about is reachable by both.
+    /// </summary>
+    private async Task<string> SeedAdminAsync(OrgId org, string username)
+    {
+        await _factory.SeedUserAsync(org, username, "vance-refrigeration", UserRole.Admin);
+
+        return username;
+    }
+
     private static async Task<JobResponse> ABookedJobAsync(HttpClient client, string token)
     {
-        var morningOf = new DateTimeOffset(2026, 8, 10, 8, 0, 0, TimeSpan.Zero);
+        var morningOf = MorningOf;
 
         var customer = await PostAsync<CustomerSummaryResponse>(
             client, token, "/customers", new CreateCustomerRequest("Vance Refrigeration", null, null));

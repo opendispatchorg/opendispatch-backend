@@ -20,6 +20,38 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/health/live": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["HealthLive"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/health/ready": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["HealthReady"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/auth/login": {
         parameters: {
             query?: never;
@@ -91,9 +123,25 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        get: operations["ListJobAttachments"];
         put?: never;
         post: operations["UploadAttachment"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/attachments/{id}/content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get: operations["GetAttachmentContent"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -126,6 +174,38 @@ export interface paths {
         get: operations["GetCustomer"];
         put: operations["UpdateCustomer"];
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/{id}/erase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["EraseCustomer"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/customers/{id}/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RetireCustomer"];
         delete?: never;
         options?: never;
         head?: never;
@@ -228,6 +308,22 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/technicians/{id}/retire": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["RetireTechnician"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/jobs": {
         parameters: {
             query?: never;
@@ -318,6 +414,22 @@ export interface paths {
         get?: never;
         put?: never;
         post: operations["InsertScheduleJob"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/schedule/normalize": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: operations["NormalizeSchedule"];
         delete?: never;
         options?: never;
         head?: never;
@@ -457,6 +569,35 @@ export interface components {
          * @enum {unknown}
          */
         AttachmentKind: "Photo" | "Signature";
+        /** @description One capture, without its bytes. An element of `GET /jobs/{id}/attachments`. */
+        AttachmentResponse: {
+            /**
+             * Format: uuid
+             * @description The capture's id — the one its device generated.
+             */
+            id: string;
+            /**
+             * Format: uuid
+             * @description The job it was captured against.
+             */
+            jobId: string;
+            /** @description Photograph or signature. */
+            kind: components["schemas"]["AttachmentKind"];
+            /** @description What the bytes are, as the download will answer with. */
+            contentType: string;
+            /**
+             * Format: int64
+             * @description How big it is.
+             */
+            byteLength: number | string;
+            /**
+             * Format: date-time
+             * @description When it was captured.
+             */
+            createdAt: string;
+            /** @description Where to fetch the bytes, on this same API. */
+            contentUrl: string;
+        };
         /** @description A job as the board shows it, over REST — the snapshot half of JobUpdated's delta. */
         BoardJobResponse: {
             /**
@@ -582,8 +723,10 @@ export interface components {
         };
         /** @description The body of `POST /jobs/{id}/invoice`. The job comes from the route. */
         CreateInvoiceRequest: {
-            /** @description What to charge for — time on the job, and parts fitted. */
-            lines: components["schemas"]["InvoiceLineRequest"][];
+            /** @description What to charge for, when the caller is stating it. Omit it — or send `null` — to bill what
+             *     the technician recorded against the job: their labour and their parts, exactly as they entered
+             *     them in the field. */
+            lines?: null | components["schemas"]["InvoiceLineRequest"][];
         };
         /** @description The body of `POST /jobs`. */
         CreateJobRequest: {
@@ -649,6 +792,26 @@ export interface components {
              */
             longitude: number | string;
         };
+        /** @description One page of customers. The body of `GET /customers?page={n}&amp;pageSize={n}`. */
+        CustomerPageResponse: {
+            /** @description The customers on this page, by name. */
+            items: components["schemas"]["CustomerSummaryResponse"][];
+            /**
+             * Format: int32
+             * @description How many the tenant has altogether.
+             */
+            total: number | string;
+            /**
+             * Format: int32
+             * @description Which page this is, counting from one.
+             */
+            page: number | string;
+            /**
+             * Format: int32
+             * @description How many this page was allowed to hold.
+             */
+            pageSize: number | string;
+        };
         /** @description One customer, as the clients see them: who they are, how to reach them, and where they want work done. */
         CustomerResponse: {
             /**
@@ -664,6 +827,21 @@ export interface components {
             phone: null | string;
             /** @description The places they want work done, in the order they were added. */
             locations: components["schemas"]["ServiceLocationResponse"][];
+            /**
+             * Format: date-time
+             * @description When they asked to be forgotten, or `null` if they did not. A client showing a
+             *     customer whose fields all read `[erased]` can say why, and an export answering a subject
+             *     access request carries the erasure rather than looking like data nobody filled in.
+             */
+            erasedAt: null | string;
+            /**
+             * Format: date-time
+             * @description When they were taken off the books, or `null` while they are current. Retired
+             *     records are left out of the list, so a client that has one in hand — from a bookmark, an
+             *     export, or a job that predates the retirement — needs this to say why it looks inert, and to
+             *     know that reinstating is the way back.
+             */
+            retiredAt: null | string;
         };
         /** @description A customer as `GET /customers` lists them: enough to recognise and to reach, and nothing else. */
         CustomerSummaryResponse: {
@@ -699,6 +877,8 @@ export interface components {
         /** @description The whole of a tenant's business data — the response from `GET /export`, Document 1's
          *     anti-lock-in feature: "your customers, your jobs, your data — on software you control." */
         ExportResponse: {
+            /** @description The crew: who works here, what they hold, and when they work. */
+            technicians: components["schemas"]["TechnicianResponse"][];
             /** @description Every customer, with their service locations. */
             customers: components["schemas"]["CustomerResponse"][];
             /** @description Every job, whatever its status. */
@@ -710,9 +890,11 @@ export interface components {
             /** @description Every photo and signature captured, by metadata — not their bytes. */
             attachments: components["schemas"]["AttachmentExport"][];
         };
-        /** @description The payload returned by `GET /health`. */
+        /** @description The payload returned by `GET /health` and `GET /health/live`. */
         HealthResponse: {
+            /** @description Always `healthy`: a host that could not answer would not answer. */
             status: string;
+            /** @description Which service replied, for a probe pointed at the wrong port. */
             service: string;
         };
         /** Format: binary */
@@ -826,6 +1008,27 @@ export interface components {
          * @enum {unknown}
          */
         InvoiceStatus: "Draft" | "Paid";
+        IResult: Record<string, never>;
+        /** @description One page of jobs. The body of `GET /jobs?page={n}&amp;pageSize={n}`. */
+        JobPageResponse: {
+            /** @description The jobs on this page, soonest-promised first. */
+            items: components["schemas"]["JobResponse"][];
+            /**
+             * Format: int32
+             * @description How many the tenant has altogether.
+             */
+            total: number | string;
+            /**
+             * Format: int32
+             * @description Which page this is, counting from one.
+             */
+            page: number | string;
+            /**
+             * Format: int32
+             * @description How many this page was allowed to hold.
+             */
+            pageSize: number | string;
+        };
         /**
          * @description How badly a job needs doing, as the clients see it.
          * @enum {unknown}
@@ -878,6 +1081,16 @@ export interface components {
             status: components["schemas"]["JobStatus"];
             /** @description What a technician wrote about it, or `null` if nobody has. */
             notes: null | string;
+            /**
+             * Format: date-time
+             * @description When this job's customer was erased, or `null` if they were not. A phone reading
+             *     this knows the job is finished business and that nothing more may be written about it.
+             */
+            erasedAt: null | string;
+            /** @description What the work has taken — the labour and parts the technician recorded on site, in the order
+             *     they were recorded. Empty for a job nobody has worked yet, and what `POST /jobs/{id}/invoice`
+             *     bills when the request states no lines of its own. */
+            lines: components["schemas"]["SyncJobLinePayload"][];
         };
         /**
          * @description Where a job has got to in its life, as the clients see it.
@@ -906,6 +1119,47 @@ export interface components {
              * @description When the token stops being accepted.
              */
             expiresAt: string;
+        };
+        /** @description The body of `POST /schedule/normalize`: whose day to re-time, and over what stretch. */
+        NormalizeDayRequest: {
+            /**
+             * Format: uuid
+             * @description Whose day.
+             */
+            technicianId: string;
+            /**
+             * Format: date-time
+             * @description When the stretch being repaired opens.
+             */
+            from: string;
+            /**
+             * Format: date-time
+             * @description When it closes.
+             */
+            to: string;
+        };
+        /** @description What `POST /schedule/normalize` did. */
+        NormalizeDayResponse: {
+            /**
+             * Format: int32
+             * @description How many stops that technician has in the stretch.
+             */
+            stops: number | string;
+            /**
+             * Format: int32
+             * @description How many had to move. Zero means the day was already drivable.
+             */
+            moved: number | string;
+            /**
+             * Format: date-time
+             * @description When the run now begins, or `null` if there is no work.
+             */
+            firstStart: null | string;
+            /**
+             * Format: date-time
+             * @description When it now ends, or `null` if there is no work.
+             */
+            lastEnd: null | string;
         };
         /** @description What a good schedule is worth, as a caller states it. Optional on OptimizeScheduleRequest. */
         ObjectiveWeightsRequest: {
@@ -967,6 +1221,23 @@ export interface components {
             status?: null | number | string;
             detail?: null | string;
             instance?: null | string;
+        };
+        /** @description The payload returned by `GET /health/ready`. */
+        ReadinessResponse: {
+            /** @description `healthy`, `degraded` or `unhealthy` — the worst status among the checks. */
+            status: string;
+            /** @description Which service replied. */
+            service: string;
+            /** @description Each registered check by name, with its own status. An operator reading a 503 needs to know
+             *     which dependency is down; a single word makes them go and look. */
+            checks: {
+                [key: string]: string;
+            };
+        };
+        /** @description The body of `POST /customers/{id}/retire` and `POST /technicians/{id}/retire`. */
+        RetireRequest: {
+            /** @description `true` to take them off the books, `false` to put them back. */
+            retired: boolean;
         };
         /** @description The body of `POST /customers/{id}/locations` and `PUT .../locations/{locationId}`. */
         ServiceLocationRequest: {
@@ -1062,6 +1333,28 @@ export interface components {
          * @enum {unknown}
          */
         SyncConflictReason: "IllegalTransition" | "VersionConflict" | "Unsupported";
+        /** @description One line of what a job's work has taken, inside a SyncJobPayload. */
+        SyncJobLinePayload: {
+            /**
+             * Format: uuid
+             * @description The line's identity within its job.
+             */
+            id: string;
+            /** @description Labour or a part. */
+            kind: components["schemas"]["LineItemKind"];
+            /** @description What it was. */
+            description: string;
+            /**
+             * Format: double
+             * @description How many.
+             */
+            quantity: number | string;
+            /**
+             * Format: double
+             * @description What one costs, in dollars.
+             */
+            unitPrice: number | string;
+        };
         /** @description One thing a technician did in the field: started a job, added a note, added a part,
          *     finished. Queued on the device and pushed in batches (Document 2 §10). */
         SyncOp: {
@@ -1104,6 +1397,10 @@ export interface components {
             /** @description The watermark to ask with next time. Opaque — the shape of the server's bookmark is not
              *     part of the contract. */
             cursor: string;
+            /** @description Whether the server stopped early and has more waiting. When `true`, pull again
+             *     with Cursor as soon as this page is applied; when `false`,
+             *     the device is up to date as of Cursor. */
+            hasMore: boolean;
         };
         /** @description A device emptying its queue: everything it did since it last got through, in the order it
          *     did it. The body of `POST /sync/push`. */
@@ -1155,6 +1452,14 @@ export interface components {
              * @description Their home base, in decimal degrees.
              */
             longitude: number | string;
+            /**
+             * Format: date-time
+             * @description When they were taken off the books, or `null` while they are current. Retired
+             *     records are left out of the list, so a client that has one in hand — from a bookmark, an
+             *     export, or a job that predates the retirement — needs this to say why it looks inert, and to
+             *     know that reinstating is the way back.
+             */
+            retiredAt: null | string;
         };
         /** @description The body of `PUT /customers/{id}`. */
         UpdateCustomerRequest: {
@@ -1245,6 +1550,73 @@ export interface operations {
             };
         };
     };
+    HealthLive: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    HealthReady: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadinessResponse"];
+                };
+            };
+            /** @description Service Unavailable */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReadinessResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     Login: {
         parameters: {
             query?: never;
@@ -1266,6 +1638,13 @@ export interface operations {
                 content: {
                     "application/json": components["schemas"]["LoginResponse"];
                 };
+            };
+            /** @description Too Many Requests */
+            429: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
             };
             /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
             default: {
@@ -1371,6 +1750,37 @@ export interface operations {
             };
         };
     };
+    ListJobAttachments: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AttachmentResponse"][];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
     UploadAttachment: {
         parameters: {
             query?: never;
@@ -1408,9 +1818,43 @@ export interface operations {
             };
         };
     };
-    ListCustomers: {
+    GetAttachmentContent: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": components["schemas"]["IResult"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListCustomers: {
+        parameters: {
+            query?: {
+                page?: number | string;
+                pageSize?: number | string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1423,7 +1867,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["CustomerSummaryResponse"][];
+                    "application/json": components["schemas"]["CustomerPageResponse"];
                 };
             };
             /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
@@ -1513,6 +1957,68 @@ export interface operations {
         requestBody: {
             content: {
                 "application/json": components["schemas"]["UpdateCustomerRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    EraseCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    RetireCustomer: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetireRequest"];
             };
         };
         responses: {
@@ -1825,9 +2331,45 @@ export interface operations {
             };
         };
     };
-    ListJobs: {
+    RetireTechnician: {
         parameters: {
             query?: never;
+            header?: never;
+            path: {
+                id: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RetireRequest"];
+            };
+        };
+        responses: {
+            /** @description No Content */
+            204: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content?: never;
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    ListJobs: {
+        parameters: {
+            query?: {
+                page?: number | string;
+                pageSize?: number | string;
+            };
             header?: never;
             path?: never;
             cookie?: never;
@@ -1840,7 +2382,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["JobResponse"][];
+                    "application/json": components["schemas"]["JobPageResponse"];
                 };
             };
             /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
@@ -2039,6 +2581,39 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["InsertJobResponse"];
+                };
+            };
+            /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */
+            default: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ProblemDetails"];
+                };
+            };
+        };
+    };
+    NormalizeSchedule: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["NormalizeDayRequest"];
+            };
+        };
+        responses: {
+            /** @description OK */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NormalizeDayResponse"];
                 };
             };
             /** @description An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body. */

@@ -18,6 +18,11 @@ internal sealed class UpdateCustomerHandler(ICustomerRepository customers)
             return Result.Failure(CustomerErrors.NotFound(command.Id));
         }
 
+        if (customer.IsErased)
+        {
+            return Result.Failure(CustomerErrors.Erased(command.Id));
+        }
+
         customer.Rename(command.Name);
         customer.SetContact(new ContactInfo(command.Email, command.Phone));
 

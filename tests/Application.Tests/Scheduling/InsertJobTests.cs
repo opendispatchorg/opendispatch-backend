@@ -11,6 +11,7 @@ using OpenDispatch.Application.Scheduling.OptimizeDay;
 using OpenDispatch.Application.Technicians.CreateTechnician;
 using OpenDispatch.Application.Tests.Fakes;
 using OpenDispatch.Domain.Assignments;
+using OpenDispatch.Domain.Events;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.ValueObjects;
@@ -147,7 +148,12 @@ public sealed class InsertJobTests
             .ToList();
 
         Assert.All(announced, stop => Assert.Equal(inserted.Value.TechnicianId, stop.TechnicianId));
-        Assert.Equal(inserted.Value.Displaced, announced.Count);
+
+        // The displaced stops, plus the emergency's own — which is new rather than moved, and says
+        // so with an AssignmentPlanned. It is not counted in Displaced, because "how much of my
+        // afternoon just changed" is a question about work that was already planned.
+        Assert.Equal(inserted.Value.Displaced + 1, announced.Count);
+        Assert.Single(announced, stop => stop.DomainEvents.OfType<AssignmentPlanned>().Any());
 
         // Not a vacuous pass: the emergency did push somebody's afternoon along, and the stops on
         // the other technician's lane said nothing at all.
@@ -245,6 +251,66 @@ public sealed class InsertJobTests
         // around the hour that was already spoken for, not on top of it.
         Assert.Equal(2, day.Count);
         Assert.True(day[1].ScheduledStart >= day[0].ScheduledStart + TimeSpan.FromHours(1));
+    }
+
+    /// <summary>
+    /// A stop a dispatcher placed by hand keeps the time the customer was told, even when an
+    /// emergency arrives in front of it.
+    /// </summary>
+    /// <remarks>
+    /// The engine's own regression is <c>InsertionTests
+    /// .LeavesAStopAtTheTimeItWasPromisedRatherThanPullingItForward</c>; this is the same claim
+    /// through the rows, because it is the manual path that produces days with gaps in them and the
+    /// stored plan that carries the promise. Without it, dropping in one emergency rewrote the
+    /// whole of that technician's day — a two o'clock appointment answered at half past nine, and
+    /// the phone told so.
+    /// </remarks>
+    [Fact]
+    public async Task LeavesAHandPlacedStopAtTheTimeItWasPromised()
+    {
+        await using var slice = SliceHost.Dispatching();
+        var technician = await ATechnician(slice);
+
+        var afternoon = await ABookedJob(slice, Slough);
+        var promised = MondayMorning.AddHours(6);
+        await slice.Send(new AssignJobCommand(afternoon, technician, promised));
+
+        var emergency = await ABookedJob(slice, Camden, JobPriority.Emergency);
+        var inserted = await slice.Send(new InsertJobCommand(emergency));
+
+        Assert.True(inserted.IsSuccess);
+
+        var day = slice.Store<Assignment>().Saved
+            .Where(stop => stop.TechnicianId == technician)
+            .ToList();
+
+        Assert.Equal(promised, Assert.Single(day, stop => stop.JobId == afternoon).ScheduledStart);
+        Assert.True(Assert.Single(day, stop => stop.JobId == emergency).ScheduledStart < promised);
+    }
+
+    /// <summary>
+    /// The same, for the stop that must not move at all: one a technician is already driving to.
+    /// </summary>
+    [Fact]
+    public async Task LeavesAStopBeingDrivenToWhereItWas()
+    {
+        await using var slice = SliceHost.Dispatching();
+        var technician = await ATechnician(slice);
+
+        var underway = await ABookedJob(slice, Slough);
+        var promised = MondayMorning.AddHours(6);
+        await slice.Send(new AssignJobCommand(underway, technician, promised));
+
+        foreach (var status in new[] { JobStatus.Dispatched, JobStatus.EnRoute })
+        {
+            await slice.Send(new ChangeJobStatusCommand(underway, status));
+        }
+
+        var emergency = await ABookedJob(slice, Camden, JobPriority.Emergency);
+        await slice.Send(new InsertJobCommand(emergency));
+
+        var stop = Assert.Single(slice.Store<Assignment>().Saved, saved => saved.JobId == underway);
+        Assert.Equal(promised, stop.ScheduledStart);
     }
 
     [Fact]

@@ -2,6 +2,22 @@
 
   <ItemGroup>
     <!--
+      The S3 client behind ObjectStoreAttachmentStorage. One package, not an SDK metapackage: this
+      project talks to object storage and nothing else AWS makes. The adapter is written against the
+      S3 API rather than against Amazon, because path-style addressing over a configured ServiceUrl
+      is what Cloudflare R2, Backblaze B2 and MinIO all speak — so one client serves every store a
+      deployment is likely to have.
+    -->
+    <PackageReference Include="AWSSDK.S3" Version="4.0.102.1" />
+    <!--
+      The SMTP client behind SmtpNotificationSender. MailKit rather than the framework's obsolete
+      System.Net.Mail.SmtpClient, which Microsoft marks as not recommended for new development and
+      which cannot do STARTTLS negotiation properly. SMTP rather than a provider's HTTP API for the
+      reason the adapter gives: every provider a shop might use speaks it, so this repository does
+      not have to pick one.
+    -->
+    <PackageReference Include="MailKit" Version="4.17.0" />
+    <!--
       The NetTopologySuite plugin rather than the base provider alone: GeoPoint is mapped to
       geography(Point) in step 25, and the plugin is what teaches Npgsql to read and write NTS
       geometries. It brings Npgsql.EntityFrameworkCore.PostgreSQL with it, but the base package
@@ -31,6 +47,26 @@
       this explicitly.
     -->
     <PackageReference Include="System.IdentityModel.Tokens.Jwt" Version="8.15.0" />
+    <!--
+      Health checks (Document 3, step 54). The endpoints that serve them are ASP.NET Core's and
+      live in Api, which gets this through the shared framework; the check itself is a question
+      about the database, so it lives beside the context that answers it and needs the package
+      explicitly. Nothing here depends on a host: this package is the abstraction and the service,
+      not the middleware.
+    -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The integration suite reaches two internals here: OutboxDispatcher.SweepAsync and
+      OutboxTrail.ForgetAsync. Both were unreachable from a test, and both held a defect for it —
+      the dispatcher swept with no tenant resolved, so every background delivery threw and became a
+      poison row, and the trail deleted other tenants' undelivered rows. The half that was extracted
+      "so a test can drive a sweep" was the half without the bug. The same arrangement Scheduling
+      and Api already have with their own tests.
+    -->
+    <InternalsVisibleTo Include="OpenDispatch.Api.IntegrationTests" />
   </ItemGroup>
 
   <ItemGroup>

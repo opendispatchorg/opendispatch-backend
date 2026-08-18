@@ -73,6 +73,18 @@ public sealed class GreedyScheduler : IScheduler
         return Insertion.Into(current, problem, job, TravelMatrix.For(problem, _travel));
     }
 
+    /// <inheritdoc />
+    public ImmutableArray<Stop>? Retime(
+        SchedulingProblem problem,
+        TechnicianId technician,
+        IReadOnlyList<JobId> order,
+        IReadOnlyDictionary<JobId, DateTimeOffset> notBefore)
+    {
+        ArgumentNullException.ThrowIfNull(problem);
+
+        return Retiming.Of(problem, technician, order, notBefore, TravelMatrix.For(problem, _travel));
+    }
+
     /// <summary>
     /// Builds the day against drives somebody has already worked out — for a search that goes
     /// on to improve it and would otherwise ask the provider for the same matrix twice. With a

@@ -1,4 +1,6 @@
 using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Application.Auditing;
+using OpenDispatch.Application.Auth;
 using OpenDispatch.Domain.Identifiers;
 
 namespace OpenDispatch.Application.Tests.Fakes;
@@ -26,6 +28,20 @@ internal sealed class FakeUnitOfWork(IEnumerable<IStagedWrites> stores) : IUnitO
     public Task<IUnitOfWorkTransaction> BeginTransactionAsync(CancellationToken ct) =>
         Task.FromResult<IUnitOfWorkTransaction>(new Transaction(stores));
 
+    /// <remarks>
+    /// One attempt, always: retrying is the real unit of work's business, and a fake that retried
+    /// would be asserting a policy rather than standing in for one. What a retry does to the
+    /// pipeline is proved by <c>RecordingUnitOfWork</c> in the pipeline tests.
+    /// </remarks>
+    public async Task<TResult> ExecuteInTransactionAsync<TResult>(
+        Func<IUnitOfWorkTransaction, CancellationToken, Task<TResult>> work,
+        CancellationToken ct)
+    {
+        await using var transaction = await BeginTransactionAsync(ct).ConfigureAwait(false);
+
+        return await work(transaction, ct).ConfigureAwait(false);
+    }
+
     private sealed class Transaction(IEnumerable<IStagedWrites> stores) : IUnitOfWorkTransaction
     {
         public Task CommitAsync(CancellationToken ct) => Task.CompletedTask;
@@ -42,6 +58,32 @@ internal sealed class FakeUnitOfWork(IEnumerable<IStagedWrites> stores) : IUnitO
 
         public ValueTask DisposeAsync() => ValueTask.CompletedTask;
     }
+}
+
+/// <summary>
+/// An audit log a test can read back.
+/// </summary>
+/// <remarks>
+/// Every slice test runs the real pipeline, so every one of them writes audit entries whether it
+/// cares or not — which is the point of the behavior and the reason this fake is registered for all
+/// of them rather than only where it is asserted on.
+/// </remarks>
+internal sealed class FakeAuditLog : IAuditLog
+{
+    private readonly List<AuditEntry> _entries = [];
+
+    /// <summary>What has been recorded, oldest first.</summary>
+    public IReadOnlyList<AuditEntry> Entries => _entries;
+
+    public void Record(AuditEntry entry) => _entries.Add(entry);
+}
+
+/// <summary>A caller a test acts as.</summary>
+internal sealed class FixedCaller(UserId userId, string username) : ICallerContext
+{
+    public UserId? UserId { get; } = userId;
+
+    public string? Username { get; } = username;
 }
 
 /// <summary>A tenant context that acts as one organization for the life of a test.</summary>

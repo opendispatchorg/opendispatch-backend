@@ -62,5 +62,42 @@ public static class SchedulingErrors
     public static Error OverlappingDay(TechnicianId technician) =>
         Error.Conflict(
             OverlappingDayCode,
-            $"Technician {technician.Value} has overlapping stops, so there is no run to slot work into. Re-optimise the day first.");
+            $"Technician {technician.Value} has overlapping stops, so there is no run to slot work into. "
+                + "Normalise that technician's day, or re-optimise.");
+
+    /// <summary>The code a repair carries when the day cannot be read at all.</summary>
+    public const string CannotNormalizeCode = "schedule.cannotNormalize";
+
+    /// <summary>The code a repair carries when the day cannot be driven however it is timed.</summary>
+    public const string UndrivableDayCode = "schedule.undrivableDay";
+
+    /// <summary>
+    /// Reports a day whose stops point at work this tenant no longer has.
+    /// </summary>
+    /// <remarks>
+    /// A stop without a job is a plan that has come apart, and re-timing what is left would produce
+    /// a day that looks repaired while still being wrong. Refusing says what a dispatcher actually
+    /// needs to know.
+    /// </remarks>
+    /// <param name="technician">Whose day it is.</param>
+    public static Error CannotNormalize(TechnicianId technician) =>
+        Error.Conflict(
+            CannotNormalizeCode,
+            $"Technician {technician.Value} has a stop for work that no longer exists, so their day cannot be re-timed.");
+
+    /// <summary>
+    /// Reports a day that no timing can make drivable.
+    /// </summary>
+    /// <remarks>
+    /// Repairing the clock cannot make a day shorter. If the run only fits when stops overlap — a
+    /// dispatcher has given somebody nine hours of work in an eight-hour shift, or work they are not
+    /// qualified for — then something has to come off the day, and choosing what is a dispatcher's
+    /// decision rather than this operation's.
+    /// </remarks>
+    /// <param name="technician">Whose day it is.</param>
+    public static Error UndrivableDay(TechnicianId technician) =>
+        Error.Conflict(
+            UndrivableDayCode,
+            $"Technician {technician.Value}'s stops do not fit their shift however they are timed. "
+                + "Move work off the day, or re-optimise.");
 }

@@ -1,0 +1,27 @@
+# What must not reach the build context. Two reasons, and the second is the important one:
+# a smaller context is faster, but a context carrying bin/ and obj/ from a developer's machine
+# produces an image built from artifacts nobody can reproduce — and one carrying .env or a local
+# appsettings would bake a secret into a layer.
+
+**/bin/
+**/obj/
+**/node_modules/
+**/.vs/
+**/.vscode/
+**/.idea/
+
+.git/
+.github/
+
+# Generated output and local scratch, none of which the application needs to run.
+contracts/
+tools/node_modules/
+publish/
+TestResults/
+
+# Local configuration and secrets. appsettings.json itself is deliberately not here: it holds the
+# development defaults the startup guards refuse outside Development, and the published app expects
+# it to exist.
+.env
+*.local.md
+appsettings.*.local.json

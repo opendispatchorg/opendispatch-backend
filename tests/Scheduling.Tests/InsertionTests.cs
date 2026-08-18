@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.ValueObjects;
@@ -121,6 +122,61 @@ public sealed class InsertionTests
         var revised = Scheduler.Insert(givenUpOn, problem, marathon.Id);
 
         Assert.Equal(marathon.Id, Assert.Single(revised.Unassigned));
+    }
+
+    /// <summary>
+    /// The promise <see cref="IScheduler.Insert"/> makes, against a day that was not built by the
+    /// constructor: a stop stays at the time it was given.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A day that came out of a solve is already packed against the start of the shift, so re-timing
+    /// it from scratch happens to reproduce it and nothing shows. A day a dispatcher arranged by
+    /// hand is not: they told a customer two o'clock, and the gap in front of that stop is the
+    /// promise, not slack. Timing the candidate run from the start of the shift pulls the stop
+    /// forward into the gap — a customer who is not home, and, when the stop is one a technician is
+    /// already driving to, a plan that moves under them.
+    /// </para>
+    /// <para>
+    /// The clock may still move a stop <em>later</em>; that is what displacing an afternoon means,
+    /// and <c>KeepsTheReceivingTechniciansOtherStopsInTheOrderTheyWereIn</c> covers it.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public void LeavesAStopAtTheTimeItWasPromisedRatherThanPullingItForward()
+    {
+        var day = new TimeWindow(SmallCity.At(8), SmallCity.At(18));
+        var depot = new GeoPoint(51.5074d, -0.1278d);
+        var promised = SmallCity.At(14);
+
+        var afternoon = JobAt(new GeoPoint(51.5400d, -0.2000d), day);
+        var rush = JobAt(new GeoPoint(51.5080d, -0.1280d), day);
+
+        var technician = TechPlanBuilder.Any().Skilled("hvac").BasedAt(depot).Working(day).Build();
+        var problem = SchedulingProblemBuilder.Any()
+            .Over(day)
+            .Staffed(technician)
+            .Booked(afternoon, rush)
+            .Build();
+
+        // Placed by hand, not by the constructor: two o'clock, with the whole morning free.
+        var byHand = new Solution(
+            new Dictionary<TechnicianId, ImmutableArray<Stop>>
+            {
+                [technician.Id] =
+                [
+                    new Stop(afternoon.Id, promised, promised, promised + afternoon.Duration, TravelMin: 20d),
+                ],
+            },
+            [],
+            0d);
+
+        var revised = Scheduler.Insert(byHand, problem, rush.Id);
+        var route = revised.RouteFor(technician.Id);
+
+        Assert.Equal(promised, route.Single(stop => stop.JobId == afternoon.Id).Start);
+        Assert.Contains(route, stop => stop.JobId == rush.Id);
+        Assert.Empty(HardConstraints.Violations(problem, revised, Travel));
     }
 
     [Fact]

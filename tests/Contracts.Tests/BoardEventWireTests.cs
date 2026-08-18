@@ -62,18 +62,6 @@ public sealed class BoardEventWireTests
         Assert.Equal(updated.ScheduledStart.Offset, read.ScheduledStart.Offset);
     }
 
-    [Fact]
-    public void TechnicianMovedSurvivesTheRoundTrip()
-    {
-        var moved = new TechnicianMoved(
-            Guid.NewGuid(),
-            Lat: 41.8781,
-            Lng: -87.6298,
-            At: new DateTimeOffset(2026, 4, 17, 9, 5, 12, TimeSpan.Zero));
-
-        Assert.Equal(moved, RoundTrip(moved));
-    }
-
     private static T RoundTrip<T>(T value)
     {
         var read = JsonSerializer.Deserialize<T>(JsonSerializer.Serialize(value, Wire), Wire);

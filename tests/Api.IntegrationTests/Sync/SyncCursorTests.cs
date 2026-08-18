@@ -99,21 +99,31 @@ public sealed class SyncCursorTests
         var job = JobBuilder.Any().ForOrg(_tenant).Build();
 
         await using var writer = _postgres.NewContext(_tenant);
-        await using var transaction = await writer.Database.BeginTransactionAsync();
 
-        writer.Jobs.Add(job);
-        await writer.SaveChangesAsync();
+        SyncCursor duringTheWrite = default;
 
-        // Taken on a different connection, so it sees the database as everyone else does: the row
-        // above does not exist yet.
-        var duringTheWrite = await CursorAsync();
-
-        await using (var elsewhere = _postgres.NewContext(_tenant))
+        // Through the execution strategy, because the context retries transient failures now and
+        // refuses to save inside a transaction it does not own — which is the shape every caller
+        // that opens its own transaction has to take, and this is the only one in the repository.
+        // See IUnitOfWork.ExecuteInTransactionAsync, which is the same arrangement for the pipeline.
+        await writer.Database.CreateExecutionStrategy().ExecuteAsync(async () =>
         {
-            Assert.False(await elsewhere.Jobs.AnyAsync(row => row.Id == job.Id));
-        }
+            await using var transaction = await writer.Database.BeginTransactionAsync();
 
-        await transaction.CommitAsync();
+            writer.Jobs.Add(job);
+            await writer.SaveChangesAsync();
+
+            // Taken on a different connection, so it sees the database as everyone else does: the
+            // row above does not exist yet.
+            duringTheWrite = await CursorAsync();
+
+            await using (var elsewhere = _postgres.NewContext(_tenant))
+            {
+                Assert.False(await elsewhere.Jobs.AnyAsync(row => row.Id == job.Id));
+            }
+
+            await transaction.CommitAsync();
+        });
 
         await using var read = _postgres.NewContext(_tenant);
         var changed = await read.Jobs

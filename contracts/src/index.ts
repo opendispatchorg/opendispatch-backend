@@ -119,10 +119,8 @@ export interface AssignmentUpdated {
 export const BoardEvents = {
   /** Carries a `JobUpdated` payload. */
   JobUpdated: 'job.updated',
-  /** Carries an `AssignmentUpdated` payload. */
+  /** Carries an `AssignmentUpdated` payload — a stop newly planned, or one that moved. */
   AssignmentUpdated: 'assignment.updated',
-  /** Carries a `TechnicianMoved` payload. */
-  TechnicianMoved: 'technician.moved',
 } as const;
 
 /**
@@ -140,25 +138,6 @@ export interface JobUpdated {
    * applies the older of the two.
    */
   readonly version: number;
-}
-
-/**
- * A technician is somewhere new — the pin on the board's map. Pushed to the org's board group
- * under `BoardEvents.TechnicianMoved`.
- */
-export interface TechnicianMoved {
-  /** Whose pin moves. */
-  readonly technicianId: string;
-  /** Latitude in degrees. */
-  readonly lat: number;
-  /** Longitude in degrees. */
-  readonly lng: number;
-  /**
-   * When the device was there, not when the message was sent. A phone that was out of signal
-   * reports a position several minutes old, and a board that showed it as current would be
-   * confidently wrong.
-   */
-  readonly at: string;
 }
 
 // ---------------------------------------------------------------------------------------------

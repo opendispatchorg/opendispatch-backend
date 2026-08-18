@@ -40,6 +40,13 @@ namespace OpenDispatch.Application.Sync.PushOps;
 /// arrive at once: en route, on site, finished are three operations that are only legal in that
 /// sequence, and the job they are applied to is the same tracked instance each time.
 /// </para>
+/// <para>
+/// <strong>It counts nothing.</strong> The step-54 counters used to be recorded here, which is
+/// before the transaction commits — so a batch that was applied and then lost to a rolled-back save
+/// was still counted as field work, and the one number an operator has for "how much is the field
+/// actually doing" over-reported exactly when something was wrong. They are recorded at the edge
+/// now, from the answer this handler produced, once that answer is real. See <c>SyncEndpoints</c>.
+/// </para>
 /// </remarks>
 internal sealed class PushOpsHandler(
     ISyncOpStore log,

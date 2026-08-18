@@ -62,7 +62,8 @@ public sealed class TenantResolutionFlowTests : IClassFixture<ApiFactory>
         using var response = await GetMyCustomersAsync(client, token);
 
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
-        var customers = await response.Content.ReadFromJsonAsync<CustomerSummaryResponse[]>();
+        var page = await response.Content.ReadFromJsonAsync<CustomerPageResponse>();
+        var customers = page?.Items;
         Assert.NotNull(customers);
         Assert.Equal(["Acme Refrigeration"], customers.Select(customer => customer.Name));
     }

@@ -26,4 +26,17 @@ internal sealed class FakeTechnicianRepository(FakeStore<Technician> store, ITen
     public Task<IReadOnlyList<Technician>> ListAsync(CancellationToken ct) =>
         Task.FromResult<IReadOnlyList<Technician>>(
             [.. store.Owned(tenant.OrgId).OrderBy(technician => technician.Id.Value)]);
+
+    public async IAsyncEnumerable<Technician> StreamAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        foreach (var technician in store.Owned(tenant.OrgId)
+            .OrderBy(technician => technician.Name, StringComparer.Ordinal)
+            .ThenBy(technician => technician.Id.Value))
+        {
+            yield return technician;
+        }
+
+        await Task.CompletedTask.ConfigureAwait(false);
+    }
 }

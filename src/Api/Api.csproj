@@ -17,6 +17,7 @@
 
   <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.OpenApi" Version="10.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.StackExchangeRedis" Version="10.0.11" />
     <!--
       Microsoft.AspNetCore.OpenApi 10.0.10 resolves Microsoft.OpenApi 2.0.0 transitively, and
       that version carries GHSA-v5pm-xwqc-g5wc. NuGet audit reports it, warnings are errors,
@@ -37,6 +38,11 @@
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
+    <PackageReference Include="OpenTelemetry.Exporter.OpenTelemetryProtocol" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Extensions.Hosting" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.AspNetCore" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Http" Version="1.17.0" />
+    <PackageReference Include="OpenTelemetry.Instrumentation.Runtime" Version="1.17.0" />
     <PackageReference Include="Serilog.AspNetCore" Version="10.0.0" />
     <!--
       JWT bearer auth (Document 2 §7, step 44). Not part of the Microsoft.AspNetCore.App shared
@@ -45,6 +51,17 @@
       carries.
     -->
     <PackageReference Include="Microsoft.AspNetCore.Authentication.JwtBearer" Version="10.0.10" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      The integration suite reaches two internals directly: the exception handler's decision about
+      what a client disconnect is, and the correlation-id middleware. Both are edge behaviour with
+      no HTTP surface of their own — a disconnected request has nobody left to answer — so testing
+      them through a request would mean testing the test harness's ability to hang up. The same
+      arrangement Scheduling has with its own tests.
+    -->
+    <InternalsVisibleTo Include="OpenDispatch.Api.IntegrationTests" />
   </ItemGroup>
 
   <ItemGroup>

@@ -29,5 +29,5 @@ public interface IInvoiceRepository
     /// Unpaged, following <see cref="ICustomerRepository.ListAsync"/>: the billing history is
     /// business data a shop owns, not a display list a page has to render.
     /// </summary>
-    Task<IReadOnlyList<Invoice>> ListAsync(CancellationToken ct);
+    IAsyncEnumerable<Invoice> StreamAsync(CancellationToken ct);
 }

@@ -9,7 +9,7 @@ namespace OpenDispatch.Application.Abstractions;
 /// </summary>
 /// <remarks>
 /// <para>
-/// Four methods, and each one is here because a named step cannot be written without it —
+/// Five methods, and each one is here because a named step cannot be written without it —
 /// <see cref="ListAsync"/> is step 47's, added when <c>GET /jobs</c> needed something
 /// <see cref="ListSchedulableAsync"/> could not answer (it is scoped to a horizon and to the
 /// statuses still worth planning; a reader wants everything). There is no <c>Update</c>, no
@@ -39,12 +39,32 @@ public interface IJobRepository
     void Add(Job job);
 
     /// <summary>
-    /// Fetches every job in the tenant, for a reader rather than the scheduler — step 47's
-    /// <c>GET /jobs</c>. Unpaged, following <c>ICustomerRepository.ListAsync</c>: the same
-    /// "will not age well" note applies, and the same answer when it stops fitting is a
-    /// projection through a read model, not parameters bolted onto this.
+    /// Fetches one page of the tenant's jobs, for a reader rather than the scheduler — step 47's
+    /// <c>GET /jobs</c> — and how many there are altogether.
     /// </summary>
-    Task<IReadOnlyList<Job>> ListAsync(CancellationToken ct);
+    /// <remarks>
+    /// Paged for the reason <c>ICustomerRepository.ListAsync</c> is, and more urgently: a job list
+    /// grows every working day of the business's life, so the unpaged version was the query most
+    /// certain to eventually hand a dispatcher a year of history to draw one screen.
+    /// </remarks>
+    Task<Page<Job>> ListAsync(PageRequest page, CancellationToken ct);
+
+    /// <summary>
+    /// Every job in the tenant, one at a time. For the export, and only for the export — see
+    /// <c>ICustomerRepository.StreamAsync</c>.
+    /// </summary>
+    IAsyncEnumerable<Job> StreamAsync(CancellationToken ct);
+
+    /// <summary>
+    /// Fetches every job ever booked for one customer, for changing.
+    /// </summary>
+    /// <remarks>
+    /// For erasure, and unpaged because of what it is for: a job carries its own copy of the
+    /// customer's coordinates and whatever was written about the visit, so erasing a person means
+    /// reaching all of their jobs rather than a page of them. It is bounded by one customer's
+    /// history with one shop, and it is a rare, deliberate, admin-only act.
+    /// </remarks>
+    Task<IReadOnlyList<Job>> ListForCustomerAsync(CustomerId customer, CancellationToken ct);
 
     /// <summary>
     /// Fetches the work the scheduler is allowed to plan over a horizon — everything the

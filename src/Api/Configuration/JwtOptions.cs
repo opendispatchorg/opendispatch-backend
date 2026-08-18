@@ -46,14 +46,32 @@ public static class JwtOptionsRegistration
     /// Binds and validates <see cref="JwtOptions"/>. Validation runs at startup so a host with
     /// no signing key fails immediately and loudly, rather than at the first login.
     /// </summary>
+    /// <param name="services">The host's service collection.</param>
+    /// <param name="configuration">Where the section is bound from.</param>
+    /// <param name="environment">
+    /// Decides whether the committed development signing key is acceptable. The length rule above
+    /// cannot answer that on its own — the committed key satisfies it, which is exactly why a host
+    /// that forgot to override it would otherwise start and sign forgeable tokens. See
+    /// <see cref="DevelopmentDefaults"/>.
+    /// </param>
     public static IServiceCollection AddJwtOptions(
         this IServiceCollection services,
-        IConfiguration configuration)
+        IConfiguration configuration,
+        IHostEnvironment environment)
     {
         services
             .AddOptions<JwtOptions>()
             .Bind(configuration.GetSection(JwtOptions.SectionName))
             .ValidateDataAnnotations()
+            .Validate(
+                options => DevelopmentDefaults.AreAllowedIn(environment)
+                    || !string.Equals(
+                        options.SigningKey,
+                        DevelopmentDefaults.JwtSigningKey,
+                        StringComparison.Ordinal),
+                $"{JwtOptions.SectionName}:SigningKey is still the development key this repository commits, "
+                + "which is public. Every token this host issued would be forgeable. Set a real "
+                + "one for this environment.")
             .ValidateOnStart();
 
         return services;

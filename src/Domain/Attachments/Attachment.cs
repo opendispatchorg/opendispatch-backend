@@ -1,3 +1,4 @@
+using System.Collections.Frozen;
 using OpenDispatch.Domain.Common;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.ValueObjects;
@@ -29,10 +30,34 @@ namespace OpenDispatch.Domain.Attachments;
 /// </remarks>
 public sealed class Attachment : AggregateRoot
 {
-    // Materialisation constructor — see the note on Job.
-    private Attachment()
+    /// <summary>
+    /// What a capture may be.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// An allow-list rather than a sniff or a refusal to care, and it is here rather than at the
+    /// edge because it is the same kind of rule as the state machine: what this system will hold is
+    /// not a property of the request that offered it. A type outside this list cannot be stored,
+    /// whichever caller asks.
+    /// </para>
+    /// <para>
+    /// It is what a phone captures — photographs and a signature — and nothing else. Notably absent
+    /// is <c>image/svg+xml</c>, which is a document that can carry script rather than a picture, and
+    /// which a system that serves attachments back would be handing to a browser. The day the
+    /// technician app captures something new, this is the one line that changes, and it changes
+    /// deliberately.
+    /// </para>
+    /// </remarks>
+    public static IReadOnlySet<string> AllowedContentTypes { get; } = new[]
     {
-    }
+        "image/jpeg",
+        "image/png",
+        "image/webp",
+        "image/heic",
+    }.ToFrozenSet(StringComparer.OrdinalIgnoreCase);
+
+    // Materialisation constructor — see the note on Job.
+    private Attachment() => ContentType = string.Empty;
 
     private Attachment(
         AttachmentId id,
@@ -40,6 +65,8 @@ public sealed class Attachment : AggregateRoot
         JobId jobId,
         AttachmentKind kind,
         StorageKey storageKey,
+        string contentType,
+        long byteLength,
         DateTimeOffset createdAt)
     {
         Id = id;
@@ -47,6 +74,8 @@ public sealed class Attachment : AggregateRoot
         JobId = jobId;
         Kind = kind;
         StorageKey = storageKey;
+        ContentType = contentType;
+        ByteLength = byteLength;
         CreatedAt = createdAt;
     }
 
@@ -61,6 +90,24 @@ public sealed class Attachment : AggregateRoot
 
     /// <summary>Whether it is a photograph or a signature.</summary>
     public AttachmentKind Kind { get; private set; }
+
+    /// <summary>
+    /// What the bytes are, as the download will answer with.
+    /// </summary>
+    /// <remarks>
+    /// Stored rather than guessed at read time, and constrained to <see cref="AllowedContentTypes"/>
+    /// rather than believed: a content type is what a server tells a browser to do with a file, so
+    /// letting a caller choose it freely is letting a caller decide how their upload is treated when
+    /// somebody else opens it.
+    /// </remarks>
+    public string ContentType { get; private set; }
+
+    /// <summary>How many bytes were stored, as the uploader counted them.</summary>
+    /// <remarks>
+    /// Kept so a list of a job's attachments can say how big each is without asking the store —
+    /// which for a bucket adapter would be a network call per row.
+    /// </remarks>
+    public long ByteLength { get; private set; }
 
     /// <summary>Where the bytes are, in terms the storage adapter understands.</summary>
     /// <remarks>
@@ -85,15 +132,20 @@ public sealed class Attachment : AggregateRoot
     /// <param name="orgId">The tenant.</param>
     /// <param name="jobId">The job it was captured against.</param>
     /// <param name="kind">Photograph or signature.</param>
+    /// <param name="contentType">What the bytes are — one of <see cref="AllowedContentTypes"/>.</param>
+    /// <param name="byteLength">How many bytes there are.</param>
     /// <param name="capturedAt">When it was captured, by the device's clock.</param>
     /// <exception cref="DomainException">
-    /// It has no id of its own, or names no job, or is a kind of attachment that does not exist.
+    /// It has no id of its own, names no job, is a kind of attachment that does not exist, holds
+    /// nothing, or is a kind of file this system does not store.
     /// </exception>
     public static Attachment Create(
         AttachmentId id,
         OrgId orgId,
         JobId jobId,
         AttachmentKind kind,
+        string contentType,
+        long byteLength,
         DateTimeOffset capturedAt)
     {
         // The id is the whole idempotency guarantee. An empty one would make every attachment
@@ -116,6 +168,32 @@ public sealed class Attachment : AggregateRoot
             throw new DomainException($"'{kind}' is not a kind of attachment.");
         }
 
-        return new Attachment(id, orgId, jobId, kind, StorageKey.For(orgId, id), capturedAt);
+        if (byteLength <= 0)
+        {
+            throw new DomainException("An attachment must have some content.");
+        }
+
+        // Trimmed and matched without regard to case, because a client sending "IMAGE/JPEG" or a
+        // header with a trailing space has sent a JPEG. Parameters ("image/jpeg; charset=…") are not
+        // stripped: a capture has no charset, and quietly accepting decoration would widen what this
+        // list means.
+        var normalized = contentType?.Trim() ?? string.Empty;
+
+        if (!AllowedContentTypes.Contains(normalized))
+        {
+            throw new DomainException(
+                $"'{contentType}' is not a kind of file this system stores. It holds photographs and "
+                    + $"signatures: {string.Join(", ", AllowedContentTypes.Order(StringComparer.Ordinal))}.");
+        }
+
+        return new Attachment(
+            id,
+            orgId,
+            jobId,
+            kind,
+            StorageKey.For(orgId, id),
+            normalized,
+            byteLength,
+            capturedAt);
     }
 }

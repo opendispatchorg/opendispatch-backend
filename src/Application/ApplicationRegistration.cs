@@ -1,6 +1,7 @@
 using FluentValidation;
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Application.Behaviors;
+using OpenDispatch.Application.Observability;
 
 namespace OpenDispatch.Application;
 
@@ -36,14 +37,27 @@ public static class ApplicationRegistration
             //   Validation   is next so a malformed request is refused before anything else
             //                happens — in particular before a transaction is opened for work
             //                that was never going to be kept.
-            //   Transaction  is innermost, so the transaction spans the handler and nothing
-            //                else. Validators do not run inside it, and neither does logging.
+            //   Concurrency  is next, and its position is forced: the lost race it reports is
+            //                thrown by the save inside Transaction below, and that transaction
+            //                rolls back as the exception passes out through it — so this is the
+            //                first place the failure can be turned into a Result with nothing
+            //                half-written behind it.
+            //   Transaction  spans the handler and nothing else. Validators do not run inside it,
+            //                and neither does logging.
+            //   Audit        is innermost, *inside* the transaction, which is the one behavior
+            //                that genuinely needs to be: the entry it writes is saved and
+            //                committed by the transaction above it, so a record of an act cannot
+            //                survive the act rolling back and committed work cannot exist without
+            //                its record.
             //
             // A behavior added later belongs above Transaction unless it genuinely needs to be
-            // inside the transaction, in which case it belongs to the handler instead.
+            // inside the transaction, in which case it belongs here beside Audit — or in the
+            // handler.
             mediator.AddOpenBehavior(typeof(LoggingBehavior<,>));
             mediator.AddOpenBehavior(typeof(ValidationBehavior<,>));
+            mediator.AddOpenBehavior(typeof(ConcurrencyBehavior<,>));
             mediator.AddOpenBehavior(typeof(TransactionBehavior<,>));
+            mediator.AddOpenBehavior(typeof(AuditBehavior<,>));
         });
 
         // Internal types included: a validator is an implementation detail of its slice and has
@@ -52,6 +66,19 @@ public static class ApplicationRegistration
         services.AddValidatorsFromAssemblyContaining(
             typeof(ApplicationRegistration),
             includeInternalTypes: true);
+
+        // The instruments the handlers record on (Document 3, step 54). AddMetrics is called here
+        // rather than left to the host: a web host registers IMeterFactory for itself, but the
+        // integration harness composes this pipeline over a bare ServiceCollection, and a handler
+        // that cannot be resolved outside a web host is one whose measurements only exist in
+        // production. Both calls are idempotent, so a host that also asks for metrics gets one
+        // factory and one set of instruments.
+        //
+        // Singletons: an instrument is created once and recorded on from every request.
+        services.AddMetrics();
+        services.AddSingleton<SchedulingMetrics>();
+        services.AddSingleton<SyncMetrics>();
+        services.AddSingleton<AuthMetrics>();
 
         return services;
     }

@@ -1,11 +1,13 @@
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Diagnostics;
 using OpenDispatch.Domain.Common;
+using OpenDispatch.Infrastructure.Persistence;
 
 namespace OpenDispatch.Infrastructure.Events;
 
 /// <summary>
-/// Takes the domain events off the aggregates a save has just written.
+/// Takes the domain events off the aggregates a save is about to write, and writes them down with
+/// it.
 /// </summary>
 /// <remarks>
 /// <para>
@@ -14,8 +16,17 @@ namespace OpenDispatch.Infrastructure.Events;
 /// can forget — an aggregate that raised an event has announced it by virtue of being saved.
 /// </para>
 /// <para>
-/// Collection happens <em>after</em> a successful save, so a save that failed leaves the events
-/// on their aggregates: nothing happened, and nothing is queued to say it did.
+/// <strong>Collection moved from after the save to before it, and that is the outbox.</strong> The
+/// events are turned into <see cref="OutboxMessage"/> rows and added to the same <c>SaveChanges</c>
+/// as the aggregates that raised them, so the fact and the record of it are one write: either a job
+/// is cancelled and something is going to hear about it, or neither happened. Collecting afterwards
+/// could only ever put them somewhere a process could take with it when it died.
+/// </para>
+/// <para>
+/// They are also queued in memory, because the outbox is the guarantee and not the mechanism: the
+/// ordinary path still publishes in-process the moment the transaction commits, so a board is live
+/// rather than waiting for a sweep. What the row buys is what happens when that publish never
+/// runs.
 /// </para>
 /// </remarks>
 internal sealed class DomainEventInterceptor(DomainEventQueue queue, DomainEventDispatcher dispatcher)
@@ -45,29 +56,78 @@ internal sealed class DomainEventInterceptor(DomainEventQueue queue, DomainEvent
         return base.SavingChanges(eventData, result);
     }
 
+    /// <summary>
+    /// Turns the events raised in this transaction into rows of the same save.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Cleared from the aggregates as they are taken, so a second save in the same transaction — a
+    /// handler that saves partway through, then the pipeline saving again — cannot record the same
+    /// event twice.
+    /// </para>
+    /// <para>
+    /// Adding entities from inside this interceptor is deliberate and supported: it runs before EF
+    /// turns the change tracker into commands, so the rows join the batch rather than needing a
+    /// save of their own.
+    /// </para>
+    /// </remarks>
+    public override ValueTask<InterceptionResult<int>> SavingChangesAsync(
+        DbContextEventData eventData,
+        InterceptionResult<int> result,
+        CancellationToken cancellationToken = default)
+    {
+        ArgumentNullException.ThrowIfNull(eventData);
+
+        var context = eventData.Context;
+
+        if (context is not null)
+        {
+            foreach (var root in Raised(context))
+            {
+                // Whose reaction this is, read off the aggregate that raised it rather than from
+                // the ambient tenant. Two reasons: a save made outside a request (the demo seeder,
+                // a CLI verb) has no resolved tenant and would throw, and an aggregate is the
+                // authority on its own owner in a way a request's claim is not.
+                var owner = TenantOwnership.Of(root)
+                    ?? throw new InvalidOperationException(
+                        $"'{root.GetType().Name}' raised a domain event but does not say which "
+                        + "organization owns it, so its outbox row could never be delivered. Every "
+                        + "aggregate carries exactly one OrgId.");
+
+                foreach (var domainEvent in root.DomainEvents)
+                {
+                    context.Add(OutboxMessage.For(
+                        domainEvent,
+                        DomainEventSerializer.Serialize(domainEvent),
+                        owner));
+                }
+
+                queue.Enqueue(root.DomainEvents);
+                root.ClearDomainEvents();
+            }
+        }
+
+        return base.SavingChangesAsync(eventData, result, cancellationToken);
+    }
+
     /// <inheritdoc />
     public override async ValueTask<int> SavedChangesAsync(
         SaveChangesCompletedEventData eventData,
         int result,
         CancellationToken cancellationToken = default)
     {
-        foreach (var root in Raised(eventData.Context))
-        {
-            queue.Enqueue(root.DomainEvents);
-
-            // Cleared as they are taken, so a second save in the same transaction — a handler
-            // that saves partway through, then the pipeline saving again — cannot collect the
-            // same event twice and announce it twice.
-            root.ClearDomainEvents();
-        }
-
+        // Nothing is collected here any more: SavingChangesAsync took the events and wrote them
+        // down as part of this very save. What is left is the decision about when to publish.
+        //
         // A save with no transaction around it *was* a transaction: EF opened one, committed it,
         // and only then called this. There is nothing left to wait for, so the events go out now.
         // When TransactionBehavior has opened one, the rows are written but not yet real, and
         // UnitOfWorkTransaction.CommitAsync is what makes them so — and what dispatches.
-        if (eventData.Context?.Database.CurrentTransaction is null)
+        if (eventData.Context is AppDbContext context && context.Database.CurrentTransaction is null)
         {
-            await dispatcher.DispatchAsync(cancellationToken).ConfigureAwait(false);
+            var delivered = await dispatcher.DispatchAsync(cancellationToken).ConfigureAwait(false);
+
+            await OutboxTrail.ForgetAsync(context, delivered, cancellationToken).ConfigureAwait(false);
         }
 
         return await base.SavedChangesAsync(eventData, result, cancellationToken).ConfigureAwait(false);

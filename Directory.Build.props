@@ -45,4 +45,35 @@
     <NoWarn>$(NoWarn);CS1591</NoWarn>
   </PropertyGroup>
 
+  <!--
+    A vulnerable transitive package fails the build rather than producing a report
+    nobody reads. `all` rather than `direct` on purpose: the advisories that have
+    actually bitten this repository arrived transitively — Microsoft.OpenApi through
+    the framework's own package at step 22, SSH.NET through Testcontainers — and
+    `direct` would have caught neither. Both are pinned forward in the projects that
+    resolve them, with the reason written beside the pin.
+  -->
+  <PropertyGroup>
+    <NuGetAudit>true</NuGetAudit>
+    <NuGetAuditMode>all</NuGetAuditMode>
+    <NuGetAuditLevel>low</NuGetAuditLevel>
+  </PropertyGroup>
+
+  <!--
+    Which commit this is. A running container that cannot say what it is makes every
+    incident harder: "is the fix deployed" becomes a question about deployment logs
+    rather than one the process can answer about itself.
+
+    Version is the human number and is bumped by hand. SourceRevisionId is filled by
+    CI with the commit SHA (`-p:SourceRevisionId=$GITHUB_SHA`) and left as `local`
+    otherwise, which is the honest answer for a build off somebody's working tree —
+    it may contain anything. The SDK appends SourceRevisionId to
+    InformationalVersion as `+<value>`, so one attribute carries both and
+    BuildVersion reads it back at startup.
+  -->
+  <PropertyGroup>
+    <Version>0.1.0</Version>
+    <SourceRevisionId Condition="'$(SourceRevisionId)' == ''">local</SourceRevisionId>
+  </PropertyGroup>
+
 </Project>

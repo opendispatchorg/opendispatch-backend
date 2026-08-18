@@ -23,4 +23,16 @@ public static class AuthPolicies
     /// data through the sync endpoints (step 50) instead, never through this surface.
     /// </summary>
     public const string AdminOrDispatcher = "AdminOrDispatcher";
+
+    /// <summary>
+    /// Any of the three roles — the office and the field both.
+    /// </summary>
+    /// <remarks>
+    /// For the one surface where that is genuinely the answer rather than a shrug: reading a
+    /// capture. A technician takes the photograph and needs to see it back; a dispatcher and an
+    /// admin need to see what came off the van. Written as the three roles rather than "any
+    /// authenticated caller" so a token carrying a role this system does not issue is still
+    /// refused.
+    /// </remarks>
+    public const string AnyRole = "AnyRole";
 }

@@ -1,9 +1,14 @@
+using System.Diagnostics.Metrics;
 using System.Net;
 using System.Net.Http.Json;
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Diagnostics.Metrics.Testing;
 using OpenDispatch.Api.IntegrationTests.Fixtures;
 using OpenDispatch.Application.Auth;
+using OpenDispatch.Application.Jobs;
+using OpenDispatch.Application.Observability;
 using OpenDispatch.Contracts;
 using OpenDispatch.Contracts.Customers;
 using OpenDispatch.Contracts.Jobs;
@@ -191,6 +196,85 @@ public sealed class SyncEndpointsFlowTests : IClassFixture<ApiFactory>
         var conflict = Assert.Single(body!.Conflicts);
         Assert.Equal(SyncConflictReason.IllegalTransition, conflict.Reason);
         Assert.Empty(body.Applied);
+    }
+
+    /// <summary>
+    /// The step-54 counters, over the whole real path: a push that applied one operation and
+    /// refused another is counted once each, with the refusal carrying its reason.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// It is here, through HTTP, rather than in <c>MetricsFlowTests</c> through MediatR, because
+    /// the counting moved. Recording inside the handler counted work the transaction could still
+    /// take back — a batch applied and then lost to a failed save was reported as field work — so
+    /// the numbers are now taken from a <c>Result</c> that has already committed, which only the
+    /// edge holds.
+    /// </para>
+    /// <para>
+    /// The refusal is the half that matters: it rides inside a 200 with no log level and no status
+    /// code of its own, so this counter is the only thing standing between "a fleet of phones is
+    /// being refused all morning" and a quiet dashboard.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task APushCountsWhatItAppliedAndWhyItRefusedTheRest()
+    {
+        var org = OrgId.New();
+        using var client = _factory.CreateClient();
+        var adminToken = await client.LoginAsync(await SeedAdminAsync(org), "riverside-heating");
+        var technicianId = await SeedTechnicianAsync(org);
+        var techToken = await client.LoginAsync(
+            await SeedTechnicianUserAsync(org, technicianId), "boiler-service-call");
+        var job = await ABookedAndAssignedJobAsync(client, adminToken, technicianId.Value);
+
+        using var applied = new MetricCollector<long>(
+            _factory.Services.GetRequiredService<IMeterFactory>(),
+            OpenDispatchMetrics.MeterName,
+            SyncMetrics.OpsAppliedName);
+        using var conflicted = new MetricCollector<long>(
+            _factory.Services.GetRequiredService<IMeterFactory>(),
+            OpenDispatchMetrics.MeterName,
+            SyncMetrics.OpsConflictedName);
+
+        using var response = await SendAsync(
+            client,
+            techToken,
+            HttpMethod.Post,
+            "/sync/push",
+            new SyncPushRequest(
+            [
+                new SyncOp(
+                    Guid.NewGuid(),
+                    "job",
+                    job.Id,
+                    "status_change",
+                    JsonSerializer.SerializeToElement(new { status = "EnRoute" }),
+                    BaseVersion: 0,
+                    ClientTs: MorningOf.AddHours(1)),
+
+                // Legal for the field workflow in general, illegal from where this job now is:
+                // EnRoute goes to InProgress or Cancelled, never straight to Completed.
+                new SyncOp(
+                    Guid.NewGuid(),
+                    "job",
+                    job.Id,
+                    "status_change",
+                    JsonSerializer.SerializeToElement(new { status = "Completed" }),
+                    BaseVersion: 0,
+                    ClientTs: MorningOf.AddHours(2)),
+            ]));
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+
+        var body = await response.Content.ReadFromJsonAsync<SyncPushResponse>();
+        Assert.Single(body!.Applied);
+        Assert.Single(body.Conflicts);
+
+        Assert.Equal(1L, Assert.Single(applied.GetMeasurementSnapshot()).Value);
+
+        var refusal = Assert.Single(conflicted.GetMeasurementSnapshot());
+        Assert.Equal(1L, refusal.Value);
+        Assert.Equal(JobErrors.IllegalTransitionCode, refusal.Tags[SyncMetrics.ConflictReasonTag]);
     }
 
     [Fact]

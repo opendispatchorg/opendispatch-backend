@@ -1,5 +1,6 @@
 using FluentValidation;
 using MediatR;
+using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Messaging;
 using OpenDispatch.Application.Results;
 
@@ -16,6 +17,25 @@ internal enum SampleOutcome
 
     /// <summary>Throw, standing in for a bug or a database that is not there.</summary>
     Throw,
+
+    /// <summary>
+    /// Throw <see cref="ConcurrencyConflictException"/>, standing in for the save discovering that
+    /// somebody else's change landed first.
+    /// </summary>
+    /// <remarks>
+    /// The persistence layer raises it from inside the save, which is inside the transaction — so a
+    /// handler is the closest a test without a database can put it, and it is close enough: what is
+    /// under test is that the pipeline turns it into an ordinary refusal with the work rolled back,
+    /// not where in the save it came from. That it is raised at all against a real database is
+    /// proved in <c>Api.IntegrationTests</c>.
+    /// </remarks>
+    LoseTheRace,
+
+    /// <summary>
+    /// Throw <see cref="DuplicateRecordException"/>, standing in for a unique index refusing a row
+    /// two callers created at the same moment.
+    /// </summary>
+    WriteADuplicate,
 }
 
 /// <summary>
@@ -51,6 +71,10 @@ internal sealed class SampleCommandHandler(PipelineJournal journal)
         {
             SampleOutcome.Succeed => Result.Success(command.Name),
             SampleOutcome.Fail => Result.Failure<string>(Refused),
+            SampleOutcome.LoseTheRace => throw new ConcurrencyConflictException(
+                "Another change to this data was committed first."),
+            SampleOutcome.WriteADuplicate => throw new DuplicateRecordException(
+                "Something else has already been written where this could only be written once."),
             _ => throw new InvalidOperationException("The sample handler was told to throw."),
         });
     }

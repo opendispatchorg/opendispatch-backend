@@ -1,4 +1,5 @@
 using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
+using OpenDispatch.Application.Auth;
 using OpenDispatch.Application.Sync;
 using OpenDispatch.Domain.Identifiers;
 
@@ -19,9 +20,10 @@ namespace OpenDispatch.Infrastructure.Persistence.Conversions;
  * eight declarations here for eight annotations there — no smaller, and paid for in the one
  * project that is supposed to answer to nothing.
  *
- * One of them is not a Domain id: SyncOpId identifies an entry in the sync op log, which is
- * protocol bookkeeping rather than a business concept and therefore lives with its port in
- * Application. It is stored the same way as the rest, so it is declared with the rest.
+ * Two of them are not Domain ids: SyncOpId identifies an entry in the sync op log and UserId a
+ * row in the user store, both protocol or access bookkeeping rather than business concepts, and
+ * both therefore living with their ports in Application. They are stored the same way as the
+ * rest, so they are declared with the rest.
  */
 
 internal sealed class AssignmentIdConverter()
@@ -76,5 +78,10 @@ internal sealed class SyncOpIdConverter()
 
 internal sealed class TechnicianIdConverter()
     : ValueConverter<TechnicianId, Guid>(id => id.Value, value => TechnicianId.From(value))
+{
+}
+
+internal sealed class UserIdConverter()
+    : ValueConverter<UserId, Guid>(id => id.Value, value => UserId.From(value))
 {
 }

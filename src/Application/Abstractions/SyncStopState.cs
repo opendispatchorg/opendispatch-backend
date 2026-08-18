@@ -50,3 +50,28 @@ public sealed record SyncScopeChanges(
     IReadOnlyList<SyncJobState> Jobs,
     IReadOnlyList<SyncStopState> Stops,
     IReadOnlyList<AssignmentId> RemovedStops);
+
+/// <summary>
+/// One page of a technician's changes, and how far through the stream it got.
+/// </summary>
+/// <param name="Changes">What is in this page.</param>
+/// <param name="Ceiling">
+/// The last change stamp this page covers <em>completely</em>, or <see langword="null"/> when the
+/// page is everything there was.
+/// </param>
+/// <remarks>
+/// <para>
+/// <strong><see cref="Ceiling"/> is a stamp, not a row count, and that is the whole design.</strong>
+/// Every row a single transaction wrote carries that transaction's stamp, so a page boundary drawn
+/// through the middle of one would leave rows the device can never ask for again without asking for
+/// the ones it already has: it would resume at the same stamp forever, or skip the remainder. So a
+/// page is a whole number of transactions — the reader stops <em>between</em> stamps, and the
+/// caller resumes at the one after.
+/// </para>
+/// <para>
+/// A <see langword="null"/> ceiling means the reader ran out of changes rather than out of room,
+/// which is what lets the caller answer with the watermark it took before reading — the position
+/// that means "up to date", as against "here is where to carry on".
+/// </para>
+/// </remarks>
+public sealed record SyncScopePage(SyncScopeChanges Changes, long? Ceiling);

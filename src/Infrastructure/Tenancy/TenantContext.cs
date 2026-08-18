@@ -29,7 +29,7 @@ namespace OpenDispatch.Infrastructure.Tenancy;
 /// that depends on <c>Application</c> abstractions needs to know this type exists.
 /// </para>
 /// </remarks>
-public sealed class TenantContext : ITenantContext
+public sealed class TenantContext : ITenantContext, ITenantScope
 {
     private OrgId? _orgId;
 
@@ -38,6 +38,7 @@ public sealed class TenantContext : ITenantContext
     public OrgId OrgId => _orgId ?? throw new InvalidOperationException(
         "No tenant has been resolved for this request, so there is no organization to scope it to.");
 
+    /// <inheritdoc />
     /// <summary>Records whose request this is.</summary>
     /// <exception cref="InvalidOperationException">
     /// A tenant was already resolved. Changing it mid-request would mean the queries before the

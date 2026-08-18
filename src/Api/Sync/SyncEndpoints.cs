@@ -1,10 +1,14 @@
 using System.Security.Claims;
 using System.Text.Json;
 using MediatR;
+using Microsoft.Extensions.Options;
 using OpenDispatch.Api.Auth;
+using OpenDispatch.Api.Configuration;
 using OpenDispatch.Api.ErrorHandling;
+using OpenDispatch.Api.Security;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Jobs;
+using OpenDispatch.Application.Observability;
 using OpenDispatch.Application.Sync;
 using OpenDispatch.Application.Sync.PullChanges;
 using OpenDispatch.Application.Sync.PushOps;
@@ -17,12 +21,28 @@ namespace OpenDispatch.Api.Sync;
 /// <summary>The offline sync protocol over HTTP: a device empties its queue, and asks what it missed
 /// (Document 3, step 50).</summary>
 /// <remarks>
+/// <para>
+/// <strong>A technician may act on any job in their organization, not only the ones planned for
+/// them.</strong> A push names the acting technician from the token and the job from the operation,
+/// and the two are not required to match. That is deliberate rather than an oversight of scoping:
+/// field workers cover for each other, a dispatcher reassigns work mid-morning, and a phone holding
+/// a stop that moved ten minutes ago would otherwise have its perfectly good "I am on site"
+/// rejected. The tenant boundary is the one that matters and it is enforced by the query filters;
+/// within a shop, a shop's own technicians are trusted with a shop's own jobs.
+/// </para>
+/// <para>
+/// The same reasoning covers the attachment upload beside it. Both are recorded against the
+/// technician who acted (<c>SyncOpRecord.TechnicianId</c>), so who did what is answerable after the
+/// fact, which is the property that makes the trust affordable.
+/// </para>
+/// <para>
 /// <c>TechnicianOnly</c>, as the build text names — the one surface in this API a technician's
 /// phone calls directly rather than an office worker's browser. Both routes read the calling
 /// technician from the JWT (<see cref="AuthClaimTypes.Technician"/>) rather than the tenant's
 /// pattern of an ambient <c>ITenantContext</c>: exactly two callers need it, both already take it
 /// as an explicit parameter (<c>PushOpsCommand</c>, <c>PullChangesQuery</c>), and their own remarks
 /// say a third caller is what would earn a port. This is that resolution, done at the edge.
+/// </para>
 /// </remarks>
 public static class SyncEndpoints
 {
@@ -37,6 +57,7 @@ public static class SyncEndpoints
         // the shared "default" ProblemDetails response otherwise describes, so it is named
         // explicitly here rather than left for that generic entry to (incorrectly) cover.
         sync.MapPost("/push", PushAsync).WithName("PushSyncOps")
+            .RequireRateLimiting(RateLimiting.PushPolicy)
             .Produces<SyncPushResponse>()
             .Produces(StatusCodes.Status401Unauthorized);
         sync.MapGet("/pull", PullAsync).WithName("PullSyncChanges")
@@ -46,10 +67,29 @@ public static class SyncEndpoints
         return endpoints;
     }
 
+    /// <remarks>
+    /// <para>
+    /// <strong>The step-54 counters are recorded here rather than in the handler</strong>, and the
+    /// difference is when: the handler runs inside the transaction, so counting there counted work
+    /// that a failed save could still take back — a batch applied and then lost was reported as
+    /// field work, over-reporting precisely when something had gone wrong. A successful
+    /// <c>Result</c> at this point is a committed one (<c>TransactionBehavior</c> rolls back
+    /// anything else), so this is the first place the numbers are true.
+    /// </para>
+    /// <para>
+    /// Applied is counted once for the batch rather than per operation — <c>Add(n)</c> is one
+    /// measurement where n increments are n — and includes ops an earlier push had already applied,
+    /// because they are what this device believes it did; undercounting them would make a phone
+    /// stuck in a retry loop look idle. Conflicts carry their reason as a tag, which is the only
+    /// place a client shipping operations this server cannot apply becomes visible at all: a
+    /// refusal rides inside a 200.
+    /// </para>
+    /// </remarks>
     private static async Task<IResult> PushAsync(
         SyncPushRequest request,
         ClaimsPrincipal caller,
         ISender sender,
+        SyncMetrics metrics,
         CancellationToken cancellationToken)
     {
         if (!TryGetTechnicianId(caller, out var technicianId))
@@ -60,13 +100,31 @@ public static class SyncEndpoints
         var command = new PushOpsCommand(technicianId, [.. request.Ops.Select(ToPushedOp)]);
         var result = await sender.Send(command, cancellationToken).ConfigureAwait(false);
 
+        if (result.IsSuccess)
+        {
+            metrics.Applied(result.Value.Applied.Count);
+
+            foreach (var conflict in result.Value.Conflicts)
+            {
+                metrics.Conflicted(conflict.Error.Code);
+            }
+        }
+
         return result.ToHttpResult(batch => Results.Ok(ToResponse(batch)));
     }
 
+    /// <remarks>
+    /// The page size is read here, from options resolved per request, rather than being a constant
+    /// in the handler or something the caller may ask for: a device does not get to request the
+    /// whole database, and an operator with a slow fleet gets a lever. Per request, because
+    /// configuration read while the container is being built is read before a host's own sources
+    /// are applied — the lesson the edge-hardening pass wrote down.
+    /// </remarks>
     private static async Task<IResult> PullAsync(
         SyncCursor since,
         ClaimsPrincipal caller,
         ISender sender,
+        IOptions<SyncOptions> sync,
         CancellationToken cancellationToken)
     {
         if (!TryGetTechnicianId(caller, out var technicianId))
@@ -75,7 +133,13 @@ public static class SyncEndpoints
         }
 
         var result = await sender
-            .Send(new PullChangesQuery(technicianId, since), cancellationToken)
+            .Send(
+                new PullChangesQuery(
+                    technicianId,
+                    since,
+                    sync.Value.PullPageTransactions,
+                    sync.Value.PullPageRows),
+                cancellationToken)
             .ConfigureAwait(false);
 
         return result.ToHttpResult(pulled => Results.Ok(ToResponse(pulled)));
@@ -137,7 +201,8 @@ public static class SyncEndpoints
             .. pulled.Changes.Stops.Select(ToChange),
             .. pulled.Changes.RemovedStops.Select(ToRemoval),
         ],
-        pulled.Cursor.ToString());
+        pulled.Cursor.ToString(),
+        pulled.HasMore);
 
     private static SyncChange ToChange(SyncJobState job) => new(
         FieldOps.JobEntity,

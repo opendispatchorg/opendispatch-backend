@@ -1,3 +1,4 @@
+using System.Collections.Immutable;
 using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Scheduling.Model;
 
@@ -47,4 +48,43 @@ public interface IScheduler
     /// if it will not go anywhere.
     /// </returns>
     Solution Insert(Solution current, SchedulingProblem problem, JobId job);
+
+    /// <summary>
+    /// Re-times one technician's run, in the order it is already in, so it is a day somebody could
+    /// actually drive.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The third question, and the one that has no plan in it. <see cref="Solve"/> decides who does
+    /// what; <see cref="Insert"/> decides where one more job goes; this decides <em>nothing</em>. It
+    /// takes the sequence exactly as given — a dispatcher's own order, dragged by hand — and works
+    /// out the clock: the drives between the stops, the waiting before a window opens, and whether
+    /// the whole thing still finishes inside the shift.
+    /// </para>
+    /// <para>
+    /// It exists because the manual path can produce a day that is not a route. Dragging two stops
+    /// onto the same hour is an instruction this system carries out faithfully and does not re-time
+    /// around, so the day can end up overlapping itself — at which point an emergency insertion has
+    /// nothing to insert into and refuses. This is the way back that does not throw away the
+    /// dispatcher's decisions.
+    /// </para>
+    /// <para>
+    /// Nothing is priced and nothing is compared: the answer is the same run, timed, or nothing at
+    /// all if that technician cannot drive it — a stop they are not qualified for, or a day that
+    /// would run past the end of their shift.
+    /// </para>
+    /// </remarks>
+    /// <param name="problem">The day: this technician, the work, and the horizon it happens in.</param>
+    /// <param name="technician">Whose run to time. Must be in the problem.</param>
+    /// <param name="order">The jobs, in the order they will be driven. Must all be in the problem.</param>
+    /// <param name="notBefore">
+    /// The times these stops were already promised for, so re-timing can push a stop later but
+    /// never pull one earlier than the customer was told.
+    /// </param>
+    /// <returns>The timed run, or <see langword="null"/> if it cannot be driven.</returns>
+    ImmutableArray<Stop>? Retime(
+        SchedulingProblem problem,
+        TechnicianId technician,
+        IReadOnlyList<JobId> order,
+        IReadOnlyDictionary<JobId, DateTimeOffset> notBefore);
 }

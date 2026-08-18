@@ -27,6 +27,17 @@ namespace OpenDispatch.Infrastructure.Persistence;
 public static class PersistenceRegistration
 {
     /// <summary>
+    /// The longest any single database command may take before it is abandoned.
+    /// </summary>
+    /// <remarks>
+    /// Stated here rather than left to the provider's default, so it is a number somebody chose and
+    /// can change, and so a reader can tell that unbounded queries are not the arrangement. Pool
+    /// sizing is deliberately not set in code — it belongs in the connection string, where a
+    /// deployment can match it to the database it actually has; the README says what to put there.
+    /// </remarks>
+    internal const int CommandTimeoutSeconds = 30;
+
+    /// <summary>
     /// Registers <see cref="AppDbContext"/> against PostgreSQL with the PostGIS/NetTopologySuite
     /// plugin enabled, and the persistence ports over it.
     /// </summary>
@@ -36,9 +47,14 @@ public static class PersistenceRegistration
     /// because the host validates its configuration on start, and that validated value does not
     /// exist yet at the point registration runs.
     /// </param>
+    /// <param name="outbox">
+    /// How the outbox sweep behaves, or <see langword="null"/> for the defaults a deployment wants.
+    /// A test suite is the only caller with a reason to change them — see <c>OutboxOptions</c>.
+    /// </param>
     public static IServiceCollection AddPersistence(
         this IServiceCollection services,
-        Func<IServiceProvider, string> connectionString)
+        Func<IServiceProvider, string> connectionString,
+        OutboxOptions? outbox = null)
     {
         // Scoped, all three: one queue, one dispatcher and one interceptor per request, sharing
         // the lifetime of the context that fills the queue and the transaction that empties it.
@@ -46,12 +62,47 @@ public static class PersistenceRegistration
         services.AddScoped<DomainEventDispatcher>();
         services.AddScoped<DomainEventInterceptor>();
 
+        // The sweep that delivers what a request did not — a subscriber that threw, a host killed
+        // between committing work and announcing it. A hosted service rather than a verb, unlike
+        // `prune`, because it is not a scheduled chore: it is the second half of every write, and
+        // it claims its rows in a way two instances can share (see OutboxDispatcher).
+        services.AddSingleton(outbox ?? new OutboxOptions());
+        services.AddScoped<OutboxSweep>();
+        services.AddHostedService<OutboxDispatcher>();
+
         services.AddDbContext<AppDbContext>((provider, options) => options
             .UseNpgsql(
                 connectionString(provider),
-                // Turns on the NTS type handlers, so a GeoPoint can be stored as
-                // geography(Point) and queried with PostGIS operators.
-                npgsql => npgsql.UseNetTopologySuite())
+                npgsql => npgsql
+                    // Turns on the NTS type handlers, so a GeoPoint can be stored as
+                    // geography(Point) and queried with PostGIS operators.
+                    .UseNetTopologySuite()
+
+                    // A failover, a reset connection, a database that was restarting while a
+                    // technician's phone pushed — every one of those reached the caller as a 500
+                    // until this line, where a second attempt would have been invisible. The
+                    // strategy owns the retry *boundary*, which is why commands go through
+                    // IUnitOfWork.ExecuteInTransactionAsync: it refuses to retry a transaction
+                    // somebody else opened, and it is right to.
+                    //
+                    // Three attempts over five seconds: enough to ride out a failover, short
+                    // enough that a request does not sit behind a database that is genuinely gone
+                    // — that case is readiness' to report, not this one's to wait for.
+                    .EnableRetryOnFailure(maxRetryCount: 3, maxRetryDelay: TimeSpan.FromSeconds(5), errorCodesToAdd: null)
+
+                    // A ceiling on any single command. Npgsql's own default is thirty seconds and
+                    // it is not the number that matters — what matters is that there *is* one and
+                    // that it is stated: without it in the source, nobody reading this can tell
+                    // whether an unbounded query is a decision or an oversight, and a lock nobody
+                    // is holding deliberately can otherwise pin a connection until the request is
+                    // abandoned.
+                    //
+                    // Thirty seconds is far above every measured path (the worst deliberate abuse
+                    // in the load pass was a 1.4-second optimise and a 5-second export) and far
+                    // below "forever". The export, which is the one legitimately long request, runs
+                    // as a stream of ordinary-sized commands rather than one enormous one, so it is
+                    // bounded by the request timeout rather than by this.
+                    .CommandTimeout(CommandTimeoutSeconds))
             // Tables and columns are snake_case. This runs over whatever names the model ends
             // up with, so a configuration names a table once, in the words the database uses.
             .UseSnakeCaseNamingConvention()
@@ -65,6 +116,16 @@ public static class PersistenceRegistration
         // until then reading it throws, which is the point.
         services.AddScoped<TenantContext>();
         services.AddScoped<ITenantContext>(provider => provider.GetRequiredService<TenantContext>());
+
+        // The write half, for the two things entitled to say whose work a scope is for: the API's
+        // tenant middleware, and the outbox dispatcher, which serves no request and takes the owner
+        // off each message. See ITenantScope.
+        services.AddScoped<ITenantScope>(provider => provider.GetRequiredService<TenantContext>());
+
+        // Who, beside what they may see. Resolved by the same middleware from the same principal;
+        // unresolved for a sign-in, a sweep or a verb, which is a state the port allows.
+        services.AddScoped<CallerContext>();
+        services.AddScoped<ICallerContext>(provider => provider.GetRequiredService<CallerContext>());
 
         // Scoped, the same lifetime as the context they share. That sharing is the point: a
         // handler that loads a job through one repository and adds an assignment through another
@@ -85,12 +146,22 @@ public static class PersistenceRegistration
         // The op log stages like a repository and is committed by the same unit of work, so that
         // the record of an operation and its effect land together. The cursor source shares the
         // context for a different reason: a watermark is only true of the connection that asked.
+        services.AddScoped<IAuditLog, AuditLog>();
         services.AddScoped<ISyncOpStore, SyncOpStore>();
         services.AddScoped<ISyncCursorSource, SyncCursorSource>();
 
         // A read port like the board's, and scoped for the same reason: the watermark and the
         // changes read against it have to come from one connection to describe one moment.
         services.AddScoped<ISyncChangeReader, SyncChangeReader>();
+
+        // Readiness (Document 3, step 54). Registered here rather than by the host for the same
+        // reason the context is: whether this deployment can serve traffic is a question about the
+        // database, and a composition root that has to remember to ask it is one that will
+        // eventually forget. The timeout is the probe's own guarantee — a health endpoint that
+        // hangs is worse than one that answers "no", because an orchestrator reads no answer at
+        // all as a host that has stopped responding and restarts it.
+        services.AddHealthChecks()
+            .AddCheck<DatabaseHealthCheck>(DatabaseHealthCheck.Name, timeout: TimeSpan.FromSeconds(5));
 
         return services;
     }

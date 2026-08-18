@@ -52,4 +52,48 @@ public interface IAttachmentStorage
     /// a state a caller can report on — the alternative is a 500 for a file somebody deleted.
     /// </returns>
     Task<Stream?> OpenAsync(StorageKey key, CancellationToken ct);
+
+    /// <summary>
+    /// Deletes stored content, if there is any.
+    /// </summary>
+    /// <param name="key">What to delete.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <remarks>
+    /// <para>
+    /// Here for erasure, which is the only thing in this system that deletes bytes: a photograph is
+    /// of somebody's home, and a promise to erase them that left the pictures on a disk would be no
+    /// promise at all.
+    /// </para>
+    /// <para>
+    /// <strong>Missing is success.</strong> Nothing under the key means the caller wanted the blob
+    /// gone and it is gone. An erasure is retried until it commits, and a retry that failed because
+    /// the first attempt had already worked would be a procedure nobody can finish.
+    /// </para>
+    /// </remarks>
+    Task DeleteAsync(StorageKey key, CancellationToken ct);
+
+    /// <summary>
+    /// Whether the store can currently be reached at all.
+    /// </summary>
+    /// <param name="ct">Cancellation.</param>
+    /// <returns><see langword="true"/> if this host could store or fetch a blob right now.</returns>
+    /// <remarks>
+    /// <para>
+    /// For readiness, and it is on the port because only an adapter knows what "reachable" means:
+    /// a directory that is still mounted, or a bucket that answers with the credentials this host
+    /// holds. A health check written outside could only guess.
+    /// </para>
+    /// <para>
+    /// <strong>Reachability, not correctness</strong> — the same line <c>DatabaseHealthCheck</c>
+    /// draws. It does not write anything, and a probe that ran every few seconds for the life of a
+    /// deployment must not: what it answers is "would an upload have somewhere to go", which is the
+    /// question a load balancer is asking.
+    /// </para>
+    /// <para>
+    /// It reports rather than throws, because an unreachable store is an ordinary state of the world
+    /// for a probe rather than an error. The reason lands in this host's logs when a request
+    /// actually tries to use it.
+    /// </para>
+    /// </remarks>
+    Task<bool> IsReachableAsync(CancellationToken ct);
 }

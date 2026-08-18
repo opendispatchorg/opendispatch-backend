@@ -64,6 +64,18 @@ internal sealed class AssignJobHandler(
             return Result.Failure<AssignmentId>(TechnicianErrors.NotFound(command.TechnicianId));
         }
 
+        // The third way onto somebody's day, and the one retirement did not close when it shipped.
+        // The optimiser skips retired staff because ITechnicianRepository.ListAsync leaves them out
+        // and the office's dropdown is the same list — but this path names a technician by id, so a
+        // stale board or a client holding an id from before could still plan work for somebody who
+        // has left. Refused here rather than in the domain because Assignment references its
+        // technician by id and cannot see them, the same arrangement that puts "is this job really
+        // this tenant's" in a handler.
+        if (!technician.IsActive)
+        {
+            return Result.Failure<AssignmentId>(TechnicianErrors.Retired(command.TechnicianId));
+        }
+
         // The domain's own answer to "may this work still be moved", so the board, the optimiser
         // and this path cannot hold three opinions. Work that is under way belongs to the
         // technician doing it.

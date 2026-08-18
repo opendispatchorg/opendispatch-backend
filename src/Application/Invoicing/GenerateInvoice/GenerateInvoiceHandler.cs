@@ -2,6 +2,7 @@ using MediatR;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Jobs;
 using OpenDispatch.Application.Results;
+using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Invoices;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.ValueObjects;
@@ -28,6 +29,14 @@ namespace OpenDispatch.Application.Invoicing.GenerateInvoice;
 /// fact — the aggregate takes the instant for that reason — but nothing yet asks to, and a date a
 /// caller can set is a date a caller can get wrong.
 /// </para>
+/// <para>
+/// <strong>What the invoice bills is not this handler's decision.</strong> With no lines supplied it
+/// hands the whole job to <c>Invoice.FromJob</c>, which is where "what may be billed" belongs; with
+/// lines supplied it adds what it was told. The only thing decided here is <em>which</em> of the two
+/// happened, which is a fact about the request rather than a rule about invoicing — and the
+/// emptiness check below exists so a job with nothing recorded is an expected failure a dispatcher
+/// reads, rather than the <c>DomainException</c> the aggregate would otherwise throw at them.
+/// </para>
 /// </remarks>
 internal sealed class GenerateInvoiceHandler(
     IJobRepository jobs,
@@ -52,9 +61,42 @@ internal sealed class GenerateInvoiceHandler(
             return Result.Failure<InvoiceSummary>(InvoiceErrors.JobNotCompleted(job.Status));
         }
 
-        var invoice = Invoice.CreateFromJob(tenant.OrgId, job.Id, clock.UtcNow);
+        if (command.Lines is null && job.Lines.Count == 0)
+        {
+            return Result.Failure<InvoiceSummary>(InvoiceErrors.NothingToBill(job.Id));
+        }
 
-        foreach (var line in command.Lines)
+        var invoice = Build(job, command.Lines, tenant.OrgId, clock.UtcNow);
+
+        invoices.Add(invoice);
+        job.MarkInvoiced();
+
+        return Result.Success(Project(invoice));
+    }
+
+    /// <summary>
+    /// The bill: what the field recorded, or what the caller stated.
+    /// </summary>
+    /// <remarks>
+    /// Two factories rather than one with a nullable argument, because they answer different
+    /// questions. <c>FromJob</c> knows what a job's records mean for a bill and enforces that there
+    /// is something to bill; <c>CreateFromJob</c> raises an empty draft for a caller who is about to
+    /// state the lines itself, which the validator has already insisted are not none.
+    /// </remarks>
+    private static Invoice Build(
+        Job job,
+        IReadOnlyList<InvoiceLine>? stated,
+        OrgId orgId,
+        DateTimeOffset issued)
+    {
+        if (stated is null)
+        {
+            return Invoice.FromJob(orgId, job, issued);
+        }
+
+        var invoice = Invoice.CreateFromJob(orgId, job.Id, issued);
+
+        foreach (var line in stated)
         {
             invoice.AddLineItem(
                 line.Kind,
@@ -63,10 +105,7 @@ internal sealed class GenerateInvoiceHandler(
                 Money.FromDollars(line.UnitPrice));
         }
 
-        invoices.Add(invoice);
-        job.MarkInvoiced();
-
-        return Result.Success(Project(invoice));
+        return invoice;
     }
 
     /// <summary>

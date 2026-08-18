@@ -11,17 +11,19 @@ namespace OpenDispatch.Application.Jobs.ListJobs;
 /// reasoning <c>ListCustomersHandler</c> gives for leaving sorting to the query.
 /// </remarks>
 internal sealed class ListJobsHandler(IJobRepository jobs)
-    : IRequestHandler<ListJobsQuery, Result<IReadOnlyList<JobSummary>>>
+    : IRequestHandler<ListJobsQuery, Result<JobPage>>
 {
-    public async Task<Result<IReadOnlyList<JobSummary>>> Handle(
-        ListJobsQuery query,
-        CancellationToken cancellationToken)
+    public async Task<Result<JobPage>> Handle(ListJobsQuery query, CancellationToken cancellationToken)
     {
-        var found = await jobs.ListAsync(cancellationToken).ConfigureAwait(false);
+        var page = await jobs
+            .ListAsync(new PageRequest(query.Page, query.PageSize), cancellationToken)
+            .ConfigureAwait(false);
 
-        IReadOnlyList<JobSummary> summaries = [.. found.Select(Project)];
-
-        return Result.Success(summaries);
+        return Result.Success(new JobPage(
+            [.. page.Items.Select(Project)],
+            page.Total,
+            query.Page,
+            query.PageSize));
     }
 
     private static JobSummary Project(Job job) => new(
@@ -36,5 +38,7 @@ internal sealed class ListJobsHandler(IJobRepository jobs)
         job.Window.End,
         job.EstimatedDuration,
         job.Status,
-        job.Notes);
+        job.Notes,
+        job.ErasedAt,
+        JobLineProjection.Of(job));
 }

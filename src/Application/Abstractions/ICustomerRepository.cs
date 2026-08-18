@@ -24,13 +24,24 @@ public interface ICustomerRepository
     void Add(Customer customer);
 
     /// <summary>
-    /// Fetches every customer in the tenant.
+    /// Fetches one page of the tenant's customers, and how many there are altogether.
     /// </summary>
     /// <remarks>
-    /// The one query here that will not age well. A customer list is a read path — it feeds
-    /// a picker, and it grows with the business rather than with the crew — so the moment it
-    /// wants paging, sorting or a search term it should become a projection through a read
-    /// model instead of gaining parameters here.
+    /// Paged since the day the unpaged version stopped being defensible: a customer list grows with
+    /// the business rather than with the crew, and a shop with ten years of them was being handed
+    /// all of them to draw a picker. A search term is the next thing this will want, and the note
+    /// that used to be here still holds — at that point it becomes a projection through a read
+    /// model rather than gaining another parameter.
     /// </remarks>
-    Task<IReadOnlyList<Customer>> ListAsync(CancellationToken ct);
+    Task<Page<Customer>> ListAsync(PageRequest page, CancellationToken ct);
+
+    /// <summary>
+    /// Every customer in the tenant, one at a time.
+    /// </summary>
+    /// <remarks>
+    /// For the export, and only for the export: it is the one caller that genuinely wants all of
+    /// them, and streaming is what keeps "all of them" from meaning "all of them in memory at
+    /// once". Anything that wants to show a person a list wants <see cref="ListAsync"/>.
+    /// </remarks>
+    IAsyncEnumerable<Customer> StreamAsync(CancellationToken ct);
 }

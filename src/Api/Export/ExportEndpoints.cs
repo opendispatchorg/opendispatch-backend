@@ -1,15 +1,21 @@
+using System.Text.Json;
 using MediatR;
+using Microsoft.AspNetCore.Http.Json;
+using Microsoft.Extensions.Options;
 using OpenDispatch.Api.Auth;
 using OpenDispatch.Api.ErrorHandling;
+using OpenDispatch.Api.Security;
 using OpenDispatch.Application.Customers.GetCustomer;
 using OpenDispatch.Application.Export;
 using OpenDispatch.Application.Export.GetExport;
 using OpenDispatch.Application.Invoicing;
 using OpenDispatch.Application.Jobs;
+using OpenDispatch.Application.Technicians.ListTechnicians;
 using OpenDispatch.Contracts.Customers;
 using OpenDispatch.Contracts.Export;
 using OpenDispatch.Contracts.Invoicing;
 using OpenDispatch.Contracts.Jobs;
+using OpenDispatch.Contracts.Technicians;
 using OpenDispatch.Domain.ValueObjects;
 
 namespace OpenDispatch.Api.Export;
@@ -32,7 +38,14 @@ public static class ExportEndpoints
             .RequireAuthorization(AuthPolicies.AdminOnly)
             .WithTags("Export")
             .WithName("ExportTenant")
-            .Produces<ExportResponse>();
+            .Produces<ExportResponse>()
+
+            // Last in the chain because it returns the weaker builder type. The one request whose
+            // honest duration grows with the shop: it streams a whole tenant's history rather than
+            // answering from a page, so the default thirty-second ceiling would cut a large one off
+            // mid-array. Five minutes is generous for the biggest dataset the load pass measured and
+            // still finite. See RequestLimits.
+            .WithRequestTimeout(RequestLimits.LongRunningPolicy);
 
         return endpoints;
     }
@@ -41,15 +54,116 @@ public static class ExportEndpoints
     {
         var result = await sender.Send(new GetExportQuery(), cancellationToken).ConfigureAwait(false);
 
-        return result.ToHttpResult(export => Results.Ok(ToResponse(export)));
+        return result.ToHttpResult(export => new StreamedExport(export));
     }
 
-    private static ExportResponse ToResponse(TenantExport export) => new(
-        [.. export.Customers.Select(ToResponse)],
-        [.. export.Jobs.Select(ToResponse)],
-        [.. export.Assignments.Select(ToResponse)],
-        [.. export.Invoices.Select(ToResponse)],
-        [.. export.Attachments.Select(ToResponse)]);
+    /// <summary>
+    /// Writes the export as it is read, one row at a time.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Written by hand rather than serialized, because there is nothing to serialize.</strong>
+    /// The handler hands back five streams (see <c>TenantExport</c>); materializing them into an
+    /// <c>ExportResponse</c> to hand to <c>Results.Ok</c> would put a shop's whole history in memory
+    /// twice over, which is the thing this change exists to stop.
+    /// </para>
+    /// <para>
+    /// The <em>shape</em> is unchanged, and that is deliberate: the same property names in the same
+    /// order as <c>ExportResponse</c>, so the OpenAPI document, the generated TypeScript and every
+    /// client stay exactly as they were. <c>Produces&lt;ExportResponse&gt;</c> on the route is what
+    /// keeps the document honest, and <c>ExportEndpointsFlowTests</c> reads the body back through
+    /// that type — if this writer and that record ever disagree, the test stops parsing.
+    /// </para>
+    /// <para>
+    /// The five arrays are written one after another because they share one <c>DbContext</c>, which
+    /// permits one operation at a time. The writer is flushed between them so a large export
+    /// travels rather than accumulating in a buffer.
+    /// </para>
+    /// </remarks>
+    private sealed class StreamedExport(TenantExport export) : IResult
+    {
+        public async Task ExecuteAsync(HttpContext httpContext)
+        {
+            ArgumentNullException.ThrowIfNull(httpContext);
+
+            var options = httpContext.RequestServices
+                .GetRequiredService<IOptions<JsonOptions>>()
+                .Value.SerializerOptions;
+
+            httpContext.Response.ContentType = "application/json; charset=utf-8";
+
+            var cancellationToken = httpContext.RequestAborted;
+
+            await using var writer = new Utf8JsonWriter(httpContext.Response.BodyWriter);
+
+            writer.WriteStartObject();
+
+            // In the order ExportResponse declares them, so the document the clients are generated
+            // from and the bytes this writes describe one thing.
+            await WriteAsync(writer, options, "technicians", export.Technicians, ToResponse, cancellationToken)
+                .ConfigureAwait(false);
+            await WriteAsync(writer, options, "customers", export.Customers, ToResponse, cancellationToken)
+                .ConfigureAwait(false);
+            await WriteAsync(writer, options, "jobs", export.Jobs, ToResponse, cancellationToken)
+                .ConfigureAwait(false);
+            await WriteAsync(writer, options, "assignments", export.Assignments, ToResponse, cancellationToken)
+                .ConfigureAwait(false);
+            await WriteAsync(writer, options, "invoices", export.Invoices, ToResponse, cancellationToken)
+                .ConfigureAwait(false);
+            await WriteAsync(writer, options, "attachments", export.Attachments, ToResponse, cancellationToken)
+                .ConfigureAwait(false);
+
+            writer.WriteEndObject();
+            await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        /// <remarks>
+        /// Each row is serialized with the host's own <c>JsonSerializerOptions</c> — the same
+        /// naming policy, the same converters — so a streamed field is byte-for-byte what
+        /// <c>Results.Ok</c> would have written. Only the array framing is this method's.
+        /// </remarks>
+        private static async Task WriteAsync<TSource, TResponse>(
+            Utf8JsonWriter writer,
+            JsonSerializerOptions options,
+            string name,
+            IAsyncEnumerable<TSource> rows,
+            Func<TSource, TResponse> project,
+            CancellationToken cancellationToken)
+        {
+            writer.WriteStartArray(name);
+
+            await foreach (var row in rows.WithCancellation(cancellationToken).ConfigureAwait(false))
+            {
+                JsonSerializer.Serialize(writer, project(row), options);
+
+                // Flushed row by row rather than at the end: the whole point is that neither this
+                // process nor the client waits for a business's history to be assembled.
+                if (writer.BytesPending > FlushThreshold)
+                {
+                    await writer.FlushAsync(cancellationToken).ConfigureAwait(false);
+                }
+            }
+
+            writer.WriteEndArray();
+        }
+
+        /// <summary>How much is allowed to accumulate before it is pushed to the client.</summary>
+        /// <remarks>
+        /// Sixteen kilobytes: large enough that a small export is one write, small enough that a
+        /// large one is never held. Flushing every row would be a syscall per customer.
+        /// </remarks>
+        private const int FlushThreshold = 16 * 1024;
+    }
+
+    private static TechnicianResponse ToResponse(TechnicianSummary technician) => new(
+        technician.Id.Value,
+        technician.Name,
+        technician.Skills,
+        technician.ShiftStart,
+        technician.ShiftEnd,
+        technician.Latitude,
+        technician.Longitude,
+        technician.RetiredAt);
 
     private static CustomerResponse ToResponse(CustomerDetail customer) => new(
         customer.Id.Value,
@@ -57,21 +171,11 @@ public static class ExportEndpoints
         customer.Email,
         customer.Phone,
         [.. customer.Locations.Select(location =>
-            new ServiceLocationResponse(location.Id.Value, location.Label, location.Address, location.Latitude, location.Longitude))]);
+            new ServiceLocationResponse(location.Id.Value, location.Label, location.Address, location.Latitude, location.Longitude))],
+        customer.ErasedAt,
+        customer.RetiredAt);
 
-    private static JobResponse ToResponse(JobSummary job) => new(
-        job.Id.Value,
-        job.CustomerId.Value,
-        job.LocationId.Value,
-        job.Latitude,
-        job.Longitude,
-        job.RequiredSkill,
-        (Contracts.JobPriority)job.Priority,
-        job.WindowStart,
-        job.WindowEnd,
-        job.EstimatedDuration,
-        (Contracts.JobStatus)job.Status,
-        job.Notes);
+    private static JobResponse ToResponse(JobSummary job) => Jobs.JobWire.ToResponse(job);
 
     private static AssignmentExport ToResponse(AssignmentSummary assignment) => new(
         assignment.Id.Value,

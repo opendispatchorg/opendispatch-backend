@@ -23,4 +23,18 @@ public interface IUserStore
     /// seeded" (Document 3, step 44) means for this store.
     /// </summary>
     Task AddAsync(AuthUser user, CancellationToken ct);
+
+    /// <summary>
+    /// Switches a login on or off, and says whether there was one to switch.
+    /// </summary>
+    /// <param name="username">Whose login, case-insensitively.</param>
+    /// <param name="active">Whether they may sign in.</param>
+    /// <param name="ct">Cancellation.</param>
+    /// <returns><see langword="false"/> if no login has that username.</returns>
+    /// <remarks>
+    /// Deliberately not a delete: the audit trail names a user by id, and a deleted row would turn
+    /// every act they ever took into an entry pointing at nobody. Somebody who has left the shop
+    /// stops being able to sign in and goes on being the answer to "who cancelled this job".
+    /// </remarks>
+    Task<bool> SetActiveAsync(string username, bool active, CancellationToken ct);
 }

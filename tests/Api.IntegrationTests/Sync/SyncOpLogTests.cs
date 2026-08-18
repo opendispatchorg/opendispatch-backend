@@ -112,7 +112,7 @@ public sealed class SyncOpLogTests
         using var scope = _postgres.ActingAs(_tenant);
         scope.ServiceProvider.GetRequiredService<ISyncOpStore>().Add(StatusChange(pushedTwice));
 
-        await Assert.ThrowsAsync<DbUpdateException>(() => scope.ServiceProvider
+        await Assert.ThrowsAsync<DuplicateRecordException>(() => scope.ServiceProvider
             .GetRequiredService<IUnitOfWork>()
             .SaveChangesAsync(CancellationToken.None));
     }

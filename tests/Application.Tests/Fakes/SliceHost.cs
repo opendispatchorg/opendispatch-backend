@@ -1,6 +1,7 @@
 using MediatR;
 using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Application.Auth;
 using OpenDispatch.Application.Sync;
 using OpenDispatch.Application.Tests.Customers;
 using OpenDispatch.Application.Tests.Invoicing;
@@ -46,6 +47,12 @@ internal sealed class SliceHost : IAsyncDisposable
             .AddSingleton<ITenantContext>(new FixedTenant(Tenant))
             .AddSingleton(Clock)
             .AddSingleton<IClock>(Clock)
+
+            // The pipeline audits every command, so every slice needs somewhere for that to go and
+            // somebody to attribute it to — the same two things a real host resolves per request.
+            .AddSingleton(Audit)
+            .AddSingleton<IAuditLog>(Audit)
+            .AddSingleton<ICallerContext>(new FixedCaller(Caller, CallerName))
             .AddScoped<IUnitOfWork, FakeUnitOfWork>();
 
         ports(services);
@@ -58,6 +65,15 @@ internal sealed class SliceHost : IAsyncDisposable
 
     /// <summary>What the handlers think the time is. A test may move it.</summary>
     public FixedClock Clock { get; } = new();
+
+    /// <summary>Who every request in this test is made by.</summary>
+    public UserId Caller { get; } = UserId.New();
+
+    /// <summary>What that caller signed in as.</summary>
+    public const string CallerName = "dana@vance.example";
+
+    /// <summary>What the pipeline wrote down about what was done.</summary>
+    public FakeAuditLog Audit { get; } = new();
 
     /// <summary>The Customers slice over a fake customer repository.</summary>
     public static SliceHost Customers() => new(services => services

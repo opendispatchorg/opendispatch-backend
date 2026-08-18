@@ -61,10 +61,22 @@ internal sealed class AssignmentRepository(AppDbContext context, IClock clock) :
             .ThenBy(assignment => assignment.Id)
             .ToListAsync(ct);
 
-    /// <remarks>By scheduled start, the same order the horizon-scoped read uses.</remarks>
-    public async Task<IReadOnlyList<Assignment>> ListAsync(CancellationToken ct) =>
-        await context.Assignments
+    /// <remarks>
+    /// By scheduled start, the same order the horizon-scoped read uses — streamed, because its one
+    /// caller is the export and a shop's whole plan is not something to hold in memory to write it
+    /// out.
+    /// <para>
+    /// <strong>No-tracking, and that is not an optimisation.</strong> A tracked stream puts every row
+    /// it hands out into the change tracker and holds it there until the request ends — so an export
+    /// that streams precisely so a shop's history need not be held in memory would hold all of it
+    /// anyway, one identity map at a time. Measured on a year of history: the peak came down by
+    /// roughly a third. Nothing saves a projection, so there is nothing to track for.
+    /// </para>
+    /// </remarks>
+    public IAsyncEnumerable<Assignment> StreamAsync(CancellationToken ct) =>
+        context.Assignments
+            .AsNoTracking()
             .OrderBy(assignment => assignment.ScheduledStart)
             .ThenBy(assignment => assignment.Id)
-            .ToListAsync(ct);
+            .AsAsyncEnumerable();
 }

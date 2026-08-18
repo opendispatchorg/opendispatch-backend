@@ -16,11 +16,18 @@ public static class AuthRegistration
     /// validates its configuration on start, and that validated value does not exist yet at the
     /// point registration runs.
     /// </param>
+    /// <remarks>
+    /// The store is <strong>scoped</strong>, unlike the hasher and the issuer beside it: it reads
+    /// and writes through the request's own <c>AppDbContext</c>, which is where users have lived
+    /// since they stopped being a process-lifetime dictionary. A caller resolving it from the root
+    /// provider — the test factory's seeding helper, a hosted service — has to open a scope, which
+    /// is the ordinary arrangement for everything else that touches this database.
+    /// </remarks>
     public static IServiceCollection AddAuth(
         this IServiceCollection services,
         Func<IServiceProvider, JwtSigningOptions> signingOptions) =>
         services
-            .AddSingleton<IUserStore, InMemoryUserStore>()
+            .AddScoped<IUserStore, EfUserStore>()
             .AddSingleton<IPasswordHasher, Pbkdf2PasswordHasher>()
             .AddSingleton<ITokenIssuer>(provider => new JwtTokenIssuer(signingOptions(provider)));
 }

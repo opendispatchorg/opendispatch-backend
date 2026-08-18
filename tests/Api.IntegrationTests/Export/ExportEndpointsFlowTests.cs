@@ -98,6 +98,13 @@ public sealed class ExportEndpointsFlowTests : IClassFixture<ApiFactory>
 
         var export = await GetAsync<ExportResponse>(client, token, "/export");
 
+        // The crew, which the export left out until the correctness pass pointed out that every
+        // exported assignment named a technician id resolving to nothing.
+        var onlyTechnician = Assert.Single(export.Technicians);
+        Assert.Equal(technician.Id, onlyTechnician.Id);
+        Assert.Equal("Alex Rivera", onlyTechnician.Name);
+        Assert.Contains("hvac", onlyTechnician.Skills);
+
         var onlyCustomer = Assert.Single(export.Customers);
         Assert.Equal(customer.Id, onlyCustomer.Id);
         Assert.Equal("Vance Refrigeration", onlyCustomer.Name);

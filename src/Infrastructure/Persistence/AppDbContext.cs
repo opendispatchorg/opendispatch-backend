@@ -2,6 +2,8 @@ using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.ChangeTracking;
 using Microsoft.EntityFrameworkCore.Metadata;
 using OpenDispatch.Application.Abstractions;
+using OpenDispatch.Application.Auditing;
+using OpenDispatch.Application.Auth;
 using OpenDispatch.Application.Sync;
 using OpenDispatch.Domain.Assignments;
 using OpenDispatch.Domain.Attachments;
@@ -13,6 +15,7 @@ using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.Organizations;
 using OpenDispatch.Domain.Technicians;
 using OpenDispatch.Domain.ValueObjects;
+using OpenDispatch.Infrastructure.Events;
 using OpenDispatch.Infrastructure.Persistence.Conversions;
 
 namespace OpenDispatch.Infrastructure.Persistence;
@@ -94,6 +97,27 @@ public sealed class AppDbContext : DbContext
     /// </summary>
     public DbSet<SyncRemoval> SyncRemovals => Set<SyncRemoval>();
 
+    /// <summary>
+    /// Who did what: one entry per command that changed anything (see <c>AuditBehavior</c>).
+    /// </summary>
+    public DbSet<AuditEntry> AuditEntries => Set<AuditEntry>();
+
+    /// <summary>
+    /// Domain events waiting to be delivered, written in the transaction that raised them.
+    /// </summary>
+    /// <remarks>
+    /// Not a business record and not tenant-scoped: it is how a reaction survives a process that
+    /// dies between committing work and announcing it. See <c>OutboxMessage</c>.
+    /// </remarks>
+    public DbSet<OutboxMessage> Outbox => Set<OutboxMessage>();
+
+    /// <summary>
+    /// Who may sign in. Not an aggregate and not a tenant-owned business record — a login is how a
+    /// caller <em>acquires</em> a tenant — which is why the store that reads it ignores the query
+    /// filters this context applies to everything else carrying an <c>OrgId</c>.
+    /// </summary>
+    public DbSet<AuthUser> Users => Set<AuthUser>();
+
     /// <inheritdoc />
     protected override void ConfigureConventions(ModelConfigurationBuilder configurationBuilder)
     {
@@ -111,6 +135,7 @@ public sealed class AppDbContext : DbContext
         configurationBuilder.Properties<ServiceLocationId>().HaveConversion<ServiceLocationIdConverter>();
         configurationBuilder.Properties<SyncOpId>().HaveConversion<SyncOpIdConverter>();
         configurationBuilder.Properties<TechnicianId>().HaveConversion<TechnicianIdConverter>();
+        configurationBuilder.Properties<UserId>().HaveConversion<UserIdConverter>();
 
         // The value objects. Document 2 §6 calls these owned types, which is what EF called value
         // objects when it was written; EF's answer for them now is complex types, and —

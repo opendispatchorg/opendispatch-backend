@@ -2,8 +2,10 @@ using Microsoft.Extensions.DependencyInjection;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Infrastructure.Attachments;
 using OpenDispatch.Infrastructure.Auth;
+using OpenDispatch.Infrastructure.Events;
 using OpenDispatch.Infrastructure.Payments;
 using OpenDispatch.Infrastructure.Persistence;
+using OpenDispatch.Infrastructure.Provisioning;
 using OpenDispatch.Infrastructure.Time;
 using OpenDispatch.Scheduling;
 using OpenDispatch.Scheduling.Travel;
@@ -32,30 +34,38 @@ public static class InfrastructureRegistration
     /// </summary>
     /// <param name="services">The host's service collection.</param>
     /// <param name="connectionString">Reads the connection string once the container is built.</param>
-    /// <param name="attachmentRoot">
-    /// Reads the directory attachment content is stored under, once the container is built.
+    /// <param name="attachmentStore">
+    /// Reads where attachment content is stored — a directory or a bucket — once the container is
+    /// built.
     /// </param>
     /// <param name="jwtSigningOptions">
     /// Reads the JWT signing key, issuer, audience and expiry once the container is built.
     /// </param>
+    /// <param name="outbox">
+    /// How the outbox sweep behaves, or <see langword="null"/> for the defaults a deployment wants.
+    /// A test suite is the only caller with a reason to change them — see <c>OutboxOptions</c>.
+    /// </param>
     public static IServiceCollection AddInfrastructure(
         this IServiceCollection services,
         Func<IServiceProvider, string> connectionString,
-        Func<IServiceProvider, string> attachmentRoot,
-        Func<IServiceProvider, JwtSigningOptions> jwtSigningOptions) =>
+        Func<IServiceProvider, AttachmentStorageSettings> attachmentStore,
+        Func<IServiceProvider, JwtSigningOptions> jwtSigningOptions,
+        OutboxOptions? outbox = null) =>
         services
-            .AddPersistence(connectionString)
+            .AddPersistence(connectionString, outbox)
             .AddSystemClock()
 
-            // The minimal user store, password hasher and JWT issuer (Document 2 §7, step 44).
-            // Auth has no database of its own yet — see InMemoryUserStore's remarks — so it asks
-            // for nothing from persistence and sits beside it rather than inside AddPersistence.
+            // The user store, password hasher and JWT issuer (Document 2 §7, step 44). The store
+            // reads the users table through the context AddPersistence registers, so it goes after
+            // it — beside it rather than inside it, because who may sign in is not a business
+            // record and does not belong in the same registration as the aggregates.
             .AddAuth(jwtSigningOptions)
 
-            // Photographs and signatures on a local disk, which is the whole answer for a shop
-            // hosting this itself (Document 1). A bucket adapter is one class beside it and this
-            // line changed; nothing above the port knows the difference.
-            .AddLocalAttachmentStorage(attachmentRoot)
+            // Photographs and signatures, on whichever store this deployment named: a disk, which
+            // is the whole answer for a shop hosting this on a machine it owns (Document 1), or a
+            // bucket, which is the only correct answer on a platform whose container filesystem is
+            // destroyed by the next deploy. Nothing above the port knows the difference.
+            .AddAttachmentStorage(attachmentStore)
 
             // Straight-line travel: the default that ships with the engine and needs no
             // infrastructure at all. The road-network provider Document 2 §4 describes is a class
@@ -74,5 +84,17 @@ public static class InfrastructureRegistration
             // v1 takes no money, which is a scoped product decision (Document 1) rather than an
             // unfinished adapter. A real processor is one class beside this one and one changed
             // line here.
-            .AddSingleton<IPaymentGateway, FakePaymentGateway>();
+            .AddSingleton<IPaymentGateway, FakePaymentGateway>()
+
+            // How a deployment gets its first login (`create-user`). Registered in every
+            // environment, unlike the demo seeder beside it: a production host is precisely the one
+            // that has to do this once, and doing it is the only way anybody can sign in.
+            // Scoped, because it writes through the request-shaped context the verb opens a scope
+            // for.
+            .AddScoped<UserProvisioner>()
+
+            // Housekeeping for the two tables nothing else deletes from (`prune`). Registered
+            // everywhere for the same reason the provisioner is: it is a production host that
+            // eventually has a year of op log to be rid of.
+            .AddScoped<SyncLogPruner>();
 }

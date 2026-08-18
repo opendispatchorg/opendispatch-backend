@@ -112,6 +112,38 @@ public sealed class AuthFlowTests : IClassFixture<ApiFactory>
         Assert.Equal(HttpStatusCode.Unauthorized, response.StatusCode);
     }
 
+    /// <summary>
+    /// Somebody who has left the shop cannot sign in, and cannot tell that they were switched off
+    /// rather than mistyped: a disabled login answers exactly as a wrong password does.
+    /// </summary>
+    /// <remarks>
+    /// The half of a user lifecycle this system has. What it does <em>not</em> do is take back the
+    /// token they already hold — that outlives the change by up to <c>Jwt:ExpiryMinutes</c>, which
+    /// is stated in the README rather than discovered during an incident.
+    /// </remarks>
+    [Fact]
+    public async Task ADisabledLoginIsRefused()
+    {
+        var username = $"leaver-{Guid.NewGuid():N}@vance.example";
+        await _factory.SeedUserAsync(OrgId.New(), username, "correct horse battery", UserRole.Dispatcher);
+
+        using var client = _factory.CreateClient();
+
+        // Signed in before, and not after: what changed is the login rather than the password.
+        using (var before = await client.PostAsJsonAsync(
+            "/auth/login", new LoginRequest(username, "correct horse battery")))
+        {
+            Assert.Equal(HttpStatusCode.OK, before.StatusCode);
+        }
+
+        await _factory.DisableUserAsync(username);
+
+        using var after = await client.PostAsJsonAsync(
+            "/auth/login", new LoginRequest(username, "correct horse battery"));
+
+        Assert.Equal(HttpStatusCode.Unauthorized, after.StatusCode);
+    }
+
     [Fact]
     public async Task AProtectedEndpointRejectsTheWrongRole()
     {

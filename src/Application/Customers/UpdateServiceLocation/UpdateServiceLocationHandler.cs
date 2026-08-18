@@ -23,6 +23,11 @@ internal sealed class UpdateServiceLocationHandler(ICustomerRepository customers
             return Result.Failure(CustomerErrors.NotFound(command.CustomerId));
         }
 
+        if (customer.IsErased)
+        {
+            return Result.Failure(CustomerErrors.Erased(command.CustomerId));
+        }
+
         if (customer.Locations.All(location => location.Id != command.LocationId))
         {
             return Result.Failure(CustomerErrors.LocationNotFound(command.CustomerId, command.LocationId));

@@ -66,5 +66,5 @@ public interface IAssignmentRepository
     /// <see cref="ICustomerRepository.ListAsync"/>: business data a shop is entitled to take with
     /// it, not a display list a page has to render.
     /// </summary>
-    Task<IReadOnlyList<Assignment>> ListAsync(CancellationToken ct);
+    IAsyncEnumerable<Assignment> StreamAsync(CancellationToken ct);
 }

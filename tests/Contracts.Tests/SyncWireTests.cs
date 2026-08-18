@@ -106,7 +106,8 @@ public sealed class SyncWireTests
                 new SyncChange("job", JobId, 9, state.RootElement, Deleted: false),
                 new SyncChange("assignment", OpId, 4, State: null, Deleted: true),
             ],
-            "43");
+            "43",
+            HasMore: false);
 
         var read = JsonSerializer.Deserialize<SyncPullResponse>(JsonSerializer.Serialize(response, Wire), Wire);
 

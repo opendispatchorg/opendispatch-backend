@@ -85,7 +85,8 @@ public sealed class JobEndpointsFlowTests : IClassFixture<ApiFactory>
         var afterDispatch = await GetAsync<JobResponse>(client, token, $"/jobs/{job.Id}");
         Assert.Equal(JobStatus.Dispatched, afterDispatch.Status);
 
-        var listed = await GetAsync<JobResponse[]>(client, token, "/jobs");
+        var page = await GetAsync<JobPageResponse>(client, token, "/jobs");
+        var listed = page.Items;
         Assert.Contains(listed, listedJob => listedJob.Id == job.Id);
     }
 

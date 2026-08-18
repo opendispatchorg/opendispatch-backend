@@ -22,11 +22,27 @@ internal sealed class FakeCustomerRepository(FakeStore<Customer> store, ITenantC
 
     public void Add(Customer customer) => store.Stage(customer);
 
-    public Task<IReadOnlyList<Customer>> ListAsync(CancellationToken ct) =>
-        Task.FromResult<IReadOnlyList<Customer>>(
-        [
-            .. store.Owned(tenant.OrgId)
-                .OrderBy(customer => customer.Name, StringComparer.Ordinal)
-                .ThenBy(customer => customer.Id.Value),
-        ]);
+    /// <remarks>The real query's order, skip, take and count, restated in memory.</remarks>
+    public Task<Page<Customer>> ListAsync(PageRequest page, CancellationToken ct)
+    {
+        var all = Ordered().ToList();
+
+        return Task.FromResult(new Page<Customer>([.. all.Skip(page.Skip).Take(page.Size)], all.Count));
+    }
+
+    public async IAsyncEnumerable<Customer> StreamAsync(
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken ct)
+    {
+        foreach (var customer in Ordered())
+        {
+            yield return customer;
+        }
+
+        await Task.CompletedTask.ConfigureAwait(false);
+    }
+
+    private IOrderedEnumerable<Customer> Ordered() =>
+        store.Owned(tenant.OrgId)
+            .OrderBy(customer => customer.Name, StringComparer.Ordinal)
+            .ThenBy(customer => customer.Id.Value);
 }

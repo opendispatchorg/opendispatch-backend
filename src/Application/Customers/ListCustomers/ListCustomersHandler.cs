@@ -13,23 +13,26 @@ namespace OpenDispatch.Application.Customers.ListCustomers;
 /// database to do it.
 /// </remarks>
 internal sealed class ListCustomersHandler(ICustomerRepository customers)
-    : IRequestHandler<ListCustomersQuery, Result<IReadOnlyList<CustomerSummary>>>
+    : IRequestHandler<ListCustomersQuery, Result<CustomerPage>>
 {
-    public async Task<Result<IReadOnlyList<CustomerSummary>>> Handle(
+    public async Task<Result<CustomerPage>> Handle(
         ListCustomersQuery query,
         CancellationToken cancellationToken)
     {
-        var found = await customers.ListAsync(cancellationToken).ConfigureAwait(false);
+        var page = await customers
+            .ListAsync(new PageRequest(query.Page, query.PageSize), cancellationToken)
+            .ConfigureAwait(false);
 
-        IReadOnlyList<CustomerSummary> summaries =
-        [
-            .. found.Select(customer => new CustomerSummary(
-                customer.Id,
-                customer.Name,
-                customer.Contact.Email,
-                customer.Contact.Phone)),
-        ];
-
-        return Result.Success(summaries);
+        return Result.Success(new CustomerPage(
+            [
+                .. page.Items.Select(customer => new CustomerSummary(
+                    customer.Id,
+                    customer.Name,
+                    customer.Contact.Email,
+                    customer.Contact.Phone)),
+            ],
+            page.Total,
+            query.Page,
+            query.PageSize));
     }
 }

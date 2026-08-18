@@ -9,7 +9,7 @@
     "/health": {
       "get": {
         "tags": [
-          "OpenDispatch.Api"
+          "Health"
         ],
         "operationId": "Health",
         "responses": {
@@ -19,6 +19,76 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/live": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "HealthLive",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/health/ready": {
+      "get": {
+        "tags": [
+          "Health"
+        ],
+        "operationId": "HealthReady",
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
+                }
+              }
+            }
+          },
+          "503": {
+            "description": "Service Unavailable",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReadinessResponse"
                 }
               }
             }
@@ -62,6 +132,9 @@
                 }
               }
             }
+          },
+          "429": {
+            "description": "Too Many Requests"
           },
           "default": {
             "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
@@ -276,6 +349,99 @@
             "Bearer": [ ]
           }
         ]
+      },
+      "get": {
+        "tags": [
+          "Attachments"
+        ],
+        "operationId": "ListJobAttachments",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/AttachmentResponse"
+                  }
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/attachments/{id}/content": {
+      "get": {
+        "tags": [
+          "Attachments"
+        ],
+        "operationId": "GetAttachmentContent",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/octet-stream": {
+                "schema": {
+                  "$ref": "#/components/schemas/IResult"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
       }
     },
     "/customers": {
@@ -327,16 +493,39 @@
           "Customers"
         ],
         "operationId": "ListCustomers",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/CustomerSummaryResponse"
-                  }
+                  "$ref": "#/components/schemas/CustomerPageResponse"
                 }
               }
             }
@@ -425,6 +614,94 @@
             "application/json": {
               "schema": {
                 "$ref": "#/components/schemas/UpdateCustomerRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/customers/{id}/erase": {
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "EraseCustomer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/customers/{id}/retire": {
+      "post": {
+        "tags": [
+          "Customers"
+        ],
+        "operationId": "RetireCustomer",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetireRequest"
               }
             }
           },
@@ -884,6 +1161,55 @@
         ]
       }
     },
+    "/technicians/{id}/retire": {
+      "post": {
+        "tags": [
+          "Technicians"
+        ],
+        "operationId": "RetireTechnician",
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "format": "uuid"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/RetireRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "204": {
+            "description": "No Content"
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
     "/jobs": {
       "post": {
         "tags": [
@@ -933,16 +1259,39 @@
           "Jobs"
         ],
         "operationId": "ListJobs",
+        "parameters": [
+          {
+            "name": "page",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          },
+          {
+            "name": "pageSize",
+            "in": "query",
+            "schema": {
+              "pattern": "^-?(?:0|[1-9]\\d*)$",
+              "type": [
+                "integer",
+                "string"
+              ],
+              "format": "int32"
+            }
+          }
+        ],
         "responses": {
           "200": {
             "description": "OK",
             "content": {
               "application/json": {
                 "schema": {
-                  "type": "array",
-                  "items": {
-                    "$ref": "#/components/schemas/JobResponse"
-                  }
+                  "$ref": "#/components/schemas/JobPageResponse"
                 }
               }
             }
@@ -1184,6 +1533,51 @@
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/InsertJobResponse"
+                }
+              }
+            }
+          },
+          "default": {
+            "description": "An error. Every failure this API returns — validation, not found, conflict, unauthorized, or unhandled — is a ProblemDetails body.",
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ProblemDetails"
+                }
+              }
+            }
+          }
+        },
+        "security": [
+          {
+            "Bearer": [ ]
+          }
+        ]
+      }
+    },
+    "/schedule/normalize": {
+      "post": {
+        "tags": [
+          "Schedule"
+        ],
+        "operationId": "NormalizeSchedule",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/NormalizeDayRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "OK",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/NormalizeDayResponse"
                 }
               }
             }
@@ -1480,6 +1874,57 @@
         ],
         "description": "What a technician captured, as the clients see it."
       },
+      "AttachmentResponse": {
+        "required": [
+          "id",
+          "jobId",
+          "kind",
+          "contentType",
+          "byteLength",
+          "createdAt",
+          "contentUrl"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The capture's id — the one its device generated.",
+            "format": "uuid"
+          },
+          "jobId": {
+            "type": "string",
+            "description": "The job it was captured against.",
+            "format": "uuid"
+          },
+          "kind": {
+            "description": "Photograph or signature.",
+            "$ref": "#/components/schemas/AttachmentKind"
+          },
+          "contentType": {
+            "type": "string",
+            "description": "What the bytes are, as the download will answer with."
+          },
+          "byteLength": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How big it is.",
+            "format": "int64"
+          },
+          "createdAt": {
+            "type": "string",
+            "description": "When it was captured.",
+            "format": "date-time"
+          },
+          "contentUrl": {
+            "type": "string",
+            "description": "Where to fetch the bytes, on this same API."
+          }
+        },
+        "description": "One capture, without its bytes. An element of `GET /jobs/{id}/attachments`."
+      },
       "BoardJobResponse": {
         "required": [
           "jobId",
@@ -1726,17 +2171,17 @@
         "description": "The body of `POST /customers`."
       },
       "CreateInvoiceRequest": {
-        "required": [
-          "lines"
-        ],
         "type": "object",
         "properties": {
           "lines": {
-            "type": "array",
+            "type": [
+              "null",
+              "array"
+            ],
             "items": {
               "$ref": "#/components/schemas/InvoiceLineRequest"
             },
-            "description": "What to charge for — time on the job, and parts fitted."
+            "description": "What to charge for, when the caller is stating it. Omit it — or send `null` — to bill what\nthe technician recorded against the job: their labour and their parts, exactly as they entered\nthem in the field."
           }
         },
         "description": "The body of `POST /jobs/{id}/invoice`. The job comes from the route."
@@ -1856,13 +2301,61 @@
         },
         "description": "The body of `POST /technicians`."
       },
+      "CustomerPageResponse": {
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/CustomerSummaryResponse"
+            },
+            "description": "The customers on this page, by name."
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many the tenant has altogether.",
+            "format": "int32"
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Which page this is, counting from one.",
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many this page was allowed to hold.",
+            "format": "int32"
+          }
+        },
+        "description": "One page of customers. The body of `GET /customers?page={n}&amp;pageSize={n}`."
+      },
       "CustomerResponse": {
         "required": [
           "id",
           "name",
           "email",
           "phone",
-          "locations"
+          "locations",
+          "erasedAt",
+          "retiredAt"
         ],
         "type": "object",
         "properties": {
@@ -1895,6 +2388,22 @@
               "$ref": "#/components/schemas/ServiceLocationResponse"
             },
             "description": "The places they want work done, in the order they were added."
+          },
+          "erasedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When they asked to be forgotten, or `null` if they did not. A client showing a\ncustomer whose fields all read `[erased]` can say why, and an export answering a subject\naccess request carries the erasure rather than looking like data nobody filled in.",
+            "format": "date-time"
+          },
+          "retiredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When they were taken off the books, or `null` while they are current. Retired\nrecords are left out of the list, so a client that has one in hand — from a bookmark, an\nexport, or a job that predates the retirement — needs this to say why it looks inert, and to\nknow that reinstating is the way back.",
+            "format": "date-time"
           }
         },
         "description": "One customer, as the clients see them: who they are, how to reach them, and where they want work done."
@@ -1972,6 +2481,7 @@
       },
       "ExportResponse": {
         "required": [
+          "technicians",
           "customers",
           "jobs",
           "assignments",
@@ -1980,6 +2490,13 @@
         ],
         "type": "object",
         "properties": {
+          "technicians": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/TechnicianResponse"
+            },
+            "description": "The crew: who works here, what they hold, and when they work."
+          },
           "customers": {
             "type": "array",
             "items": {
@@ -2026,13 +2543,15 @@
         "type": "object",
         "properties": {
           "status": {
-            "type": "string"
+            "type": "string",
+            "description": "Always `healthy`: a host that could not answer would not answer."
           },
           "service": {
-            "type": "string"
+            "type": "string",
+            "description": "Which service replied, for a probe pointed at the wrong port."
           }
         },
-        "description": "The payload returned by `GET /health`."
+        "description": "The payload returned by `GET /health` and `GET /health/live`."
       },
       "IFormFile": {
         "type": "string",
@@ -2240,6 +2759,55 @@
         ],
         "description": "Whether an invoice has been settled, as the clients see it."
       },
+      "IResult": {
+        "type": "object"
+      },
+      "JobPageResponse": {
+        "required": [
+          "items",
+          "total",
+          "page",
+          "pageSize"
+        ],
+        "type": "object",
+        "properties": {
+          "items": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/JobResponse"
+            },
+            "description": "The jobs on this page, soonest-promised first."
+          },
+          "total": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many the tenant has altogether.",
+            "format": "int32"
+          },
+          "page": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "Which page this is, counting from one.",
+            "format": "int32"
+          },
+          "pageSize": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many this page was allowed to hold.",
+            "format": "int32"
+          }
+        },
+        "description": "One page of jobs. The body of `GET /jobs?page={n}&amp;pageSize={n}`."
+      },
       "JobPriority": {
         "enum": [
           "Low",
@@ -2262,7 +2830,9 @@
           "windowEnd",
           "estimatedDuration",
           "status",
-          "notes"
+          "notes",
+          "erasedAt",
+          "lines"
         ],
         "type": "object",
         "properties": {
@@ -2332,6 +2902,21 @@
               "string"
             ],
             "description": "What a technician wrote about it, or `null` if nobody has."
+          },
+          "erasedAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When this job's customer was erased, or `null` if they were not. A phone reading\nthis knows the job is finished business and that nothing more may be written about it.",
+            "format": "date-time"
+          },
+          "lines": {
+            "type": "array",
+            "items": {
+              "$ref": "#/components/schemas/SyncJobLinePayload"
+            },
+            "description": "What the work has taken — the labour and parts the technician recorded on site, in the order\nthey were recorded. Empty for a job nobody has worked yet, and what `POST /jobs/{id}/invoice`\nbills when the request states no lines of its own."
           }
         },
         "description": "One job, as the clients see it: the demand, and nothing about the plan."
@@ -2394,6 +2979,78 @@
           }
         },
         "description": "What a successful `POST /auth/login` returns."
+      },
+      "NormalizeDayRequest": {
+        "required": [
+          "technicianId",
+          "from",
+          "to"
+        ],
+        "type": "object",
+        "properties": {
+          "technicianId": {
+            "type": "string",
+            "description": "Whose day.",
+            "format": "uuid"
+          },
+          "from": {
+            "type": "string",
+            "description": "When the stretch being repaired opens.",
+            "format": "date-time"
+          },
+          "to": {
+            "type": "string",
+            "description": "When it closes.",
+            "format": "date-time"
+          }
+        },
+        "description": "The body of `POST /schedule/normalize`: whose day to re-time, and over what stretch."
+      },
+      "NormalizeDayResponse": {
+        "required": [
+          "stops",
+          "moved",
+          "firstStart",
+          "lastEnd"
+        ],
+        "type": "object",
+        "properties": {
+          "stops": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many stops that technician has in the stretch.",
+            "format": "int32"
+          },
+          "moved": {
+            "pattern": "^-?(?:0|[1-9]\\d*)$",
+            "type": [
+              "integer",
+              "string"
+            ],
+            "description": "How many had to move. Zero means the day was already drivable.",
+            "format": "int32"
+          },
+          "firstStart": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When the run now begins, or `null` if there is no work.",
+            "format": "date-time"
+          },
+          "lastEnd": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When it now ends, or `null` if there is no work.",
+            "format": "date-time"
+          }
+        },
+        "description": "What `POST /schedule/normalize` did."
       },
       "ObjectiveWeightsRequest": {
         "required": [
@@ -2548,6 +3205,45 @@
             ]
           }
         }
+      },
+      "ReadinessResponse": {
+        "required": [
+          "status",
+          "service",
+          "checks"
+        ],
+        "type": "object",
+        "properties": {
+          "status": {
+            "type": "string",
+            "description": "`healthy`, `degraded` or `unhealthy` — the worst status among the checks."
+          },
+          "service": {
+            "type": "string",
+            "description": "Which service replied."
+          },
+          "checks": {
+            "type": "object",
+            "additionalProperties": {
+              "type": "string"
+            },
+            "description": "Each registered check by name, with its own status. An operator reading a 503 needs to know\nwhich dependency is down; a single word makes them go and look."
+          }
+        },
+        "description": "The payload returned by `GET /health/ready`."
+      },
+      "RetireRequest": {
+        "required": [
+          "retired"
+        ],
+        "type": "object",
+        "properties": {
+          "retired": {
+            "type": "boolean",
+            "description": "`true` to take them off the books, `false` to put them back."
+          }
+        },
+        "description": "The body of `POST /customers/{id}/retire` and `POST /technicians/{id}/retire`."
       },
       "ServiceLocationRequest": {
         "required": [
@@ -2745,6 +3441,50 @@
         ],
         "description": "The kinds of refusal a pushed operation can meet."
       },
+      "SyncJobLinePayload": {
+        "required": [
+          "id",
+          "kind",
+          "description",
+          "quantity",
+          "unitPrice"
+        ],
+        "type": "object",
+        "properties": {
+          "id": {
+            "type": "string",
+            "description": "The line's identity within its job.",
+            "format": "uuid"
+          },
+          "kind": {
+            "description": "Labour or a part.",
+            "$ref": "#/components/schemas/LineItemKind"
+          },
+          "description": {
+            "type": "string",
+            "description": "What it was."
+          },
+          "quantity": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "How many.",
+            "format": "double"
+          },
+          "unitPrice": {
+            "pattern": "^-?(?:0|[1-9]\\d*)(?:\\.\\d+)?$",
+            "type": [
+              "number",
+              "string"
+            ],
+            "description": "What one costs, in dollars.",
+            "format": "double"
+          }
+        },
+        "description": "One line of what a job's work has taken, inside a SyncJobPayload."
+      },
       "SyncOp": {
         "required": [
           "id",
@@ -2799,7 +3539,8 @@
       "SyncPullResponse": {
         "required": [
           "changes",
-          "cursor"
+          "cursor",
+          "hasMore"
         ],
         "type": "object",
         "properties": {
@@ -2813,6 +3554,10 @@
           "cursor": {
             "type": "string",
             "description": "The watermark to ask with next time. Opaque — the shape of the server's bookmark is not\npart of the contract."
+          },
+          "hasMore": {
+            "type": "boolean",
+            "description": "Whether the server stopped early and has more waiting. When `true`, pull again\nwith Cursor as soon as this page is applied; when `false`,\nthe device is up to date as of Cursor."
           }
         },
         "description": "Everything that changed in a device's world since the cursor it asked with, and where it\nnow stands. The body of `GET /sync/pull?since={cursor}`."
@@ -2871,7 +3616,8 @@
           "shiftStart",
           "shiftEnd",
           "latitude",
-          "longitude"
+          "longitude",
+          "retiredAt"
         ],
         "type": "object",
         "properties": {
@@ -2918,6 +3664,14 @@
             ],
             "description": "Their home base, in decimal degrees.",
             "format": "double"
+          },
+          "retiredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When they were taken off the books, or `null` while they are current. Retired\nrecords are left out of the list, so a client that has one in hand — from a bookmark, an\nexport, or a job that predates the retirement — needs this to say why it looks inert, and to\nknow that reinstating is the way back.",
+            "format": "date-time"
           }
         },
         "description": "One technician, as the clients see them."
@@ -3034,7 +3788,7 @@
   },
   "tags": [
     {
-      "name": "OpenDispatch.Api"
+      "name": "Health"
     },
     {
       "name": "AuthEndpoints"

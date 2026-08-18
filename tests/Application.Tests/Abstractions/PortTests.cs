@@ -115,7 +115,7 @@ public sealed class PortTests
     public void PortsSpeakInStronglyTypedIdsAndNeverAskWhoseDataItIs()
     {
         var loose = Abstractions
-            .Where(type => type != typeof(ITenantContext))
+            .Where(type => type != typeof(ITenantContext) && type != typeof(ITenantScope))
             .Where(type => SignatureTypes(type).Any(used => used == typeof(Guid) || used == typeof(OrgId)))
             .Select(type => type.Name)
             .ToArray();
@@ -130,20 +130,31 @@ public sealed class PortTests
     /// The exemption above, stated as its own rule so it cannot quietly widen.
     /// </summary>
     /// <remarks>
-    /// <see cref="ITenantContext"/> is the one port that may mention an <see cref="OrgId"/>,
-    /// because supplying it is the whole of what it does — it is what makes tenant scope ambient
-    /// for everything else. A second port mentioning one would mean scope had become a parameter
-    /// again somewhere, which is the thing that rule exists to prevent; and if this one ever stops
-    /// mentioning one, the ambient scope has no source.
+    /// <para>
+    /// Two ports may mention an <see cref="OrgId"/>, and between them they are the whole of how
+    /// tenant scope exists: <see cref="ITenantContext"/> hands it out, making scope ambient for
+    /// everything else, and <see cref="ITenantScope"/> establishes it. A third would mean scope had
+    /// become a parameter again somewhere, which is what the rule above exists to prevent; and if
+    /// either stops mentioning one, the ambient scope has lost either its source or its reader.
+    /// </para>
+    /// <para>
+    /// <strong>The write half was split out rather than added to <c>ITenantContext</c></strong> so
+    /// that reading the tenant and deciding it stay different capabilities — the hundred-odd places
+    /// that take <c>ITenantContext</c> still cannot set one. Only two things resolve: the API's
+    /// tenant middleware, from an authenticated principal, and the outbox dispatcher, from the owner
+    /// recorded on each message. The second is why this port exists at all; without it the
+    /// background sweep had no tenant, and every reaction it touched threw and became a poison row.
+    /// </para>
     /// </remarks>
     [Fact]
-    public void ExactlyOnePortSaysWhoseDataItIs()
+    public void ExactlyTwoPortsSayWhoseDataItIs()
     {
         var suppliers = Abstractions
             .Where(type => SignatureTypes(type).Any(used => used == typeof(OrgId)))
+            .OrderBy(type => type.Name, StringComparer.Ordinal)
             .ToArray();
 
-        Assert.Equal([typeof(ITenantContext)], suppliers);
+        Assert.Equal([typeof(ITenantContext), typeof(ITenantScope)], suppliers);
     }
 
     private static IEnumerable<Type> AggregateRoots() =>

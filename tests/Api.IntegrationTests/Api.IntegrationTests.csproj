@@ -8,6 +8,16 @@
     <PackageReference Include="coverlet.collector" Version="10.0.1" />
     <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
     <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.10" />
+    <!--
+      MetricCollector, for step 54's metrics tests: it listens to one instrument on one meter
+      factory, which is what lets a test read this host's measurements while the rest of the suite
+      runs beside it. Microsoft's own testing package rather than a hand-rolled MeterListener —
+      the listener API is subtle enough (callbacks per instrument, published-instrument
+      enumeration, disposal ordering) that a home-made one would be code under test rather than a
+      test tool. Versioned on the dotnet/extensions train, not the runtime's, hence 10.9.0 beside
+      the 10.0.x packages above.
+    -->
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.Testing" Version="10.9.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.8.1" />
     <PackageReference Include="Npgsql" Version="10.0.3" />
     <!-- Testcontainers.PostgreSql pulls SSH.NET 2025.1.0 transitively (SSH port forwarding, unused
@@ -17,7 +27,15 @@
          itself resolves a patched version — .github/dependabot.yml exists to be the thing that
          notices, per that entry's own comment. -->
     <PackageReference Include="SSH.NET" Version="2026.0.0" />
+    <!--
+      MinIO, for the object-store half of the storage contract. Its own container rather than a
+      hand-rolled S3 stub: the claim under test is that the adapter works against a real S3 API,
+      and a fake that agreed with our reading of the protocol would prove nothing about the store a
+      deployment actually points at.
+    -->
+    <PackageReference Include="Testcontainers.Minio" Version="4.14.0" />
     <PackageReference Include="Testcontainers.PostgreSql" Version="4.13.0" />
+    <PackageReference Include="Testcontainers.Redis" Version="4.14.0" />
     <PackageReference Include="xunit" Version="2.9.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5" />
   </ItemGroup>

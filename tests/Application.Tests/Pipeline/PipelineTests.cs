@@ -1,4 +1,5 @@
 using Microsoft.Extensions.Logging;
+using OpenDispatch.Application.Behaviors;
 using OpenDispatch.Application.Results;
 using OpenDispatch.TestSupport;
 
@@ -85,6 +86,89 @@ public sealed class PipelineTests
         // the transaction ends without a commit.
         Assert.Equal(
             [PipelineJournal.Begun, PipelineJournal.Handled, PipelineJournal.RolledBack],
+            pipeline.Journal.Entries);
+    }
+
+    /// <summary>
+    /// The one exception the pipeline is allowed to answer for: a lost optimistic-concurrency
+    /// race, which is what two dispatchers editing the same job produce and which was a 500 until
+    /// something turned it into a refusal.
+    /// </summary>
+    [Fact]
+    public async Task ALostRaceBecomesAConflictRatherThanAThrow()
+    {
+        await using var pipeline = new SamplePipeline();
+
+        var result = await pipeline.Sender.Send(new SampleCommand("Ada", SampleOutcome.LoseTheRace));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ConcurrencyErrors.StaleVersionCode, result.Error!.Code);
+        Assert.Equal(ErrorCategory.Conflict, result.Error.Category);
+
+        // Caught above the transaction, which had already rolled back on the way out: the refusal
+        // is reported and nothing half-written survives it.
+        Assert.Equal(
+            [PipelineJournal.Begun, PipelineJournal.Handled, PipelineJournal.RolledBack],
+            pipeline.Journal.Entries);
+    }
+
+    /// <summary>
+    /// The other shape of the same collision: two callers creating the row a unique index guards.
+    /// Neither read a version to be stale about, so the index is what refuses the second — and
+    /// until it was translated, the most ordinary way for two dispatchers to plan one job answered
+    /// 500.
+    /// </summary>
+    [Fact]
+    public async Task ADuplicateWriteBecomesAConflictRatherThanAThrow()
+    {
+        await using var pipeline = new SamplePipeline();
+
+        var result = await pipeline.Sender.Send(new SampleCommand("Ada", SampleOutcome.WriteADuplicate));
+
+        Assert.True(result.IsFailure);
+        Assert.Equal(ConcurrencyErrors.DuplicateCode, result.Error!.Code);
+        Assert.Equal(ErrorCategory.Conflict, result.Error.Category);
+
+        Assert.Equal(
+            [PipelineJournal.Begun, PipelineJournal.Handled, PipelineJournal.RolledBack],
+            pipeline.Journal.Entries);
+    }
+
+    /// <summary>
+    /// A command whose database dropped underneath it runs again, from the beginning, and commits
+    /// once.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// The point of the retry, and the reason the transaction boundary belongs to the unit of work:
+    /// a failover or a reset connection took the transaction with it, so there is nothing to
+    /// resume — the whole operation begins again. Before this, every such blip was a 500 to a phone
+    /// or a board.
+    /// </para>
+    /// <para>
+    /// The journal is what makes it meaningful: two transactions begun, one commit, and the handler
+    /// having run inside the second — a retry that committed twice, or committed the attempt that
+    /// failed, would read differently here.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task ATransientDatabaseFailureRunsTheWholeCommandAgain()
+    {
+        await using var pipeline = new SamplePipeline(transientFailures: 1);
+
+        var result = await pipeline.Sender.Send(new SampleCommand("Ada", SampleOutcome.Succeed));
+
+        Assert.True(result.IsSuccess);
+        Assert.Equal(
+            [
+                PipelineJournal.Begun,
+                PipelineJournal.RetriedAfterFailure,
+                PipelineJournal.RolledBack,
+                PipelineJournal.Begun,
+                PipelineJournal.Handled,
+                PipelineJournal.Saved,
+                PipelineJournal.Committed,
+            ],
             pipeline.Journal.Entries);
     }
 

@@ -3,9 +3,11 @@ using OpenDispatch.Api.Auth;
 using OpenDispatch.Api.ErrorHandling;
 using OpenDispatch.Application.Customers.AddServiceLocation;
 using OpenDispatch.Application.Customers.CreateCustomer;
+using OpenDispatch.Application.Customers.EraseCustomer;
 using OpenDispatch.Application.Customers.GetCustomer;
 using OpenDispatch.Application.Customers.ListCustomers;
 using OpenDispatch.Application.Customers.RemoveServiceLocation;
+using OpenDispatch.Application.Customers.RetireCustomer;
 using OpenDispatch.Application.Customers.UpdateCustomer;
 using OpenDispatch.Application.Customers.UpdateServiceLocation;
 using OpenDispatch.Contracts.Customers;
@@ -34,10 +36,22 @@ public static class CustomerEndpoints
         customers.MapPost("/", CreateAsync).WithName("CreateCustomer")
             .Produces<CustomerSummaryResponse>(StatusCodes.Status201Created);
         customers.MapGet("/", ListAsync).WithName("ListCustomers")
-            .Produces<IEnumerable<CustomerSummaryResponse>>();
+            .Produces<CustomerPageResponse>();
         customers.MapGet("/{id:guid}", GetAsync).WithName("GetCustomer")
             .Produces<CustomerResponse>();
         customers.MapPut("/{id:guid}", UpdateAsync).WithName("UpdateCustomer")
+            .Produces(StatusCodes.Status204NoContent);
+
+        // The one route on this group a dispatcher may not reach. Erasing a customer destroys data
+        // on purpose and cannot be undone, which puts it with the other things Document 1 leaves to
+        // whoever runs the business rather than to whoever runs the day.
+        customers.MapPost("/{id:guid}/erase", EraseAsync).WithName("EraseCustomer")
+            .RequireAuthorization(AuthPolicies.AdminOnly)
+            .Produces(StatusCodes.Status204NoContent);
+
+        // Reversible, unlike erasing, so it stays on the dispatcher's side of the line: taking a
+        // customer who has moved away off the list is running the day, not running the business.
+        customers.MapPost("/{id:guid}/retire", RetireAsync).WithName("RetireCustomer")
             .Produces(StatusCodes.Status204NoContent);
 
         customers.MapPost("/{id:guid}/locations", AddLocationAsync).WithName("AddServiceLocation")
@@ -66,11 +80,28 @@ public static class CustomerEndpoints
             new CustomerSummaryResponse(id.Value, request.Name, request.Email, request.Phone)));
     }
 
-    private static async Task<IResult> ListAsync(ISender sender, CancellationToken cancellationToken)
+    /// <remarks>
+    /// Both parameters are optional and both have defaults, so a caller that has never heard of
+    /// paging still gets an answer — a first page, rather than the whole customer book this used to
+    /// hand over.
+    /// </remarks>
+    private static async Task<IResult> ListAsync(
+        ISender sender,
+        CancellationToken cancellationToken,
+        int? page = null,
+        int? pageSize = null)
     {
-        var result = await sender.Send(new ListCustomersQuery(), cancellationToken).ConfigureAwait(false);
+        var query = new ListCustomersQuery(
+            page ?? 1,
+            pageSize ?? ListCustomersQuery.DefaultPageSize);
 
-        return result.ToHttpResult(customers => Results.Ok(customers.Select(ToSummary)));
+        var result = await sender.Send(query, cancellationToken).ConfigureAwait(false);
+
+        return result.ToHttpResult(customers => Results.Ok(new CustomerPageResponse(
+            [.. customers.Items.Select(ToSummary)],
+            customers.Total,
+            customers.Page,
+            customers.PageSize)));
     }
 
     private static async Task<IResult> GetAsync(Guid id, ISender sender, CancellationToken cancellationToken)
@@ -90,6 +121,33 @@ public static class CustomerEndpoints
     {
         var command = new UpdateCustomerCommand(CustomerId.From(id), request.Name, request.Email, request.Phone);
         var result = await sender.Send(command, cancellationToken).ConfigureAwait(false);
+
+        return result.ToHttpResult();
+    }
+
+    /// <remarks>
+    /// A POST rather than a DELETE, because it is not one: the customer stays, their jobs stay and
+    /// their invoices still total what they totalled. What goes is everything that says who they
+    /// were — see <see cref="EraseCustomerCommand"/>.
+    /// </remarks>
+    private static async Task<IResult> RetireAsync(
+        Guid id,
+        RetireRequest request,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender
+            .Send(new RetireCustomerCommand(CustomerId.From(id), request.Retired), cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.ToHttpResult();
+    }
+
+    private static async Task<IResult> EraseAsync(Guid id, ISender sender, CancellationToken cancellationToken)
+    {
+        var result = await sender
+            .Send(new EraseCustomerCommand(CustomerId.From(id)), cancellationToken)
+            .ConfigureAwait(false);
 
         return result.ToHttpResult();
     }
@@ -149,5 +207,7 @@ public static class CustomerEndpoints
         customer.Email,
         customer.Phone,
         [.. customer.Locations.Select(location =>
-            new ServiceLocationResponse(location.Id.Value, location.Label, location.Address, location.Latitude, location.Longitude))]);
+            new ServiceLocationResponse(location.Id.Value, location.Label, location.Address, location.Latitude, location.Longitude))],
+        customer.ErasedAt,
+        customer.RetiredAt);
 }

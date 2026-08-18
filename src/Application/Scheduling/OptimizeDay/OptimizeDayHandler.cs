@@ -1,7 +1,10 @@
+using System.Diagnostics;
 using MediatR;
 using OpenDispatch.Application.Abstractions;
 using OpenDispatch.Application.Jobs;
+using OpenDispatch.Application.Observability;
 using OpenDispatch.Application.Results;
+using OpenDispatch.Domain.Identifiers;
 using OpenDispatch.Domain.Jobs;
 using OpenDispatch.Domain.Technicians;
 using OpenDispatch.Domain.ValueObjects;
@@ -38,13 +41,19 @@ internal sealed class OptimizeDayHandler(
     ITechnicianRepository technicians,
     IAssignmentRepository assignments,
     IScheduler scheduler,
-    ITenantContext tenant)
+    ITenantContext tenant,
+    SchedulingMetrics metrics)
     : IRequestHandler<OptimizeDayCommand, Result<OptimizedDay>>
 {
     public async Task<Result<OptimizedDay>> Handle(
         OptimizeDayCommand command,
         CancellationToken cancellationToken)
     {
+        // Timed across the whole handler rather than around scheduler.Solve, because what grows
+        // with the day is not only the search: reading a hundred jobs and staging a hundred stops
+        // are part of what a dispatcher waits for. It stops short of the commit, which belongs to
+        // the transaction behavior above and is a database number rather than an engine one.
+        var started = Stopwatch.GetTimestamp();
         var horizon = new TimeWindow(command.From, command.To);
 
         // "Schedulable" is the domain's answer, not a status list written here: work that is
@@ -52,20 +61,113 @@ internal sealed class OptimizeDayHandler(
         var schedulable = await jobs.ListSchedulableAsync(horizon, cancellationToken).ConfigureAwait(false);
         var crew = await technicians.ListAsync(cancellationToken).ConfigureAwait(false);
 
+        // …and the hours that work is taking are gone from the day, which the engine has no way to
+        // be told. See CommittedWork: without this, re-planning a day that is already under way
+        // puts a fresh stop on top of the one a technician is standing at.
+        var committed = await CommittedAsync(horizon, crew, schedulable, cancellationToken).ConfigureAwait(false);
+
         var problem = new SchedulingProblem(
             horizon,
-            crew.Select(ToPlan),
+            crew.Select(technician => ToPlan(technician, committed)),
             schedulable.Select(ToSchedJob),
             Weigh(command.Weights),
             SchedulingDefaults.Seed);
 
+        // The search runs inside the transaction this command is wrapped in, and that is a decision
+        // rather than an oversight: measured on a shop's day it is ~60 ms of CPU holding a
+        // connection, against a rate limit of ten optimisations a minute per organization. Moving
+        // it out means either a self-transacting command — which would leave the audit entry, staged
+        // after this returns, with no transaction to be written by — or splitting the operation into
+        // a solve and an apply that can disagree about the world. Both cost more than they buy at
+        // this size. See DECISIONS.local.md.
         var solution = scheduler.Solve(problem);
+        var optimized = await ApplyAsync(problem, solution, schedulable, committed, cancellationToken)
+            .ConfigureAwait(false);
 
-        return Result.Success(await ApplyAsync(problem, solution, schedulable, cancellationToken).ConfigureAwait(false));
+        // Only a completed optimisation is recorded. A run that threw produced no plan and has no
+        // latency worth a percentile; LoggingBehavior above already reports that it threw and how
+        // long it ran before it did.
+        metrics.Optimized(Stopwatch.GetElapsedTime(started));
+
+        return Result.Success(optimized);
     }
 
-    private static TechPlan ToPlan(Technician technician) =>
-        new(technician.Id, technician.Skills, technician.Shift, technician.HomeBase);
+    private static TechPlan ToPlan(
+        Technician technician,
+        IReadOnlyDictionary<TechnicianId, CommittedDay> committed) =>
+        new(
+            technician.Id,
+            technician.Skills,
+            committed.TryGetValue(technician.Id, out var alreadySpokenFor)
+                ? CommittedWork.Remaining(technician.Shift, alreadySpokenFor)
+                : technician.Shift,
+            technician.HomeBase);
+
+    /// <summary>
+    /// The stops this re-plan may not move, and what they cost each technician.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A stop is committed when the job behind it is not one this re-plan covers — it is under
+    /// way, finished, called off, or simply promised outside the horizon being planned. Either way
+    /// the row stays where it is and the hours it occupies are not the engine's to give away.
+    /// </para>
+    /// <para>
+    /// The stops are read over the shifts as well as the horizon, because a technician who started
+    /// before the stretch being re-planned is still busy with what they started: a horizon that
+    /// opens at noon must not hide the eleven o'clock job that runs until half past twelve.
+    /// </para>
+    /// </remarks>
+    private async Task<IReadOnlyDictionary<TechnicianId, CommittedDay>> CommittedAsync(
+        TimeWindow horizon,
+        IReadOnlyList<Technician> crew,
+        IReadOnlyList<Job> schedulable,
+        CancellationToken cancellationToken)
+    {
+        var planned = await assignments
+            .ListInHorizonAsync(Widen(horizon, crew), cancellationToken)
+            .ConfigureAwait(false);
+
+        var replanning = schedulable.Select(job => job.Id).ToHashSet();
+        var stops = planned.Where(stop => !replanning.Contains(stop.JobId)).ToList();
+
+        if (stops.Count == 0)
+        {
+            return CommittedWork.None;
+        }
+
+        var behind = new Dictionary<JobId, Job>();
+
+        foreach (var stop in stops)
+        {
+            if (behind.ContainsKey(stop.JobId))
+            {
+                continue;
+            }
+
+            if (await jobs.GetAsync(stop.JobId, cancellationToken).ConfigureAwait(false) is { } job)
+            {
+                behind[job.Id] = job;
+            }
+        }
+
+        return CommittedWork.From(stops, behind);
+    }
+
+    /// <summary>The horizon, widened to cover every technician's working hours.</summary>
+    private static TimeWindow Widen(TimeWindow horizon, IReadOnlyList<Technician> crew)
+    {
+        var widened = horizon;
+
+        foreach (var technician in crew)
+        {
+            widened = new TimeWindow(
+                technician.Shift.Start < widened.Start ? technician.Shift.Start : widened.Start,
+                technician.Shift.End > widened.End ? technician.Shift.End : widened.End);
+        }
+
+        return widened;
+    }
 
     private static SchedJob ToSchedJob(Job job) => new(
         job.Id,
@@ -99,6 +201,7 @@ internal sealed class OptimizeDayHandler(
         SchedulingProblem problem,
         Solution solution,
         IReadOnlyList<Job> schedulable,
+        IReadOnlyDictionary<TechnicianId, CommittedDay> committed,
         CancellationToken cancellationToken)
     {
         var byId = schedulable.ToDictionary(job => job.Id);
@@ -107,6 +210,13 @@ internal sealed class OptimizeDayHandler(
         foreach (var technician in problem.Technicians)
         {
             var route = solution.RouteFor(technician.Id);
+
+            // A re-planned run continues the numbering of the stops it may not touch, rather than
+            // starting again at zero beside them — two stops sharing a position in one day is a
+            // board nobody can read and an order nobody can drive.
+            var first = committed.TryGetValue(technician.Id, out var alreadySpokenFor)
+                ? alreadySpokenFor.NextSequence
+                : 0;
 
             for (var sequence = 0; sequence < route.Length; sequence++)
             {
@@ -117,7 +227,7 @@ internal sealed class OptimizeDayHandler(
                     tenant.OrgId,
                     byId[stop.JobId],
                     technician.Id,
-                    sequence,
+                    first + sequence,
                     // Start, not Arrival — and the two differ only when a technician reaches a
                     // site before the customer's window opens and waits. Start is what a
                     // dispatcher enters by hand for the same stop, what the customer was promised,

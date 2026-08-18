@@ -35,4 +35,12 @@ internal static partial class PipelineLog
 
     [LoggerMessage(Level = LogLevel.Error, Message = "{Request} threw after {ElapsedMs}ms")]
     internal static partial void Threw(ILogger logger, Exception exception, string request, double elapsedMs);
+
+    /// <remarks>
+    /// Information, and no exception object: a caller that hung up is not a fault. What is worth
+    /// keeping is how long the work had been running when they gave up, which is the number that
+    /// says whether they were impatient or whether this path got slow.
+    /// </remarks>
+    [LoggerMessage(Level = LogLevel.Information, Message = "{Request} was cancelled after {ElapsedMs}ms")]
+    internal static partial void Cancelled(ILogger logger, string request, double elapsedMs);
 }

@@ -1,5 +1,6 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text;
 using System.Text.Json;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
@@ -86,6 +87,46 @@ public sealed class ErrorMappingFlowTests : IClassFixture<ApiFactory>
         var problem = JsonSerializer.Deserialize<ProblemDetails>(body, JsonSerializerOptions.Web);
         Assert.NotNull(problem);
         Assert.Equal(StatusCodes.Status500InternalServerError, problem.Status);
+        AssertCarriesATraceId(problem);
+    }
+
+    /// <summary>
+    /// A request the framework cannot bind at all is the caller's problem, not the server's, and
+    /// answering 500 both blamed the wrong party and told a client to retry something that will
+    /// fail identically forever.
+    /// </summary>
+    /// <remarks>
+    /// Two shapes, one rule: a required query parameter that was not sent (found by hand while
+    /// walking the step-53 demo — <c>GET /sync/pull</c> with no cursor answered 500) and a body
+    /// that is not the JSON the endpoint declared, which was the same 500 on every POST in the
+    /// API and had never been noticed.
+    /// </remarks>
+    [Theory]
+    [InlineData("missing query parameter")]
+    [InlineData("malformed body")]
+    public async Task ARequestTheServerCannotReadIsABadRequestNotAServerError(string shape)
+    {
+        await _factory.SeedUserAsync(
+            OrgId.New(), $"tech-{shape.Replace(' ', '-')}@vance.example", "boiler-service-call", UserRole.Technician,
+            TechnicianId.New());
+        using var client = _factory.CreateClient();
+        var token = await client.LoginAsync($"tech-{shape.Replace(' ', '-')}@vance.example", "boiler-service-call");
+
+        using var request = shape == "missing query parameter"
+            ? new HttpRequestMessage(HttpMethod.Get, "/sync/pull").Authorized(token)
+            : new HttpRequestMessage(HttpMethod.Post, "/sync/push")
+            {
+                Content = new StringContent("{ not json", Encoding.UTF8, "application/json"),
+            }.Authorized(token);
+
+        using var response = await client.SendAsync(request);
+
+        Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
+        Assert.Equal("application/problem+json", response.Content.Headers.ContentType?.MediaType);
+
+        var problem = await response.Content.ReadFromJsonAsync<ProblemDetails>();
+        Assert.NotNull(problem);
+        Assert.Equal(StatusCodes.Status400BadRequest, problem.Status);
         AssertCarriesATraceId(problem);
     }
 

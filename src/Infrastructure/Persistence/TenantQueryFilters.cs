@@ -1,5 +1,4 @@
 using System.Linq.Expressions;
-using System.Reflection;
 using Microsoft.EntityFrameworkCore;
 using OpenDispatch.Domain.Identifiers;
 
@@ -26,6 +25,15 @@ namespace OpenDispatch.Infrastructure.Persistence;
 /// Nothing here stops a handler stamping the wrong <see cref="OrgId"/> onto a new row; what it
 /// stops is anyone ever seeing a row that is not theirs.
 /// </para>
+/// <para>
+/// <strong><c>OutboxMessage</c> is the one deliberate exception, and it is load-bearing.</strong> It
+/// carries an owning organization so the sweep can resolve a tenant before publishing — without
+/// that, every reaction the background sweep touched threw and became a poison row — but the sweep
+/// must also be able to <em>find</em> work for tenants nobody has resolved yet. A filter here would
+/// make it read nothing at all. Its property is therefore a nullable <see cref="OrgId"/>, which
+/// <see cref="TenantOwnership.PropertyOf"/> does not match; the scoping it needs is applied
+/// explicitly by <c>OutboxSweep</c>, per claim.
+/// </para>
 /// </remarks>
 internal static class TenantQueryFilters
 {
@@ -40,7 +48,7 @@ internal static class TenantQueryFilters
 
         foreach (var entityType in modelBuilder.Model.GetEntityTypes().ToList())
         {
-            var scope = TenantPropertyOf(entityType.ClrType);
+            var scope = TenantOwnership.PropertyOf(entityType.ClrType);
 
             if (scope is null)
             {
@@ -56,23 +64,4 @@ internal static class TenantQueryFilters
         }
     }
 
-    private static PropertyInfo? TenantPropertyOf(Type clrType)
-    {
-        var candidates = clrType
-            .GetProperties(BindingFlags.Public | BindingFlags.Instance)
-            .Where(property => property.PropertyType == typeof(OrgId))
-            .ToList();
-
-        return candidates.Count switch
-        {
-            0 => null,
-            1 => candidates[0],
-
-            // Two ways to say which tenant owns a row is one way too many: whichever this picked
-            // would be a coin toss made at model build, and the wrong side of it is a leak.
-            _ => throw new InvalidOperationException(
-                $"'{clrType.Name}' has more than one {nameof(OrgId)} property, so which one scopes "
-                + "it is ambiguous. Tenant-owned types carry exactly one."),
-        };
-    }
 }
