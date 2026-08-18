@@ -11,10 +11,17 @@ namespace OpenDispatch.Contracts.Customers;
 /// customer whose fields all read <c>[erased]</c> can say why, and an export answering a subject
 /// access request carries the erasure rather than looking like data nobody filled in.
 /// </param>
+/// <param name="RetiredAt">
+/// When they were taken off the books, or <see langword="null"/> while they are current. Retired
+/// records are left out of the list, so a client that has one in hand — from a bookmark, an
+/// export, or a job that predates the retirement — needs this to say why it looks inert, and to
+/// know that reinstating is the way back.
+/// </param>
 public sealed record CustomerResponse(
     Guid Id,
     string Name,
     string? Email,
     string? Phone,
     IReadOnlyList<ServiceLocationResponse> Locations,
-    DateTimeOffset? ErasedAt);
+    DateTimeOffset? ErasedAt,
+    DateTimeOffset? RetiredAt);

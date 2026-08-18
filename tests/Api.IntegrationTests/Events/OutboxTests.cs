@@ -166,8 +166,9 @@ public sealed class OutboxTests
     /// This test's own outbox rows.
     /// </summary>
     /// <remarks>
-    /// The outbox carries no <c>OrgId</c> — it belongs to the delivery mechanism rather than to a
-    /// tenant — so it is the one table in this suite that a test cannot assert about wholesale: the
+    /// The outbox carries an <c>OrgId</c> but no query filter — the sweep has to find work before
+    /// anybody is resolved — so it is the one table in this suite that a test cannot assert about
+    /// wholesale without scoping it by hand: the
     /// shared container is running other classes at the same time, and their messages are in it too.
     /// The job's id is in the payload, which is what makes a message findable as this test's.
     /// </remarks>

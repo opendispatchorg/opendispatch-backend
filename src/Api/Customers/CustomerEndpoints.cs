@@ -208,5 +208,6 @@ public static class CustomerEndpoints
         customer.Phone,
         [.. customer.Locations.Select(location =>
             new ServiceLocationResponse(location.Id.Value, location.Label, location.Address, location.Latitude, location.Longitude))],
-        customer.ErasedAt);
+        customer.ErasedAt,
+        customer.RetiredAt);
 }

@@ -30,5 +30,6 @@ internal sealed class GetTechnicianHandler(ITechnicianRepository technicians)
         technician.Shift.Start,
         technician.Shift.End,
         technician.HomeBase.Lat,
-        technician.HomeBase.Lng);
+        technician.HomeBase.Lng,
+        technician.RetiredAt);
 }

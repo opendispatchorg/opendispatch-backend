@@ -76,7 +76,8 @@ public static class TechnicianEndpoints
             $"/technicians/{id.Value}",
             new TechnicianResponse(
                 id.Value, request.Name, request.Skills, request.ShiftStart, request.ShiftEnd,
-                request.Latitude, request.Longitude)));
+                // Newly created, so never retired — echoed from the request rather than re-read.
+                request.Latitude, request.Longitude, RetiredAt: null)));
     }
 
     private static async Task<IResult> ListAsync(ISender sender, CancellationToken cancellationToken)
@@ -153,5 +154,6 @@ public static class TechnicianEndpoints
         technician.ShiftStart,
         technician.ShiftEnd,
         technician.Latitude,
-        technician.Longitude);
+        technician.Longitude,
+        technician.RetiredAt);
 }

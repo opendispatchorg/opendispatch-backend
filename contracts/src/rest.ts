@@ -834,6 +834,14 @@ export interface components {
              *     access request carries the erasure rather than looking like data nobody filled in.
              */
             erasedAt: null | string;
+            /**
+             * Format: date-time
+             * @description When they were taken off the books, or `null` while they are current. Retired
+             *     records are left out of the list, so a client that has one in hand — from a bookmark, an
+             *     export, or a job that predates the retirement — needs this to say why it looks inert, and to
+             *     know that reinstating is the way back.
+             */
+            retiredAt: null | string;
         };
         /** @description A customer as `GET /customers` lists them: enough to recognise and to reach, and nothing else. */
         CustomerSummaryResponse: {
@@ -1444,6 +1452,14 @@ export interface components {
              * @description Their home base, in decimal degrees.
              */
             longitude: number | string;
+            /**
+             * Format: date-time
+             * @description When they were taken off the books, or `null` while they are current. Retired
+             *     records are left out of the list, so a client that has one in hand — from a bookmark, an
+             *     export, or a job that predates the retirement — needs this to say why it looks inert, and to
+             *     know that reinstating is the way back.
+             */
+            retiredAt: null | string;
         };
         /** @description The body of `PUT /customers/{id}`. */
         UpdateCustomerRequest: {

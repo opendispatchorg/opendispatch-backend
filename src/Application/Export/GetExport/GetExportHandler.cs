@@ -70,7 +70,8 @@ internal sealed class GetExportHandler(
         technician.Shift.Start,
         technician.Shift.End,
         technician.HomeBase.Lat,
-        technician.HomeBase.Lng);
+        technician.HomeBase.Lng,
+        technician.RetiredAt);
 
     private static CustomerDetail ProjectCustomer(Customer customer) => new(
         customer.Id,
@@ -83,7 +84,8 @@ internal sealed class GetExportHandler(
             location.Address,
             location.Point.Lat,
             location.Point.Lng))],
-        customer.ErasedAt);
+        customer.ErasedAt,
+        customer.RetiredAt);
 
     private static JobSummary ProjectJob(Job job) => new(
         job.Id,

@@ -8,8 +8,11 @@ using OpenDispatch.Application.Customers.CreateCustomer;
 using OpenDispatch.Application.Customers.EraseCustomer;
 using OpenDispatch.Application.Customers.ListCustomers;
 using OpenDispatch.Application.Customers.RetireCustomer;
+using OpenDispatch.Application.Dispatch.GetBoard;
+using OpenDispatch.Application.Jobs.AssignJob;
 using OpenDispatch.Application.Jobs.CreateJob;
 using OpenDispatch.Application.Scheduling.OptimizeDay;
+using OpenDispatch.Application.Technicians;
 using OpenDispatch.Application.Technicians.CreateTechnician;
 using OpenDispatch.Application.Technicians.ListTechnicians;
 using OpenDispatch.Application.Technicians.RetireTechnician;
@@ -127,6 +130,109 @@ public sealed class RetirementFlowTests
 
         Assert.Equal("Gone Away Ltd", (await context.Customers.SingleAsync(row => row.Id == moved.Value)).Name);
         Assert.NotNull(await context.Jobs.SingleOrDefaultAsync(row => row.Id == job.Value));
+    }
+
+    /// <summary>
+    /// Retiring somebody stops new work reaching them, not just stops them being offered.
+    /// </summary>
+    /// <remarks>
+    /// The half the feature shipped without. Removing them from the lists covers the optimiser and
+    /// the dropdown; it does nothing about a caller that already holds the id — a board left open
+    /// since this morning, a phone that has not resynced, a script. Both write paths are checked
+    /// here because they are the only two ways new work enters the system.
+    /// </remarks>
+    [Fact]
+    public async Task NoNewWorkCanBeGivenToAnybodyRetired()
+    {
+        await using var services = BuildHost();
+
+        var technician = await Send(services, new CreateTechnicianCommand(
+            "Sam Rivera", ["hvac"], MondayMorning, MondayMorning.AddHours(9), 51.5074d, -0.1278d));
+        var customer = await Send(services, new CreateCustomerCommand("Gone Away Ltd", null, null));
+        var location = await Send(services, new AddServiceLocationCommand(
+            customer.Value, "Site", "1 Mill Lane", 51.3762d, -0.0982d));
+
+        // A job booked while both are still current, so the assign path has something to move.
+        var job = await Send(services, new CreateJobCommand(
+            customer.Value, location.Value, "hvac", JobPriority.Normal,
+            MondayMorning, MondayMorning.AddHours(4), TimeSpan.FromHours(1)));
+
+        await Send(services, new RetireTechnicianCommand(technician.Value, Retired: true));
+        await Send(services, new RetireCustomerCommand(customer.Value, Retired: true));
+
+        var planned = await Send(services, new AssignJobCommand(
+            job.Value, technician.Value, MondayMorning.AddHours(1)));
+
+        Assert.Equal(TechnicianErrors.Retired(technician.Value), planned.Error);
+
+        var booked = await Send(services, new CreateJobCommand(
+            customer.Value, location.Value, "hvac", JobPriority.Normal,
+            MondayMorning, MondayMorning.AddHours(4), TimeSpan.FromHours(1)));
+
+        Assert.Equal(CustomerErrors.Retired(customer.Value), booked.Error);
+
+        // Nothing was written by either refusal.
+        await using var context = _postgres.NewContext(_tenant);
+
+        Assert.Empty(await context.Assignments.Where(row => row.JobId == job.Value).ToListAsync());
+        Assert.Equal(1, await context.Jobs.CountAsync(row => row.CustomerId == customer.Value));
+    }
+
+    /// <summary>
+    /// Reinstating opens both doors again, which is what makes retirement a decision rather than a
+    /// one-way trip.
+    /// </summary>
+    [Fact]
+    public async Task ReinstatingLetsWorkThroughAgain()
+    {
+        await using var services = BuildHost();
+
+        var technician = await Send(services, new CreateTechnicianCommand(
+            "Sam Rivera", ["hvac"], MondayMorning, MondayMorning.AddHours(9), 51.5074d, -0.1278d));
+        var job = await ABookedJobAsync(services);
+
+        await Send(services, new RetireTechnicianCommand(technician.Value, Retired: true));
+        await Send(services, new RetireTechnicianCommand(technician.Value, Retired: false));
+
+        var planned = await Send(services, new AssignJobCommand(job, technician.Value, MondayMorning.AddHours(1)));
+
+        Assert.True(planned.IsSuccess);
+    }
+
+    /// <summary>
+    /// The board draws a retired technician's lane only while they still hold work that day.
+    /// </summary>
+    /// <remarks>
+    /// Both halves in one case, deliberately. Asserting only that a retired technician disappears
+    /// would pass against a blanket filter — which is the wrong fix, because it would hide the
+    /// stops somebody is still driving to and leave nobody able to drag them off. Asserting only
+    /// that they stay would pass against no filter at all.
+    /// </remarks>
+    [Fact]
+    public async Task TheBoardKeepsARetiredTechniciansLaneOnlyWhileTheyStillHoldWork()
+    {
+        await using var services = BuildHost();
+
+        var holding = await Send(services, new CreateTechnicianCommand(
+            "Sam Rivera", ["hvac"], MondayMorning, MondayMorning.AddHours(9), 51.5074d, -0.1278d));
+        var idle = await Send(services, new CreateTechnicianCommand(
+            "Ada Okafor", ["hvac"], MondayMorning, MondayMorning.AddHours(9), 51.5074d, -0.1278d));
+
+        var job = await ABookedJobAsync(services);
+        await Send(services, new AssignJobCommand(job, holding.Value, MondayMorning.AddHours(1)));
+
+        // Both leave, one mid-day with a stop still on them.
+        await Send(services, new RetireTechnicianCommand(holding.Value, Retired: true));
+        await Send(services, new RetireTechnicianCommand(idle.Value, Retired: true));
+
+        var board = await Send(services, new GetBoardQuery(MondayMorning, MondayMorning.AddHours(9)));
+
+        // Still drawn, because the work they are holding has to stay visible and draggable.
+        var lane = Assert.Single(board.Value.Routes, route => route.TechnicianId == holding.Value);
+        Assert.Equal(job, Assert.Single(lane.Stops).Job.JobId);
+
+        // Not drawn, because an empty lane for somebody who left is clutter forever.
+        Assert.DoesNotContain(board.Value.Routes, route => route.TechnicianId == idle.Value);
     }
 
     /// <summary>

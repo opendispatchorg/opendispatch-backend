@@ -55,6 +55,15 @@ internal sealed class CreateJobHandler(
             return Result.Failure<JobId>(CustomerErrors.Erased(command.CustomerId));
         }
 
+        // And none for somebody taken off the books, which is a different thing said the same way:
+        // erasure is a promise that cannot be undone, retirement is a decision that can. Removing
+        // them from GET /customers is most of "stop offering them"; refusing the booking is the
+        // half that holds when a caller already has the id.
+        if (!customer.IsActive)
+        {
+            return Result.Failure<JobId>(CustomerErrors.Retired(command.CustomerId));
+        }
+
         var location = customer.Locations.FirstOrDefault(site => site.Id == command.LocationId);
 
         if (location is null)

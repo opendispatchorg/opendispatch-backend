@@ -17,9 +17,9 @@ namespace OpenDispatch.Infrastructure.Events;
 /// <strong>Failures surface.</strong> Events are published one at a time and nothing is caught:
 /// a handler that throws stops the rest and fails the request. That is the honest report — but
 /// note what it does not mean, because the difference matters: the work is already committed, so
-/// the request failing does not undo it. A handler with side effects the caller must not lose
-/// belongs on a durable outbox, which is not in this system and is the right conversation to
-/// have when one is needed.
+/// the request failing does not undo it. The reaction is not lost either — it is on the outbox,
+/// written by the same save as the work, and <c>OutboxDispatcher</c> delivers what this did not.
+/// The return value below is what tells the caller which rows may be forgotten.
 /// </para>
 /// <para>
 /// MediatR arrives here transitively through Application, where the version is pinned and the

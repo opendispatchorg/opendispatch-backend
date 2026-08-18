@@ -116,13 +116,30 @@ internal sealed class OutboxDispatcher(
     {
         foreach (var owner in await WaitingAsync(ct).ConfigureAwait(false))
         {
-            await using var scope = scopes.CreateAsyncScope();
+            try
+            {
+                await using var scope = scopes.CreateAsyncScope();
 
-            scope.ServiceProvider.GetRequiredService<ITenantScope>().Resolve(owner);
+                scope.ServiceProvider.GetRequiredService<ITenantScope>().Resolve(owner);
 
-            await scope.ServiceProvider.GetRequiredService<OutboxSweep>()
-                .DeliverPendingAsync(options.Grace, options.BatchSize, ct)
-                .ConfigureAwait(false);
+                await scope.ServiceProvider.GetRequiredService<OutboxSweep>()
+                    .DeliverPendingAsync(options.Grace, options.BatchSize, ct)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (ct.IsCancellationRequested)
+            {
+                throw;
+            }
+            catch (Exception failed)
+            {
+                // One organization must not cost the others their tick. Per-message failures are
+                // already caught inside the sweep; what reaches here is the transaction itself —
+                // a lock timeout, a connection lost mid-commit — and without this the remaining
+                // organizations are abandoned until the next interval. `Distinct()` gives no
+                // stable order, so a tenant that fails every time would starve a different set
+                // each tick rather than the same one, which is harder to spot than a total stall.
+                OutboxLog.TenantSweepFailed(log, failed, owner.Value);
+            }
         }
     }
 
@@ -144,21 +161,27 @@ internal sealed class OutboxDispatcher(
         var clock = scope.ServiceProvider.GetRequiredService<IClock>();
         var older = clock.UtcNow - options.Grace;
 
-        var pending = await context.Outbox
-            .Where(message => message.OccurredAt < older)
+        var waiting = context.Outbox.Where(message => message.OccurredAt < older);
+
+        var owners = await waiting
             .Select(message => message.OrgId)
             .Distinct()
             .ToListAsync(ct)
             .ConfigureAwait(false);
 
-        var ownerless = pending.Count(owner => owner is null);
-
-        if (ownerless > 0)
+        // Counted over rows rather than over the distinct owners above: every ownerless row shares
+        // one null key, so counting the nulls in `owners` would report fifty thousand stuck legacy
+        // messages as "1" and send an operator looking for a single row that does not exist.
+        if (owners.Any(owner => owner is null))
         {
+            var ownerless = await waiting
+                .CountAsync(message => message.OrgId == null, ct)
+                .ConfigureAwait(false);
+
             OutboxLog.Ownerless(log, ownerless);
         }
 
-        return [.. pending.Where(owner => owner is not null).Select(owner => owner!.Value)];
+        return [.. owners.Where(owner => owner is not null).Select(owner => owner!.Value)];
     }
 }
 
@@ -173,6 +196,16 @@ internal static partial class OutboxLog
 
     [LoggerMessage(Level = LogLevel.Error, Message = "An outbox sweep could not run.")]
     internal static partial void SweepFailed(ILogger logger, Exception exception);
+
+    /// <remarks>
+    /// One organization's sweep failed and the rest of the tick continued. Distinct from
+    /// <see cref="SweepFailed"/>, which means no organization was swept at all: this one names who,
+    /// so a tenant failing every tick is visible as a pattern rather than as noise.
+    /// </remarks>
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "The outbox sweep for organization {OrgId} failed; other organizations were still swept.")]
+    internal static partial void TenantSweepFailed(ILogger logger, Exception exception, Guid orgId);
 
     /// <remarks>
     /// Rows written before the outbox recorded which organization a message belongs to. They cannot

@@ -29,6 +29,9 @@ public static class CustomerErrors
     /// <summary>The code every "that customer has been erased" failure carries.</summary>
     public const string ErasedCode = "customer.erased";
 
+    /// <summary>The code every attempt to book new work for a retired customer carries.</summary>
+    public const string RetiredCode = "customer.retired";
+
     /// <summary>Names a customer this tenant does not have.</summary>
     /// <param name="id">The customer that was asked for.</param>
     public static Error NotFound(CustomerId id) =>
@@ -47,6 +50,30 @@ public static class CustomerErrors
     /// <param name="id">The customer that was asked about.</param>
     public static Error Erased(CustomerId id) =>
         Error.Conflict(ErasedCode, $"Customer {id.Value} has been erased and cannot be changed.");
+
+    /// <summary>
+    /// Reports a customer who has been taken off the books.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// A conflict for the reason <see cref="Erased(CustomerId)"/> is one: the record exists, and
+    /// what has changed is that new work may not be booked against it. Unlike an erasure this is
+    /// undone by reinstating them, and the message says so — the caller's next move is a decision
+    /// rather than an apology.
+    /// </para>
+    /// <para>
+    /// Retiring somebody removed them from the lists people pick from, which is most of what
+    /// "stop offering them" means. This is the other half: a client holding an id from before —
+    /// a stale board, a phone that has not resynced, a bookmarked page — must not be able to book
+    /// them anyway.
+    /// </para>
+    /// </remarks>
+    /// <param name="id">The customer that was asked about.</param>
+    public static Error Retired(CustomerId id) =>
+        Error.Conflict(
+            RetiredCode,
+            $"Customer {id.Value} has been retired, so no new work can be booked for them. "
+            + "Reinstate them first if they are a customer again.");
 
     /// <summary>
     /// Names a service location the customer does not have.

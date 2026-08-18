@@ -26,6 +26,7 @@ namespace OpenDispatch.Application.Technicians.ListTechnicians;
 /// crews always render the same way round.
 /// </para>
 /// </remarks>
+/// <param name="RetiredAt">When they were taken off the books, or <see langword="null"/> while current.</param>
 public sealed record TechnicianSummary(
     TechnicianId Id,
     string Name,
@@ -33,4 +34,5 @@ public sealed record TechnicianSummary(
     DateTimeOffset ShiftStart,
     DateTimeOffset ShiftEnd,
     double Latitude,
-    double Longitude);
+    double Longitude,
+    DateTimeOffset? RetiredAt);

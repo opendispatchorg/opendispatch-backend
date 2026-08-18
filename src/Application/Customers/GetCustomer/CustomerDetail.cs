@@ -28,13 +28,15 @@ namespace OpenDispatch.Application.Customers.GetCustomer;
 /// DTOs are the external ones, mapped at the edge and nowhere deeper.
 /// </para>
 /// </remarks>
+/// <param name="RetiredAt">When they were taken off the books, or <see langword="null"/> while current.</param>
 public sealed record CustomerDetail(
     CustomerId Id,
     string Name,
     string? Email,
     string? Phone,
     IReadOnlyList<ServiceLocationDetail> Locations,
-    DateTimeOffset? ErasedAt);
+    DateTimeOffset? ErasedAt,
+    DateTimeOffset? RetiredAt);
 
 /// <summary>
 /// One of a customer's service locations.

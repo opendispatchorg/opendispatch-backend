@@ -188,6 +188,14 @@ public sealed class ShopHistory(AppDbContext database)
                     start,
                     12d + random.Next(0, 24));
 
+                // The stop announces its own planning since AssignmentPlanned landed, and history
+                // is not news — the same reason the job's and the invoice's events are dropped.
+                // Left in, this reaches BoardNotifications on save, which re-reads through a
+                // tenant-filtered DbSet; a CLI verb has resolved no tenant, so `seed --scale big`
+                // died on the first stop it wrote. The class doc above promised all three were
+                // cleared; only two were.
+                stop.ClearDomainEvents();
+
                 Stage(job);
                 database.Assignments.Add(stop);
                 jobs++;

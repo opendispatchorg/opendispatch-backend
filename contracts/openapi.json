@@ -2354,7 +2354,8 @@
           "email",
           "phone",
           "locations",
-          "erasedAt"
+          "erasedAt",
+          "retiredAt"
         ],
         "type": "object",
         "properties": {
@@ -2394,6 +2395,14 @@
               "string"
             ],
             "description": "When they asked to be forgotten, or `null` if they did not. A client showing a\ncustomer whose fields all read `[erased]` can say why, and an export answering a subject\naccess request carries the erasure rather than looking like data nobody filled in.",
+            "format": "date-time"
+          },
+          "retiredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When they were taken off the books, or `null` while they are current. Retired\nrecords are left out of the list, so a client that has one in hand — from a bookmark, an\nexport, or a job that predates the retirement — needs this to say why it looks inert, and to\nknow that reinstating is the way back.",
             "format": "date-time"
           }
         },
@@ -3607,7 +3616,8 @@
           "shiftStart",
           "shiftEnd",
           "latitude",
-          "longitude"
+          "longitude",
+          "retiredAt"
         ],
         "type": "object",
         "properties": {
@@ -3654,6 +3664,14 @@
             ],
             "description": "Their home base, in decimal degrees.",
             "format": "double"
+          },
+          "retiredAt": {
+            "type": [
+              "null",
+              "string"
+            ],
+            "description": "When they were taken off the books, or `null` while they are current. Retired\nrecords are left out of the list, so a client that has one in hand — from a bookmark, an\nexport, or a job that predates the retirement — needs this to say why it looks inert, and to\nknow that reinstating is the way back.",
+            "format": "date-time"
           }
         },
         "description": "One technician, as the clients see them."

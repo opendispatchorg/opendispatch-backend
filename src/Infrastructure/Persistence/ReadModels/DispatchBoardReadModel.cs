@@ -35,22 +35,6 @@ internal sealed class DispatchBoardReadModel(AppDbContext context) : IDispatchBo
 {
     public async Task<DispatchBoard> GetAsync(TimeWindow day, CancellationToken ct)
     {
-        var crew = await context.Technicians
-            // By name, because a lane is read by a person. The id breaks ties so two technicians
-            // with one name always draw in the same order.
-            .OrderBy(technician => technician.Name)
-            .ThenBy(technician => technician.Id)
-            .Select(technician => new
-            {
-                technician.Id,
-                technician.Name,
-                technician.Skills,
-                ShiftStart = technician.Shift.Start,
-                ShiftEnd = technician.Shift.End,
-                technician.HomeBase,
-            })
-            .ToListAsync(ct);
-
         var stops = await (
             from assignment in context.Assignments
             where assignment.ScheduledStart >= day.Start && assignment.ScheduledStart < day.End
@@ -81,6 +65,33 @@ internal sealed class DispatchBoardReadModel(AppDbContext context) : IDispatchBo
                         .FirstOrDefault(),
                 },
             }).ToListAsync(ct);
+
+        // Whose lanes to draw: everybody still on the crew, plus anybody retired who is still
+        // holding work on this day.
+        //
+        // A blanket "active only" filter would be the wrong fix and a tempting one. Retiring
+        // somebody deliberately does not unpick their day — RetireTechnicianCommand says so — so
+        // hiding them outright would make the stops they are still driving to invisible on the
+        // board and impossible to drag off them, which is worse than the empty lane it removes.
+        // Reading the stops first costs nothing: they are already materialised.
+        var working = stops.Select(stop => stop.TechnicianId).Distinct().ToList();
+
+        var crew = await context.Technicians
+            .Where(technician => technician.RetiredAt == null || working.Contains(technician.Id))
+            // By name, because a lane is read by a person. The id breaks ties so two technicians
+            // with one name always draw in the same order.
+            .OrderBy(technician => technician.Name)
+            .ThenBy(technician => technician.Id)
+            .Select(technician => new
+            {
+                technician.Id,
+                technician.Name,
+                technician.Skills,
+                ShiftStart = technician.Shift.Start,
+                ShiftEnd = technician.Shift.End,
+                technician.HomeBase,
+            })
+            .ToListAsync(ct);
 
         // Work promised inside the day that nobody is going to. "Schedulable" is the domain's own
         // answer, so a job that was cancelled does not sit in the pile forever — and a job the

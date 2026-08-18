@@ -67,6 +67,10 @@ make gen-contracts  # rebuild contracts/ - the @opendispatch/contracts package
 
 ## Deploying it
 
+**Before you run this for a real business, read
+[docs/KNOWN-ISSUES.md](docs/KNOWN-ISSUES.md)** — the open defects, the limitations that are
+deliberate, and the plain statement that none of this has yet run outside a laptop.
+
 A deployment is the same application with different arguments, in a container. It has no SDK, no
 tool manifest and no working tree, which is why the schema and the first login are verbs on the
 host rather than `make` targets:

@@ -146,6 +146,51 @@ public sealed class DemoSeedFlowTests
         Assert.Null(scope.ServiceProvider.GetService<DemoSeeder>());
     }
 
+    /// <summary>
+    /// The big seed runs to completion — the command the README and runbook both tell an operator
+    /// to run before measuring.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>This is the test whose absence let a real break ship.</strong> When
+    /// <c>Assignment.Create</c> started raising <c>AssignmentPlanned</c>, the seeded stop stopped
+    /// being cleared like the job and the invoice beside it — so the save dispatched the event,
+    /// <c>BoardNotifications</c> re-read through a tenant-filtered <c>DbSet</c>, and a CLI verb that
+    /// has resolved no tenant threw on the first stop it wrote. Nothing covered
+    /// <c>DemoScale.Big</c>, so nothing said.
+    /// </para>
+    /// <para>
+    /// It is slower than everything else in this suite, and it earns that: it is the only test that
+    /// exercises a year of history through the real aggregates, with no ambient tenant, exactly as
+    /// <c>make seed</c> does. It fails on the first written stop if the clearing regresses, so a
+    /// break costs seconds even though a pass costs a minute.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task WritesAYearOfHistoryWithNoTenantResolved()
+    {
+        await using var services = BuildHost();
+
+        using var scope = services.CreateScope();
+        var seeded = await scope.ServiceProvider.GetRequiredService<DemoSeeder>()
+            .SeedAsync(DemoScale.Big, CancellationToken.None);
+
+        var history = seeded.History;
+
+        Assert.NotNull(history);
+        Assert.Equal(ShopHistory.TradingDays, history.Days);
+        Assert.Equal(ShopHistory.TradingDays * ShopHistory.JobsPerDay, history.Jobs);
+
+        // Stops were written at all, which is the half that threw — the assignment is the one
+        // aggregate here whose events were not being cleared, and the failure came on the first
+        // one. Most jobs get a stop rather than all of them (a tail is left unassigned on purpose,
+        // so the board has a pile), hence a majority rather than equality: an exact count would be
+        // a number to update every time the generator is touched.
+        Assert.True(
+            history.Assignments > history.Jobs * 0.9,
+            $"only {history.Assignments} of {history.Jobs} jobs were planned.");
+    }
+
     private static async Task<DemoSeed> SeedAsync(ServiceProvider services)
     {
         // A scope of its own with no tenant resolved in it, which is what the seeder gets from

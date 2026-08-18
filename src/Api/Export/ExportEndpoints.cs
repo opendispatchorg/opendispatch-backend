@@ -162,7 +162,8 @@ public static class ExportEndpoints
         technician.ShiftStart,
         technician.ShiftEnd,
         technician.Latitude,
-        technician.Longitude);
+        technician.Longitude,
+        technician.RetiredAt);
 
     private static CustomerResponse ToResponse(CustomerDetail customer) => new(
         customer.Id.Value,
@@ -171,7 +172,8 @@ public static class ExportEndpoints
         customer.Phone,
         [.. customer.Locations.Select(location =>
             new ServiceLocationResponse(location.Id.Value, location.Label, location.Address, location.Latitude, location.Longitude))],
-        customer.ErasedAt);
+        customer.ErasedAt,
+        customer.RetiredAt);
 
     private static JobResponse ToResponse(JobSummary job) => Jobs.JobWire.ToResponse(job);
 

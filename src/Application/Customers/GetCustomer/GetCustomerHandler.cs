@@ -38,5 +38,6 @@ internal sealed class GetCustomerHandler(ICustomerRepository customers)
             location.Address,
             location.Point.Lat,
             location.Point.Lng))],
-        customer.ErasedAt);
+        customer.ErasedAt,
+        customer.RetiredAt);
 }
