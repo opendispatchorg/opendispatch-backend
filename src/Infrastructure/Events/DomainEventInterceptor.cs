@@ -84,9 +84,22 @@ internal sealed class DomainEventInterceptor(DomainEventQueue queue, DomainEvent
         {
             foreach (var root in Raised(context))
             {
+                // Whose reaction this is, read off the aggregate that raised it rather than from
+                // the ambient tenant. Two reasons: a save made outside a request (the demo seeder,
+                // a CLI verb) has no resolved tenant and would throw, and an aggregate is the
+                // authority on its own owner in a way a request's claim is not.
+                var owner = TenantOwnership.Of(root)
+                    ?? throw new InvalidOperationException(
+                        $"'{root.GetType().Name}' raised a domain event but does not say which "
+                        + "organization owns it, so its outbox row could never be delivered. Every "
+                        + "aggregate carries exactly one OrgId.");
+
                 foreach (var domainEvent in root.DomainEvents)
                 {
-                    context.Add(OutboxMessage.For(domainEvent, DomainEventSerializer.Serialize(domainEvent)));
+                    context.Add(OutboxMessage.For(
+                        domainEvent,
+                        DomainEventSerializer.Serialize(domainEvent),
+                        owner));
                 }
 
                 queue.Enqueue(root.DomainEvents);

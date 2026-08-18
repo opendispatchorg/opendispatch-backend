@@ -137,17 +137,17 @@ public sealed class OutboxTests
 
             await writing.Database.ExecuteSqlAsync(
                 $"""
-                INSERT INTO outbox_messages (id, type, payload, occurred_at, attempts, change_seq)
-                VALUES ({Guid.NewGuid()}, {RenamedEvent},
+                INSERT INTO outbox_messages (id, org_id, type, payload, occurred_at, attempts, change_seq)
+                VALUES ({Guid.NewGuid()}, {_tenant.Value}, {RenamedEvent},
                         CAST({payload} AS jsonb), {MondayMorning}, 0, 0)
                 """);
         }
 
         using (var scope = services.ActingAs(_tenant))
         {
-            // What the sweep delivered in total is not this test's to claim: the outbox belongs to
-            // the deployment rather than to a tenant, and the shared container carries whatever
-            // earlier classes left in it. What is this test's is the row below.
+            // What the sweep delivered in total is not this test's to claim: the shared container
+            // carries whatever earlier classes left in it. What is this test's is the row below —
+            // which now needs an org_id, because a sweep claims one tenant's messages at a time.
             await scope.ServiceProvider.GetRequiredService<OutboxSweep>()
                 .DeliverPendingAsync(TimeSpan.Zero, batchSize: 50, CancellationToken.None);
         }

@@ -1,4 +1,5 @@
 using OpenDispatch.Domain.Common;
+using OpenDispatch.Domain.Identifiers;
 
 namespace OpenDispatch.Infrastructure.Events;
 
@@ -42,9 +43,10 @@ public sealed class OutboxMessage
         Payload = string.Empty;
     }
 
-    private OutboxMessage(Guid id, string type, string payload, DateTimeOffset occurredAt)
+    private OutboxMessage(Guid id, OrgId orgId, string type, string payload, DateTimeOffset occurredAt)
     {
         Id = id;
+        OrgId = orgId;
         Type = type;
         Payload = payload;
         OccurredAt = occurredAt;
@@ -52,6 +54,28 @@ public sealed class OutboxMessage
 
     /// <summary>This message's identity, and what a claim locks.</summary>
     public Guid Id { get; private set; }
+
+    /// <summary>
+    /// Whose reaction this is — the organization owning the aggregate that raised the event.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Without this the sweep could not work at all.</strong> Every subscriber it publishes
+    /// to is tenant-scoped: the board notifier reads <c>ITenantContext.OrgId</c>, and the stop
+    /// withdrawal reads assignments through a query filter built on it. A background dispatcher has
+    /// resolved nobody, so reading it threw, the message was marked failed, and the row stayed —
+    /// forever. The outbox was a table that filled up rather than a safety net.
+    /// </para>
+    /// <para>
+    /// <strong>Nullable, for two reasons.</strong> Rows written before this column existed have no
+    /// owner and cannot be given one honestly — they are skipped and named in the log rather than
+    /// guessed at or deleted by a migration. And a nullable <c>OrgId</c> is deliberately not matched
+    /// by <c>TenantOwnership.PropertyOf</c>, so no global query filter is applied to this table: the
+    /// sweep has to read across tenants to find whose work is waiting. See
+    /// <c>TenantQueryFilters</c>.
+    /// </para>
+    /// </remarks>
+    public OrgId? OrgId { get; private set; }
 
     /// <summary>
     /// The event's CLR type, by full name, resolved back within the Domain assembly.
@@ -88,12 +112,18 @@ public sealed class OutboxMessage
     /// <summary>Records an event to be delivered.</summary>
     /// <param name="domainEvent">What happened.</param>
     /// <param name="payload">The event serialized.</param>
-    public static OutboxMessage For(IDomainEvent domainEvent, string payload)
+    /// <param name="orgId">
+    /// The organization owning the aggregate that raised it — taken from the aggregate rather than
+    /// from the ambient tenant, so a save made outside a request (the seeder, a CLI verb) records
+    /// the right owner instead of throwing.
+    /// </param>
+    public static OutboxMessage For(IDomainEvent domainEvent, string payload, OrgId orgId)
     {
         ArgumentNullException.ThrowIfNull(domainEvent);
 
         return new OutboxMessage(
             Guid.NewGuid(),
+            orgId,
             domainEvent.GetType().FullName!,
             payload,
             domainEvent.OccurredAt);

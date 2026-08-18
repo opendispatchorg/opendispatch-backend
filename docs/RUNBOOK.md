@@ -261,6 +261,28 @@ give you one from an error message, it is the fastest way into the logs.
 A degraded host answers 503 deliberately: readiness is a yes/no question for a load balancer, and
 the body is where the nuance lives.
 
+### The log says messages "predate tenant-aware delivery"
+
+Rows written before `outbox_messages` recorded which organization a message belongs to. The sweep
+resolves a tenant per message before publishing — every subscriber it calls is tenant-scoped — so a
+row with no owner cannot be delivered, and there is no honest way to guess whose it was. They are
+left rather than deleted by the migration, because throwing away undelivered reactions is the same
+silent loss the table exists to prevent.
+
+```sql
+SELECT org_id, type, count(*), min(occurred_at)
+FROM outbox_messages GROUP BY org_id, type ORDER BY 4;
+```
+
+Rows with `org_id IS NULL` are the legacy ones. Read what they were — the `type` says which
+reaction — decide whether anything is owed, act on it by hand if so, then clear them:
+
+```sql
+DELETE FROM outbox_messages WHERE org_id IS NULL;
+```
+
+On a deployment that has never run a version older than this one, there are none.
+
 ### Rows are accumulating in `outbox_messages`
 
 ```sql

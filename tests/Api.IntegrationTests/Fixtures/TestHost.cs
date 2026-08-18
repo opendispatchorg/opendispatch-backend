@@ -61,6 +61,7 @@ internal static class TestHost
             // principal until step 45.
             .AddScoped<TestTenantContext>()
             .AddScoped<ITenantContext>(provider => provider.GetRequiredService<TestTenantContext>())
+            .AddScoped<ITenantScope>(provider => provider.GetRequiredService<TestTenantContext>())
             // The real adapter lives in Api and needs a running host (step 51); this satisfies
             // BoardNotifications' unconditional subscription without one.
             .AddScoped<IBoardNotifier, NoOpBoardNotifier>();

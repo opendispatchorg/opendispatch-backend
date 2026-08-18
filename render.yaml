@@ -36,7 +36,31 @@ services:
     dockerfilePath: ./Dockerfile
     plan: starter
     region: frankfurt
-    healthCheckPath: /health/ready
+
+    # Liveness, not readiness — and the distinction matters more here than it looks.
+    #
+    # /health/ready answers 503 for *degraded* as well as unhealthy, and an unreachable attachment
+    # store or SignalR backplane is deliberately degraded: a shop can still dispatch, sync and
+    # invoice without either. Pointing a platform health check at it converts "one capability is
+    # down" into "take this instance out of rotation", so a transient blip at the object store would
+    # pull the whole API and could fail a deploy. /health/live answers for the process.
+    #
+    # Readiness is still the right probe for a load balancer that can route around one instance, and
+    # for the runbook's first alert. It is the wrong probe for a platform whose only lever is
+    # restarting or refusing the deploy.
+    healthCheckPath: /health/live
+
+    # One instance, deliberately, and this is the line to change when that stops being true.
+    #
+    # Two things in this system are correct only at one instance, and both fail quietly rather than
+    # loudly. SignalR keeps its groups in the memory of the process holding the connection, so
+    # without a Redis backplane a dispatcher connected to one instance never sees a change made
+    # through another — no error, nothing logged. And the rate limits are per process, so N
+    # instances mean N times every cap.
+    #
+    # Scaling therefore means: provision Redis, set SignalR__Redis below, and accept (or fix) the
+    # rate-limit multiplication. Until then this number is load-bearing.
+    numInstances: 1
 
     # The runbook's order, enforced by the platform: the schema is applied before the new version
     # serves, once, rather than by every replica racing on startup. A non-zero exit here stops the
@@ -93,9 +117,9 @@ services:
       - key: Cors__Origins__0
         sync: false
 
-      # Optional, and doing nothing until set: a mail server for customer notifications, and a
-      # Redis backplane for running more than one instance. Left here as the list of what a
-      # deployment turns on next.
+      # Optional, and doing nothing until set: a mail server for customer notifications. A Redis
+      # backplane is not listed here as an ordinary extra, deliberately — see numInstances above:
+      # it is not "what a deployment turns on next", it is a precondition for scaling at all.
       - key: Mail__Host
         sync: false
       - key: Mail__From

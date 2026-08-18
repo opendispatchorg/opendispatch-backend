@@ -117,6 +117,11 @@ public static class PersistenceRegistration
         services.AddScoped<TenantContext>();
         services.AddScoped<ITenantContext>(provider => provider.GetRequiredService<TenantContext>());
 
+        // The write half, for the two things entitled to say whose work a scope is for: the API's
+        // tenant middleware, and the outbox dispatcher, which serves no request and takes the owner
+        // off each message. See ITenantScope.
+        services.AddScoped<ITenantScope>(provider => provider.GetRequiredService<TenantContext>());
+
         // Who, beside what they may see. Resolved by the same middleware from the same principal;
         // unresolved for a sign-in, a sweep or a verb, which is a state the port allows.
         services.AddScoped<CallerContext>();

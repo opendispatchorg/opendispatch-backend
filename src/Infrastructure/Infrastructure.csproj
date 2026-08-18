@@ -58,6 +58,18 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!--
+      The integration suite reaches two internals here: OutboxDispatcher.SweepAsync and
+      OutboxTrail.ForgetAsync. Both were unreachable from a test, and both held a defect for it —
+      the dispatcher swept with no tenant resolved, so every background delivery threw and became a
+      poison row, and the trail deleted other tenants' undelivered rows. The half that was extracted
+      "so a test can drive a sweep" was the half without the bug. The same arrangement Scheduling
+      and Api already have with their own tests.
+    -->
+    <InternalsVisibleTo Include="OpenDispatch.Api.IntegrationTests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\Application\Application.csproj" />
     <ProjectReference Include="..\Domain\Domain.csproj" />
     <ProjectReference Include="..\Scheduling\Scheduling.csproj" />

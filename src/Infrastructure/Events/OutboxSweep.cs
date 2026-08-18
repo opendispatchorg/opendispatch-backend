@@ -22,6 +22,14 @@ namespace OpenDispatch.Infrastructure.Events;
 /// between scaling being safe and scaling being a surprise.
 /// </para>
 /// <para>
+/// <strong>One tenant per sweep, and the caller resolves it.</strong> Every subscriber this
+/// publishes to is tenant-scoped, so a sweep that had resolved nobody threw on the first one, marked
+/// the message failed and left it — forever. <c>OutboxDispatcher</c> therefore asks which
+/// organizations have work waiting and calls this once per organization, inside a scope that has
+/// resolved that one. The claim below is scoped to match, so the rows a sweep locks are the rows it
+/// is entitled to publish.
+/// </para>
+/// <para>
 /// <strong>The reaction commits with the delivery.</strong> A subscriber that writes does so through
 /// the same scoped context this transaction belongs to, so the work it does and the disappearance of
 /// the message are one commit: a reaction cannot half-happen.
@@ -64,10 +72,16 @@ public sealed class OutboxSweep(
 
             await using var transaction = await context.Database.BeginTransactionAsync(ct).ConfigureAwait(false);
 
+            // One tenant's messages, because this scope has resolved one and every subscriber below
+            // reads it — the board notifier directly, the stop withdrawal through a query filter.
+            // A claim across tenants would publish another organization's event under this one's
+            // identity, which is worse than not delivering it at all.
+            var owner = context.CurrentOrgId.Value;
+
             var claimed = await context.Outbox
                 .FromSql($"""
                     SELECT * FROM outbox_messages
-                    WHERE occurred_at < {older}
+                    WHERE occurred_at < {older} AND org_id = {owner}
                     ORDER BY occurred_at
                     LIMIT {batchSize}
                     FOR UPDATE SKIP LOCKED
