@@ -165,10 +165,11 @@ public sealed class DemoSeeder(
     /// </summary>
     /// <remarks>
     /// <para>
-    /// Separate from <see cref="SeedAsync"/> because it has to happen somewhere else. The user
-    /// store is an in-memory singleton (step 44), so a login written by the <c>make seed</c>
-    /// process would die with it — the host that serves the demo is the only process that can
-    /// usefully hold one, and it calls this on startup. <see cref="SeedAsync"/> reports the same
+    /// Separate from <see cref="SeedAsync"/> because the host that serves the demo calls it on
+    /// startup, so a demo is reproducible whether or not anybody ran the seeder in this container.
+    /// It once <em>had</em> to be separate — the user store was an in-memory singleton, so a login
+    /// written by the <c>make seed</c> process died with it — and no longer does: the store is
+    /// <c>EfUserStore</c> over the <c>users</c> table. <see cref="SeedAsync"/> reports the same
     /// credentials so a developer knows what to type; this is what makes them work.
     /// </para>
     /// <para>

@@ -210,7 +210,7 @@ Nothing here assumes a particular monitoring stack. Set `Otel:Endpoint` and a co
 are written in PromQL because that is the most common thing on the far side of a collector, and they
 translate.
 
-**Five alerts. They are few on purpose** — a page that fires weekly is a page nobody reads.
+**Eight alerts. They are few on purpose** — a page that fires weekly is a page nobody reads.
 
 | Alert | Condition | Why this threshold | First thing to do |
 |---|---|---|---|
@@ -218,7 +218,11 @@ translate.
 | **Requests are failing** | `sum(rate(http_server_request_duration_seconds_count{http_response_status_code=~"5.."}[5m])) / sum(rate(http_server_request_duration_seconds_count[5m])) > 0.02` for 10 minutes | 5xx is *this system's* fault by definition — a refusal is a 4xx and a sync conflict is a 200. Two percent over ten minutes is a bug affecting real requests rather than one bad client. | Find the `traceId` in the logs and read the exception; one endpoint or all of them is the first question. |
 | **Reactions are not being delivered** | `SELECT count(*) FROM outbox_messages WHERE occurred_at < now() - interval '5 minutes'` > 0 for 15 minutes | The sweep clears an ordinary backlog within a minute (10s interval, 30s grace). Anything older than five minutes and still there has failed repeatedly. | [Rows accumulating in `outbox_messages`](#rows-are-accumulating-in-outbox_messages) below. Every row is work a shop believes happened. |
 | **Planning a day has got slow** | `histogram_quantile(0.95, sum by (le) (rate(opendispatch_scheduling_optimize_duration_milliseconds_bucket[15m]))) > 5000` for 30 minutes | A dispatcher presses this button and waits at their desk; five seconds is the edge of tolerable, and the p95 rather than the max so one enormous day does not page anybody. | Compare against the day's size. A shop that has grown needs the budget re-measured, not the alert raised. |
+| **Sign-ins are failing in bulk** | `sum(rate(opendispatch_auth_signin_failures_total[5m])) > 1` for 10 minutes, or any sustained rate of the `disabled` reason | The limiter only fires when a cap is *hit*, so a patient attacker staying under 20 attempts per 300s produced no signal at all. This counts every refusal, tagged by reason: `unknown` in bulk is a username list being worked through, `password` is either an attack or a shop that changed something, and `disabled` is somebody who left still trying. | Read the reason tag first — it decides whether this is an attack, a person, or your own change. Then the row below. |
 | **Somebody is guessing passwords** | `sum(rate(aspnetcore_rate_limiting_requests_rejected_total[5m])) > 1` for 10 minutes | The limiter only guards `/auth/login` (20 attempts per address per 300s). Sustained rejections are either an attack or an office behind one NAT address. | If it is one address from outside, the limiter is doing its job and there is nothing to do. If it is the shop, raise `RateLimit:PermitLimit`. |
+
+| **Housekeeping stopped** | No successful `opendispatch-prune` run in 48 hours | It is the **only** thing bounding `sync_ops` and `sync_removals`; both grow forever without it, and the first symptom is a full disk rather than a slow query. Alert on the cron's exit status or its last-success time — whatever your platform exposes. | Run `prune --days 30` by hand, then find out why the schedule stopped. Render surfaces cron runs and their exit codes under the job. |
+| **The attachment backup has not run** | No object-store sync in 48 hours | `pg_dump` does not carry the photographs, and nothing in the blueprint backs up the bucket — see Backup below. An invoice whose photograph is missing is half a record. | Run the sync by hand and fix the schedule. |
 
 Two things worth watching without paging anybody:
 

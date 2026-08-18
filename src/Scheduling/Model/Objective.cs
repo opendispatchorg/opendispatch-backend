@@ -19,7 +19,8 @@ namespace OpenDispatch.Scheduling.Model;
 /// </para>
 /// <para>
 /// This type holds the prices only. The arithmetic that applies them to a
-/// <see cref="Solution"/> is the objective <em>evaluator</em>, and it does not exist yet.
+/// <see cref="Solution"/> is <c>ObjectiveEvaluator</c>, deliberately kept separate: a weight is a
+/// setting a caller chooses, and the cost of a plan is a computation over one.
 /// </para>
 /// </remarks>
 /// <param name="Travel">Cost of one minute of driving. The unit the other three are quoted in.</param>

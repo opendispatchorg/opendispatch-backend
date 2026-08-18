@@ -37,6 +37,18 @@ internal static partial class CreateUserLog
             + "identity.")]
     internal static partial void TechnicianOnAnOfficeLogin(ILogger logger);
 
+    /// <remarks>
+    /// The message names the consequence rather than the rule, because the operator who typed this
+    /// almost certainly meant to reset a password and would otherwise read a refusal as a bug.
+    /// </remarks>
+    [LoggerMessage(
+        Level = LogLevel.Error,
+        Message = "That username already belongs to a different organization, so creating it under "
+            + "{Organization} would move that person between tenants rather than reset their password. "
+            + "Usernames are unique across the whole deployment. Use a different one, or run "
+            + "disable-user first if somebody really is leaving one organization for another.")]
+    internal static partial void UsernameBelongsElsewhere(ILogger logger, string organization);
+
     [LoggerMessage(Level = LogLevel.Error, Message = "A password must be at least {Minimum} characters.")]
     internal static partial void PasswordTooShort(ILogger logger, int minimum);
 

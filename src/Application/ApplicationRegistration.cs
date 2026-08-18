@@ -78,6 +78,7 @@ public static class ApplicationRegistration
         services.AddMetrics();
         services.AddSingleton<SchedulingMetrics>();
         services.AddSingleton<SyncMetrics>();
+        services.AddSingleton<AuthMetrics>();
 
         return services;
     }

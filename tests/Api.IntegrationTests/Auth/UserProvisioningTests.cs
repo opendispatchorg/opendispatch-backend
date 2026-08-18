@@ -103,6 +103,50 @@ public sealed class UserProvisioningTests
     }
 
     /// <summary>
+    /// The same username under a different organization is refused, not moved.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// Usernames are unique across the whole deployment, and <c>create-user</c> replaces an existing
+    /// login rather than refusing it — a password reset is the only one this system has. Together
+    /// those meant a mistyped <c>--org</c> silently <em>reassigned</em> somebody to another tenant
+    /// and reported "replaced": one argument wrong, and a login crossed a tenant boundary with every
+    /// query filter behind it dutifully following them across.
+    /// </para>
+    /// <para>
+    /// The row must be untouched afterwards, not merely un-moved — a refusal that had already
+    /// rewritten the password would be a failed command that changed something.
+    /// </para>
+    /// </remarks>
+    [Fact]
+    public async Task RefusesAUsernameThatBelongsToAnotherOrganization()
+    {
+        await using var services = BuildHost();
+        var username = $"sam-{Guid.NewGuid():N}@riverside.example";
+        var here = $"Riverside {Guid.NewGuid():N}";
+        var elsewhere = $"Lakeside {Guid.NewGuid():N}";
+
+        await ProvisionAsync(services, username, "first-password-here", UserRole.Dispatcher, here);
+        var theirs = await FindAsync(services, username);
+
+        var moved = await ProvisionAsync(services, username, "second-password-here", UserRole.Admin, elsewhere);
+
+        Assert.Equal(ProvisioningRefusal.UsernameBelongsToAnotherOrganization, moved.Refusal);
+        Assert.Null(moved.Provisioned);
+
+        // Still theirs, still their organization, still their password and their role.
+        var after = await FindAsync(services, username);
+
+        Assert.Equal(theirs!.OrgId, after!.OrgId);
+        Assert.Equal(UserRole.Dispatcher, after.Role);
+
+        using var scope = services.CreateScope();
+        var hasher = scope.ServiceProvider.GetRequiredService<IPasswordHasher>();
+
+        Assert.True(hasher.Verify("first-password-here", after.PasswordHash));
+    }
+
+    /// <summary>
     /// A technician login has to name a technician who works here. Without the check, the login
     /// authenticates and then answers for nobody — <c>/sync/pull</c> scopes to the technician on
     /// the token, so the technician's day would simply be empty forever.

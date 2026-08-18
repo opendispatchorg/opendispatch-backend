@@ -24,9 +24,11 @@ namespace OpenDispatch.Application.Sync;
 /// the row rather than deleting it, so the row's own stamp reports it. Two ways in, one answer out.
 /// </para>
 /// <para>
-/// Nothing prunes these yet. They are small — an id, an owner and an instant — and a shop deletes
-/// stops in the hundreds a year, so the honest answer is that it becomes a question when there is a
-/// retention policy for anything else.
+/// <c>SyncLogPruner</c> deletes these past the retention window, alongside the sync op log — the
+/// two tables nothing else ever deletes from. The window is how far behind a device may be and
+/// still be told about a deletion individually; one further behind learns the whole truth on a full
+/// resync instead. A deployment schedules it (<c>prune --days 30</c>); without that they grow
+/// forever.
 /// </para>
 /// </remarks>
 public sealed class SyncRemoval

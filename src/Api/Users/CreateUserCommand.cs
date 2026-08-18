@@ -140,6 +140,9 @@ internal static class CreateUserCommand
             case ProvisioningRefusal.TechnicianOnAnOfficeLogin:
                 CreateUserLog.TechnicianOnAnOfficeLogin(app.Logger);
                 break;
+            case ProvisioningRefusal.UsernameBelongsToAnotherOrganization:
+                CreateUserLog.UsernameBelongsElsewhere(app.Logger, organization);
+                break;
             default:
                 CreateUserLog.Refused(app.Logger, "the request was refused.");
                 break;

@@ -129,9 +129,19 @@ internal static partial class StartupLog
         }
     }
 
+    /// <remarks>
+    /// A warning rather than information, and the only startup line that is one. Erasure deletes a
+    /// photograph, and a bucket with versioning or object-lock retention turned on answers a delete
+    /// by hiding the object rather than removing it — so a picture of somebody's home stays
+    /// recoverable after they were told it was gone. Nothing in this process can check that without
+    /// bucket-administration permissions it should not hold, and prose in a README is not read by
+    /// the person who clicked "enable versioning" a year later. Every boot says it instead.
+    /// </remarks>
     [LoggerMessage(
-        Level = LogLevel.Information,
-        Message = "Attachment content is stored in bucket {Bucket} at {Endpoint}.")]
+        Level = LogLevel.Warning,
+        Message = "Attachment content is stored in bucket {Bucket} at {Endpoint}. Confirm the bucket has "
+            + "versioning and object-lock retention OFF: erasing a customer deletes their photographs, "
+            + "and a versioned bucket only hides them.")]
     private static partial void InBucket(ILogger logger, string bucket, string endpoint);
 
     [LoggerMessage(

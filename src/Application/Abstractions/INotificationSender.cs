@@ -11,9 +11,17 @@ namespace OpenDispatch.Application.Abstractions;
 /// raises those events has to change, which is the extension model working as intended.
 /// </para>
 /// <para>
-/// Nothing implements it and nothing calls it in v1. It is declared here so that the
-/// handlers, when they come, are additions rather than a port plus its callers plus an
-/// adapter all landing at once.
+/// <c>SmtpNotificationSender</c> implements it and <c>CustomerNotifications</c> calls it, for the
+/// two moments a customer wants to hear about: their technician is on the way, and their invoice
+/// has been settled. Declaring the port first turned out to be worth it — the feature arrived as
+/// one subscriber and one adapter rather than as a port plus its callers plus an adapter all at
+/// once.
+/// </para>
+/// <para>
+/// <strong>It may be unregistered, and callers must cope.</strong> A deployment that names no mail
+/// server gets no implementation at all rather than a no-op — a do-nothing adapter would report
+/// success for messages nobody sent. <c>CustomerNotifications</c> therefore takes it as an optional
+/// constructor argument and does nothing when it is absent.
 /// </para>
 /// </remarks>
 public interface INotificationSender

@@ -122,9 +122,20 @@ each cost an afternoon:
   relying on detection.
 
 The schema is applied by `preDeployCommand`, which is the runbook's order made structural: `migrate`
-runs once, before the new version serves, and a non-zero exit stops the deploy. `healthCheckPath` is
-`/health/ready`, so Render will not route to an instance whose database or attachment store is not
-answering.
+runs once, before the new version serves, and a non-zero exit stops the deploy.
+
+`healthCheckPath` is **`/health/live`**, not `/health/ready`, and that is deliberate. Readiness
+answers 503 for *degraded* as well as unhealthy — an unreachable attachment store or backplane is
+degraded, because a shop can still dispatch, sync and invoice without either — so pointing a
+platform health check at it would let a transient blip at the object store pull the whole instance
+and fail a deploy. Readiness is the right probe for a load balancer that can route around one
+instance, and for the runbook's first alert; it is the wrong one for a platform whose only lever is
+restarting.
+
+The blueprint also pins `numInstances: 1`. Two things in this system are correct only at one
+instance — the live board without a Redis backplane, and the per-process rate limits — and both fail
+quietly. Scaling means provisioning Redis, setting `SignalR__Redis`, and accepting the multiplied
+caps.
 
 `.env.example` is the whole configuration surface in one file — every key, what it does, and which
 ones are required. It replaces reading three sections of this README and hoping.
@@ -139,7 +150,7 @@ Four things a real deployment owns:
 | **Attachments** | Photographs and signatures are the only data not in Postgres, and a deployment picks where they live: a **disk** (`Attachments__Root`, `/var/lib/opendispatch/attachments` in the image) or an **S3-compatible bucket** (`Attachments__Bucket`). Choose by what your platform's filesystem is, not by scale — see [Where the photographs live](#where-the-photographs-live) below. |
 | **TLS** | Terminated by a proxy in front; the container serves plain HTTP on 8080. Set `ReverseProxy:Enabled` so the host believes the forwarded address, and only when it is unreachable except through that proxy. **`Strict-Transport-Security` is only sent once the host can see the request arrived over HTTPS**, which behind a proxy means this flag is on — otherwise a browser would be told never to use plain HTTP for this origin again, which no server-side change undoes. |
 | **Connection pool** | Sized in the connection string, not in code, so it can match the database you actually have: `Maximum Pool Size` (Npgsql's default is 100) should be at or below what Postgres will grant this deployment across every instance, `Minimum Pool Size=2` keeps a connection warm, and `Timeout=15` bounds waiting for one. A single command is capped at 30 seconds regardless. |
-| **More than one instance** | Set `SignalR:Redis`. SignalR keeps its groups in the memory of the process holding the connection, so **without a backplane the live board is correct only while there is exactly one API instance** — a dispatcher connected to one would never see a change made through another, silently. One instance is a supported way to run this; two without Redis is not. The host says which it is in its startup log. |
+| **More than one instance** | Two things are correct only at one instance, and both fail quietly. **The live board:** SignalR keeps its groups in the memory of the process holding the connection, so without `SignalR:Redis` a dispatcher connected to one instance never sees a change made through another — no error, nothing logged. The host says which it has in its startup log. **The rate limits:** all three are per process, so N instances mean N times every cap — 20×N sign-in attempts per window, 60×N pushes per technician, 10×N optimisations per organization. There is no distributed limiter. Scaling means provisioning Redis *and* deciding whether the multiplied caps are acceptable; `render.yaml` pins one instance for exactly this reason. Attachments need a bucket rather than a disk, which the same section covers. |
 
 Back up the database and the attachment store together: an invoice whose photograph is missing is
 half a record, and Document 1's promise is that the business owns all of it. The exact commands, and
@@ -248,6 +259,59 @@ Messages can arrive twice. Domain-event delivery is at-least-once, so a "your te
 way" that the outbox re-delivers is sent again. That is tolerable for email and is exactly why email
 is the first channel; it is also why nothing that costs money is triggered this way.
 
+### Who can reach what, and the two limits of it
+
+Three roles — Admin, Dispatcher, Technician — and every route says which it wants. The office side
+(customers, jobs, the board, scheduling) is Admin or Dispatcher; a technician's own surfaces are
+`/sync/*` and attachments; export, invoicing and erasure are Admin only.
+
+Two properties are worth stating outright, because both are deliberate and both would surprise
+somebody who assumed otherwise:
+
+- **Within one organization, a technician can act on any job — and read any attachment.** The tenant
+  boundary is the one this system enforces; inside it, field workers cover for each other. Enforcing
+  "only your own stops" would refuse real work, because a stop reassigned while a phone was offline
+  is the ordinary case, and a technician taking over a job needs the photographs the last one took.
+  Every action is recorded against whoever did it. **If you run subcontractors on one tenant, this
+  is not the isolation you want** — that needs a policy on the push path and on attachment reads,
+  and it is not here.
+- **Signing somebody out is not immediate.** `disable-user` stops the next sign-in; the token they
+  already hold keeps working until it expires, because nothing reads the user store per request.
+  The window is `Jwt:ExpiryMinutes`, **720 (twelve hours) by default** — a shift plus room either
+  side, chosen because a technician in a basement with no signal cannot log in again mid-job.
+  Shorten it if that trade is wrong for you and your crew has signal; the only *immediate* lever is
+  rotating `Jwt:SigningKey`, which signs out everybody at once. Closing the gap properly needs
+  refresh tokens, which this does not have.
+
+Failed sign-ins are counted on `opendispatch.auth.signin.failures`, tagged by reason (`unknown`,
+`password`, `disabled`) — server-side only, so it is not an enumeration oracle; the endpoint still
+answers every failure identically. Alert on it: the login rate limiter fires only when a cap is
+*hit*, so a patient attacker staying under twenty attempts per five minutes produced no signal at
+all before this.
+
+### Getting paid — and what "paid" means here
+
+**Nothing in this system charges a card.** `POST /invoices/{id}/pay` is bookkeeping: it records that
+somebody paid, moves the invoice to `Paid` and the job with it. The money changed hands somewhere
+else — cash, a card machine in the van, a bank transfer — and this is where you write that down.
+
+That is a deliberate v1 boundary, not an unfinished feature. Document 1 puts real payment processing
+out of scope; invoicing stops at "mark paid". Three consequences worth knowing before you deploy
+this for a business:
+
+- **`FakePaymentGateway` always succeeds**, and it is registered in every environment. It is the
+  whole of what v1 offers, not a stub — but it means the "payment refused" path has never run.
+- **The gateway's transaction reference is discarded.** `MarkPaidHandler` takes the result and does
+  not store it, because there is nothing yet to reconcile against a statement. A real processor
+  needs a column before it needs an adapter.
+- **The customer is emailed a receipt** when an invoice is settled, if `Mail:Host` is configured.
+  It says payment was *recorded*, which is true — but it goes out on your say-so, not a bank's.
+
+Replacing it is one adapter. `IPaymentGateway` is a port with a single method; write a
+`StripePaymentGateway` beside the fake in `src/Infrastructure/Payments/`, register it instead, and
+nothing in Application or Domain changes. Do the column first: the charge currently happens inside
+the same transaction as the invoice update, which is safe only while the charge does nothing.
+
 ### Erasing a customer
 
 `POST /customers/{id}/erase`, admin only, is how a shop answers a request to be forgotten. It is
@@ -309,7 +373,7 @@ Optional, and doing nothing until set:
 | Key | Effect |
 |---|---|
 | `Cors:Origins` | Browser origins allowed to call the API and the hub. Empty means no browser client can call it — set it to your dispatch board and technician app origins. |
-| `RateLimit:*` | Three caps. Sign-in attempts per address per window (`20` per `300`s) — raise it for an office behind one NAT address. `PushesPerMinute` per technician (`60`) and `OptimizationsPerMinute` per organization (`10`), which are not about attackers: a phone stuck in a retry loop and a browser with a wedged refresh are ordinary accidents, and both can spend a shop's database. `Enabled` turns all three off. |
+| `RateLimit:*` | Three caps. Sign-in attempts per address per window (`20` per `300`s) — raise it for an office behind one NAT address. `PushesPerMinute` per technician (`60`) and `OptimizationsPerMinute` per organization (`10`), which are not about attackers: a phone stuck in a retry loop and a browser with a wedged refresh are ordinary accidents, and both can spend a shop's database. `Enabled` turns all three off. **Per process, not per deployment** — see "More than one instance" above. |
 | `ReverseProxy:Enabled` | Read `X-Forwarded-For`/`-Proto`. Turn it on **only** when this host is unreachable except through the proxy, or narrow it with `KnownProxies`/`KnownNetworks`. |
 | `Attachments:Bucket` | An S3-compatible bucket for photographs and signatures, instead of `Attachments:Root` on a disk. With it, `Attachments:ServiceUrl` (the store's endpoint; unset means Amazon S3) and `Attachments:Region` (required for Amazon, conventionally `auto` or `us-east-1` elsewhere). Access keys come from `AWS_ACCESS_KEY_ID`/`AWS_SECRET_ACCESS_KEY` or a platform role and have no configuration key at all. **Required, not optional, on any platform whose container filesystem is ephemeral** — see "Where the photographs live" above. |
 | `Mail:*` | An SMTP server, and customers get told two things: their technician is on the way, and their invoice has been settled. `Mail:Host` is what turns it on; with it, `Mail:From` is required, and `Mail:Port` (587), `Mail:FromName`, `Mail:Username` and `Mail:Password` fill in the rest. Supply the password through the environment (`Mail__Password`). Unset means **nothing is sent and nothing fails** — see "Telling customers" below. |

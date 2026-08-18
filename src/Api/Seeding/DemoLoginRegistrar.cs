@@ -8,12 +8,17 @@ namespace OpenDispatch.Api.Seeding;
 /// </summary>
 /// <remarks>
 /// <para>
-/// The demo login cannot be seeded by <c>make seed</c>, and this is the consequence rather than a
-/// convenience. Step 44's user store is an in-memory singleton — a deliberate choice, since
-/// Document 3 names no users table, no user endpoint and no step that manages one — so a login
-/// written by the seeding process dies when that process exits. The host that serves the demo is
-/// the only process that can hold one, so it establishes them itself, from the organization
-/// <c>make seed</c> left in the database.
+/// The demo logins are established here rather than by <c>make seed</c>. That began as a necessity
+/// — the user store was an in-memory singleton, so a login written by the seeding process died with
+/// it — and the necessity is gone: the store is <c>EfUserStore</c> over a real <c>users</c> table,
+/// so <c>make seed</c> could write them now.
+/// </para>
+/// <para>
+/// It stays here anyway, for a different and better reason: a demo host must be able to serve its
+/// own logins whether or not anybody ran the seeder in this container, and re-establishing them on
+/// every start is what makes a demo reproducible after somebody has changed a password poking at
+/// it. What it does write goes to the database like any other login, so nothing dies with a
+/// process any more.
 /// </para>
 /// <para>
 /// Registered only in Development, alongside <see cref="DemoSeeder"/> itself. A production host

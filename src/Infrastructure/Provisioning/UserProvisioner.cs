@@ -35,6 +35,19 @@ public enum ProvisioningRefusal
 
     /// <summary>A technician was named for a login that is not a technician's.</summary>
     TechnicianOnAnOfficeLogin,
+
+    /// <summary>
+    /// The username already exists in a different organization.
+    /// </summary>
+    /// <remarks>
+    /// A username is unique across the whole deployment, and <c>create-user</c> replaces an existing
+    /// login rather than refusing it — which together meant naming the wrong organization silently
+    /// <em>moved</em> somebody into it, reporting "replaced". One mistyped argument, and a login
+    /// crossed a tenant boundary with every query filter behind it dutifully following. Refused
+    /// instead: moving a person between organizations is not something a password reset should do
+    /// as a side effect.
+    /// </remarks>
+    UsernameBelongsToAnotherOrganization,
 }
 
 /// <summary>
@@ -114,6 +127,14 @@ public sealed class UserProvisioner(AppDbContext database, IUserStore users, IPa
         }
 
         var replacing = await users.FindByUsernameAsync(username, ct).ConfigureAwait(false);
+
+        // Replacing a login is a password reset; moving one between organizations is not, and the
+        // upsert underneath cannot tell the difference. Checked here because this is the only layer
+        // that knows an organization was named at all.
+        if (replacing is { } held && held.OrgId != organization.Id)
+        {
+            return (null, ProvisioningRefusal.UsernameBelongsToAnotherOrganization);
+        }
 
         await users.AddAsync(
             new AuthUser(
