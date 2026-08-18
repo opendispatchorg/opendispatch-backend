@@ -4,9 +4,11 @@ using OpenDispatch.Api.ErrorHandling;
 using OpenDispatch.Application.Technicians.CreateTechnician;
 using OpenDispatch.Application.Technicians.GetTechnician;
 using OpenDispatch.Application.Technicians.ListTechnicians;
+using OpenDispatch.Application.Technicians.RetireTechnician;
 using OpenDispatch.Application.Technicians.SetShift;
 using OpenDispatch.Application.Technicians.SetSkills;
 using OpenDispatch.Application.Technicians.UpdateTechnician;
+using OpenDispatch.Contracts.Customers;
 using OpenDispatch.Contracts.Technicians;
 using OpenDispatch.Domain.Identifiers;
 
@@ -49,6 +51,13 @@ public static class TechnicianEndpoints
         technicians.MapPut("/{id:guid}/shift", SetShiftAsync)
             .RequireAuthorization(AuthPolicies.AdminOnly)
             .WithName("SetTechnicianShift")
+            .Produces(StatusCodes.Status204NoContent);
+
+        // Admin, like the rest of the crew's record: who is on the books is a business decision,
+        // and unlike a customer this one changes what the scheduler will plan tomorrow.
+        technicians.MapPost("/{id:guid}/retire", RetireAsync)
+            .RequireAuthorization(AuthPolicies.AdminOnly)
+            .WithName("RetireTechnician")
             .Produces(StatusCodes.Status204NoContent);
 
         return endpoints;
@@ -106,6 +115,19 @@ public static class TechnicianEndpoints
     {
         var result = await sender
             .Send(new SetSkillsCommand(TechnicianId.From(id), request.Skills), cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.ToHttpResult();
+    }
+
+    private static async Task<IResult> RetireAsync(
+        Guid id,
+        RetireRequest request,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender
+            .Send(new RetireTechnicianCommand(TechnicianId.From(id), request.Retired), cancellationToken)
             .ConfigureAwait(false);
 
         return result.ToHttpResult();

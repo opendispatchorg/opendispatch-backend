@@ -174,6 +174,44 @@ public sealed class Customer : AggregateRoot
         ErasedAt = at;
     }
 
+
+    /// <summary>
+    /// When they were retired, or <see langword="null"/> while they are still current.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Retiring is not deleting, and this system has no delete.</strong> A customer's name is on their jobs and their invoices, and a technician's is on every stop they ever drove. A hard
+    /// delete would orphan those references and there is nothing built to handle that, so what a
+    /// shop actually needs — "stop offering them, keep the history" — is a flag and a filtered read.
+    /// </para>
+    /// <para>
+    /// It is not erasure either. An erasure destroys what says who somebody is and is irreversible;
+    /// this hides a record from the lists people pick from and can be undone tomorrow.
+    /// </para>
+    /// </remarks>
+    public DateTimeOffset? RetiredAt { get; private set; }
+
+    /// <summary>Whether they are still on the books.</summary>
+    public bool IsActive => RetiredAt is null;
+
+    /// <summary>Retires them: still in the history, no longer offered.</summary>
+    /// <param name="at">When.</param>
+    /// <remarks>Retiring somebody already retired does nothing, so a repeated click is harmless.</remarks>
+    public void Retire(DateTimeOffset at)
+    {
+        RefuseIfErased();
+
+        RetiredAt ??= at;
+    }
+
+    /// <summary>Puts them back on the books.</summary>
+    public void Reinstate()
+    {
+        RefuseIfErased();
+
+        RetiredAt = null;
+    }
+
     /// <exception cref="DomainException">
     /// The customer has been erased. Editing them back into existence — a name typed in again, a
     /// new address added to the record — would undo an erasure the shop has promised, so the

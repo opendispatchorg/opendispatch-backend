@@ -48,6 +48,7 @@ internal sealed class CustomerNotifications(
     ILogger<CustomerNotifications> log,
     INotificationSender? sender = null)
     : IDomainEventHandler<JobEnRoute>,
+      IDomainEventHandler<InvoiceRaised>,
       IDomainEventHandler<InvoicePaid>
 {
     public async Task Handle(JobEnRoute domainEvent, CancellationToken cancellationToken)
@@ -66,21 +67,64 @@ internal sealed class CustomerNotifications(
             cancellationToken).ConfigureAwait(false);
     }
 
+    /// <summary>
+    /// The bill itself — the step between doing the work and getting paid.
+    /// </summary>
     /// <remarks>
-    /// The receipt, and it is deliberately the settlement rather than the raising of the bill: the
-    /// domain announces an invoice being <em>paid</em> and says nothing when one is created
-    /// (<c>Job.MarkInvoiced</c>'s own remarks explain that silence). Sending on an event that does
-    /// not exist would mean adding one, which is a larger decision than a notification channel —
-    /// see <c>DECISIONS.local.md</c>.
+    /// This is the message a shop actually needs to send, and for a while it could not: the domain
+    /// announced an invoice being <em>paid</em> and said nothing when one was raised, so the only
+    /// customer email about money was a receipt for a payment nobody had been asked for.
+    /// <c>InvoiceRaised</c> closed that, and this is its one subscriber.
     /// </remarks>
-    public async Task Handle(InvoicePaid domainEvent, CancellationToken cancellationToken)
+    public Task Handle(InvoiceRaised domainEvent, CancellationToken cancellationToken) =>
+        BillAsync(
+            domainEvent.JobId,
+            domainEvent.InvoiceId,
+            "Your invoice",
+            total => $"Your invoice for the work comes to {total}.\n\n"
+                + "Details are on the invoice itself; reply to this message if anything looks wrong.\n",
+            cancellationToken);
+
+    /// <remarks>
+    /// The receipt, and the other half of the pair: <c>InvoiceRaised</c> asks, this one confirms.
+    /// v1 takes no money — see <c>FakePaymentGateway</c> — so what it confirms is that a payment was
+    /// <em>recorded</em>, which is what the wording says.
+    /// </remarks>
+    public Task Handle(InvoicePaid domainEvent, CancellationToken cancellationToken) =>
+        BillAsync(
+            domainEvent.JobId,
+            domainEvent.InvoiceId,
+            "Your invoice has been settled",
+            total => $"Thank you — we have recorded payment of {total} against your invoice.\n",
+            cancellationToken);
+
+    /// <summary>
+    /// The shape both invoice messages share: find somebody to tell, read the bill, say the amount.
+    /// </summary>
+    /// <param name="jobId">The work, which is how the customer is reached.</param>
+    /// <param name="invoiceId">The bill, re-read for its current total.</param>
+    /// <param name="subject">The subject line.</param>
+    /// <param name="body">What to say, given the total already formatted.</param>
+    /// <param name="cancellationToken">Cancellation.</param>
+    /// <remarks>
+    /// <strong>The total is re-read rather than carried on the event</strong>, which is what lets
+    /// <c>InvoiceRaised</c> be raised by a factory before its caller has added a single line: by the
+    /// time a subscriber runs, the transaction has committed and the invoice is whatever it ended up
+    /// being. An amount on the event would have been zero for half its raise sites.
+    /// </remarks>
+    private async Task BillAsync(
+        JobId jobId,
+        InvoiceId invoiceId,
+        string subject,
+        Func<string, string> body,
+        CancellationToken cancellationToken)
     {
-        if (await AddressFor(domainEvent.JobId, cancellationToken).ConfigureAwait(false) is not { } customer)
+        if (await AddressFor(jobId, cancellationToken).ConfigureAwait(false) is not { } customer)
         {
             return;
         }
 
-        var invoice = await invoices.GetAsync(domainEvent.InvoiceId, cancellationToken).ConfigureAwait(false);
+        var invoice = await invoices.GetAsync(invoiceId, cancellationToken).ConfigureAwait(false);
 
         if (invoice is null)
         {
@@ -90,9 +134,8 @@ internal sealed class CustomerNotifications(
         await SendAsync(
             Notification.Email(
                 customer.To,
-                "Your invoice has been settled",
-                $"Hello {customer.Name},\n\n"
-                + $"Thank you — we have recorded payment of {Amount(invoice.Total)} against your invoice.\n"),
+                subject,
+                $"Hello {customer.Name},\n\n" + body(Amount(invoice.Total))),
             cancellationToken).ConfigureAwait(false);
     }
 

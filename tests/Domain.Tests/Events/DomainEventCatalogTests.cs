@@ -12,7 +12,7 @@ namespace OpenDispatch.Domain.Tests.Events;
 /// generated from shapes that have to stay in step with them.
 /// </summary>
 /// <remarks>
-/// So the catalog is pinned here rather than merely written down. Adding a tenth event is
+/// So the catalog is pinned here rather than merely written down. Adding an eleventh event is
 /// a deliberate act — it should fail this test, and whoever adds it should then think about
 /// whether the clients and the contract pipeline need to know. It did its job for
 /// <c>AssignmentPlanned</c>: the tenth was added, this failed, and the question got asked.
@@ -25,6 +25,7 @@ public sealed class DomainEventCatalogTests
         nameof(AssignmentChanged),
         nameof(AssignmentPlanned),
         nameof(InvoicePaid),
+        nameof(InvoiceRaised),
         nameof(JobCancelled),
         nameof(JobCompleted),
         nameof(JobDispatched),

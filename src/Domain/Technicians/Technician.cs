@@ -80,6 +80,40 @@ public sealed class Technician : AggregateRoot
     /// <summary>Where their day starts and ends; the origin of the first drive and the destination of the last.</summary>
     public GeoPoint HomeBase { get; private set; }
 
+
+    /// <summary>
+    /// When they were retired, or <see langword="null"/> while they are still current.
+    /// </summary>
+    /// <remarks>
+    /// <para>
+    /// <strong>Retiring is not deleting, and this system has no delete.</strong> A technician's name is on every stop they ever drove and every audit entry they wrote; a customer's is on their jobs and their invoices. A hard
+    /// delete would orphan those references and there is nothing built to handle that, so what a
+    /// shop actually needs — "stop offering them, keep the history" — is a flag and a filtered read.
+    /// </para>
+    /// <para>
+    /// It is not erasure either. An erasure destroys what says who somebody is and is irreversible;
+    /// this hides a record from the lists people pick from and can be undone tomorrow.
+    /// </para>
+    /// </remarks>
+    public DateTimeOffset? RetiredAt { get; private set; }
+
+    /// <summary>Whether they are still on the books.</summary>
+    public bool IsActive => RetiredAt is null;
+
+    /// <summary>Retires them: still in the history, no longer offered.</summary>
+    /// <param name="at">When.</param>
+    /// <remarks>Retiring somebody already retired does nothing, so a repeated click is harmless.</remarks>
+    public void Retire(DateTimeOffset at)
+    {
+        RetiredAt ??= at;
+    }
+
+    /// <summary>Puts them back on the books.</summary>
+    public void Reinstate()
+    {
+        RetiredAt = null;
+    }
+
     /// <summary>
     /// Takes on a new technician. A technician with no skills is allowed — a trainee simply
     /// matches no skilled job.

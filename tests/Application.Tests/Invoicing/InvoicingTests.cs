@@ -178,9 +178,17 @@ public sealed class InvoicingTests
         Assert.Equal(settled.Total, charge.Amount);
         Assert.Equal(settled.Id, charge.Invoice);
 
-        // The invoice announces the payment; the job's own status change says nothing, because a
-        // second event about the same fact is two announcements of one thing.
-        var announced = Assert.IsType<InvoicePaid>(Assert.Single(settled.DomainEvents));
+        // Two events across the two commands: raising the bill, then settling it. A real deployment
+        // sees them in two batches — the SaveChanges interceptor clears after each commit — and the
+        // in-memory store here keeps both, which is what makes the whole sequence readable at once.
+        // The job's own status change says nothing, because a second event about the same fact is
+        // two announcements of one thing.
+        Assert.Collection(
+            settled.DomainEvents,
+            raised => Assert.IsType<InvoiceRaised>(raised),
+            paid => Assert.IsType<InvoicePaid>(paid));
+
+        var announced = settled.DomainEvents.OfType<InvoicePaid>().Single();
         Assert.Equal(settled.Id, announced.InvoiceId);
         Assert.Equal(settled.JobId, announced.JobId);
         Assert.Equal(announcedByTheWork, Assert.Single(slice.Store<Job>().Saved).DomainEvents.Count);
@@ -204,7 +212,10 @@ public sealed class InvoicingTests
 
         Assert.Equal(InvoiceStatus.Draft, Assert.Single(slice.Store<Invoice>().Saved).Status);
         Assert.Equal(JobStatus.Invoiced, Assert.Single(slice.Store<Job>().Saved).Status);
-        Assert.Empty(Assert.Single(slice.Store<Invoice>().Saved).DomainEvents);
+
+        // Raising the bill announced itself in the earlier command and the in-memory store still
+        // holds that. What matters here is that the refused payment added nothing to it.
+        Assert.IsType<InvoiceRaised>(Assert.Single(Assert.Single(slice.Store<Invoice>().Saved).DomainEvents));
     }
 
     /// <summary>

@@ -30,7 +30,12 @@ public sealed class InvoiceTests
         Assert.Equal(InvoiceStatus.Draft, invoice.Status);
         Assert.Empty(invoice.Lines);
         Assert.Equal(Money.Zero, invoice.Total);
-        Assert.Empty(invoice.DomainEvents);
+
+        // Raising a bill announces itself, so a customer can be told what they owe rather than only
+        // that a payment was recorded. It says nothing about the total, which does not exist yet:
+        // this factory's caller adds the lines afterwards. See InvoiceRaised.
+        var raised = Assert.IsType<InvoiceRaised>(Assert.Single(invoice.DomainEvents));
+        Assert.Equal(invoice.Id, raised.InvoiceId);
     }
 
     [Fact]
@@ -72,7 +77,7 @@ public sealed class InvoiceTests
     public void MarkPaidSettlesTheInvoiceAndAnnouncesIt()
     {
         var job = JobId.New();
-        var invoice = InvoiceBuilder.Any().ForJob(job).Build();
+        var invoice = Raised(InvoiceBuilder.Any().ForJob(job).Build());
         invoice.AddLineItem(LineItemKind.Labor, "Callout", 1m, Money.FromDollars(120m));
 
         invoice.MarkPaid();
@@ -83,10 +88,25 @@ public sealed class InvoiceTests
         Assert.Equal(job, paid.JobId);
     }
 
+    /// <summary>
+    /// A bill as it exists once it has been saved: raised, and its creation already announced.
+    /// </summary>
+    /// <remarks>
+    /// The clear is what a real save does — the <c>SaveChanges</c> interceptor collects and clears
+    /// each aggregate's events after committing — so a test about what <em>settling</em> announces
+    /// starts where the next request starts.
+    /// </remarks>
+    private static Invoice Raised(Invoice invoice)
+    {
+        invoice.ClearDomainEvents();
+
+        return invoice;
+    }
+
     [Fact]
     public void PayingATwiceSettledInvoiceIsRefusedAndAnnouncesNothingFurther()
     {
-        var invoice = InvoiceBuilder.Any().Build();
+        var invoice = Raised(InvoiceBuilder.Any().Build());
         invoice.MarkPaid();
         invoice.ClearDomainEvents();
 

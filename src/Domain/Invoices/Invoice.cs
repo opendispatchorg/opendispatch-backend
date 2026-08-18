@@ -71,7 +71,7 @@ public sealed class Invoice : AggregateRoot
     /// work finished last week is stating a fact rather than fighting the domain.
     /// </remarks>
     public static Invoice CreateFromJob(OrgId orgId, JobId jobId, DateTimeOffset issued) =>
-        new(InvoiceId.New(), orgId, jobId, issued);
+        Announce(new Invoice(InvoiceId.New(), orgId, jobId, issued));
 
     /// <summary>
     /// Raises a draft invoice billing exactly what the technician recorded against the job.
@@ -115,6 +115,22 @@ public sealed class Invoice : AggregateRoot
         {
             invoice.AddLineItem(recorded.Kind, recorded.Description, recorded.Quantity, recorded.UnitPrice);
         }
+
+        return Announce(invoice);
+    }
+
+    /// <summary>
+    /// Says that a bill now exists, whichever factory built it.
+    /// </summary>
+    /// <remarks>
+    /// Both factories go through here rather than each raising for itself: two build sites and one
+    /// announcement is the arrangement that cannot be half-done, and a third would inherit it. The
+    /// event carries no total on purpose — see <see cref="InvoiceRaised"/> — which is what lets it
+    /// be raised before <c>CreateFromJob</c>'s caller has added a single line.
+    /// </remarks>
+    private static Invoice Announce(Invoice invoice)
+    {
+        invoice.Raise(new InvoiceRaised(invoice.Id, invoice.JobId));
 
         return invoice;
     }

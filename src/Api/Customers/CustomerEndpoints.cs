@@ -7,6 +7,7 @@ using OpenDispatch.Application.Customers.EraseCustomer;
 using OpenDispatch.Application.Customers.GetCustomer;
 using OpenDispatch.Application.Customers.ListCustomers;
 using OpenDispatch.Application.Customers.RemoveServiceLocation;
+using OpenDispatch.Application.Customers.RetireCustomer;
 using OpenDispatch.Application.Customers.UpdateCustomer;
 using OpenDispatch.Application.Customers.UpdateServiceLocation;
 using OpenDispatch.Contracts.Customers;
@@ -46,6 +47,11 @@ public static class CustomerEndpoints
         // whoever runs the business rather than to whoever runs the day.
         customers.MapPost("/{id:guid}/erase", EraseAsync).WithName("EraseCustomer")
             .RequireAuthorization(AuthPolicies.AdminOnly)
+            .Produces(StatusCodes.Status204NoContent);
+
+        // Reversible, unlike erasing, so it stays on the dispatcher's side of the line: taking a
+        // customer who has moved away off the list is running the day, not running the business.
+        customers.MapPost("/{id:guid}/retire", RetireAsync).WithName("RetireCustomer")
             .Produces(StatusCodes.Status204NoContent);
 
         customers.MapPost("/{id:guid}/locations", AddLocationAsync).WithName("AddServiceLocation")
@@ -124,6 +130,19 @@ public static class CustomerEndpoints
     /// their invoices still total what they totalled. What goes is everything that says who they
     /// were — see <see cref="EraseCustomerCommand"/>.
     /// </remarks>
+    private static async Task<IResult> RetireAsync(
+        Guid id,
+        RetireRequest request,
+        ISender sender,
+        CancellationToken cancellationToken)
+    {
+        var result = await sender
+            .Send(new RetireCustomerCommand(CustomerId.From(id), request.Retired), cancellationToken)
+            .ConfigureAwait(false);
+
+        return result.ToHttpResult();
+    }
+
     private static async Task<IResult> EraseAsync(Guid id, ISender sender, CancellationToken cancellationToken)
     {
         var result = await sender

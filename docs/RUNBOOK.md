@@ -185,6 +185,7 @@ organization, and `measure.sh` re-plans whatever day it is run on.
 | **Create a login** | `<image> create-user --username <name> --org "<Organization>" --role <Admin\|Dispatcher\|Technician> [--technician <guid>]` — the password is read from stdin if `--password` is not given, which is how to keep it out of your shell history. Running it again for an existing username **replaces** that login: the only password reset there is. |
 | **Somebody leaves** | `<image> disable-user --username <name>`. The login stops working; the user row stays, so the audit trail can still say what they did. |
 | **Somebody returns** | `create-user` again with the same username: it switches the login back on with a new password. |
+| **Retire a customer or technician** | `POST /customers/{id}/retire` or `POST /technicians/{id}/retire` with `{"retired": true}`. Takes them off the lists and out of the scheduler; keeps every job, stop and invoice. Reversible — send `false`. This is the answer to "delete this person", which the system does not have. |
 | **Erase a customer** | `POST /customers/{id}/erase` as an admin. See the README for exactly what goes and what stays. It is irreversible and it deletes the photographs' bytes from whichever store this host has. |
 | **Prune protocol tables** | `<image> prune --days 30`, from cron. Deletes the sync op log and removal notes older than the window — bookkeeping, not business records. Nothing else in this system is ever pruned. |
 

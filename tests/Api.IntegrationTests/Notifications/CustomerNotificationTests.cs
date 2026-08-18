@@ -71,7 +71,7 @@ public sealed class CustomerNotificationTests
     }
 
     [Fact]
-    public async Task TellsACustomerWhenTheirInvoiceIsSettled()
+    public async Task TellsACustomerWhatTheyOweAndThenThatItIsSettled()
     {
         var mail = new RecordingNotificationSender();
         await using var services = BuildHost(mail);
@@ -81,11 +81,12 @@ public sealed class CustomerNotificationTests
         var invoice = await Send(services, new GenerateInvoiceCommand(job,
             [new InvoiceLine(LineItemKind.Labor, "Diagnosis and repair", 2m, 85m)]));
 
-        // Raising the bill is not the moment: the domain announces an invoice being *paid* and says
-        // nothing when one is created, so there is nothing here to react to yet.
-        Assert.DoesNotContain(
-            mail.Sent,
-            sent => sent.Subject!.Contains("invoice", StringComparison.OrdinalIgnoreCase));
+        // Raising the bill is its own message now, and it is the one a shop actually needs to send:
+        // the step between doing the work and getting paid.
+        var bill = Assert.Single(mail.Sent, sent => sent.Subject == "Your invoice");
+
+        Assert.Equal("dwight@schrutefarms.example", bill.To);
+        Assert.Contains("170.00", bill.Body, StringComparison.Ordinal);
 
         await Send(services, new MarkPaidCommand(invoice.Value.Id));
 

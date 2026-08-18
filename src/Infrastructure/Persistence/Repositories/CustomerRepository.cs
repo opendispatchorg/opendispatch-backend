@@ -32,9 +32,14 @@ internal sealed class CustomerRepository(AppDbContext context) : ICustomerReposi
     /// </remarks>
     public async Task<Page<Customer>> ListAsync(PageRequest page, CancellationToken ct)
     {
-        var total = await context.Customers.CountAsync(ct).ConfigureAwait(false);
+        // Retired customers are left out, and the count is taken over the same set — a total that
+        // included them would page a list that does not contain them, which is how a "next" button
+        // lands on an empty page. They are still reachable by id and still in the export.
+        var current = context.Customers.Where(customer => customer.RetiredAt == null);
 
-        var items = await context.Customers
+        var total = await current.CountAsync(ct).ConfigureAwait(false);
+
+        var items = await current
             .OrderBy(customer => customer.Name)
             .ThenBy(customer => customer.Id)
             .Skip(page.Skip)

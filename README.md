@@ -312,6 +312,30 @@ Replacing it is one adapter. `IPaymentGateway` is a port with a single method; w
 nothing in Application or Domain changes. Do the column first: the charge currently happens inside
 the same transaction as the invoice update, which is safe only while the charge does nothing.
 
+### Retiring a customer or a technician
+
+`POST /customers/{id}/retire` and `POST /technicians/{id}/retire`, both taking `{"retired": true}`
+or `false`. Somebody leaves the crew; a customer moves away; a duplicate gets created by a typo.
+
+**There is no delete, and there should not be.** A technician's name is on every stop they ever
+drove and every audit entry they wrote; a customer's is on their jobs and their invoices. So
+"remove them" means *stop offering them*, and that is exactly what this does: a retired technician
+disappears from the crew both the optimiser and the office's list ask for, and a retired customer
+disappears from `GET /customers`. Everything already recorded stays, resolvable by id, and the
+export still carries them.
+
+Two things it deliberately is not:
+
+- **Not erasure.** Erasure answers a legal request, destroys what says who somebody is, and cannot
+  be undone. Retiring is reversible — send it again with `"retired": false`. An erased customer
+  cannot be retired or reinstated at all.
+- **Not a revoked login.** Retiring a technician does not switch off their sign-in; that is
+  `disable-user`. A shop reorganising its rota should not be revoking credentials as a side effect.
+
+Work already planned is left where it is. Retiring somebody mid-afternoon does not take the stop
+they are driving to off them — re-plan the day if that is what you meant, and the next optimise will
+not offer them again.
+
 ### Erasing a customer
 
 `POST /customers/{id}/erase`, admin only, is how a shop answers a request to be forgotten. It is
