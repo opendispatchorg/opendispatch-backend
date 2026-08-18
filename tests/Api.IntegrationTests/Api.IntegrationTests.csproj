@@ -6,8 +6,8 @@
 
   <ItemGroup>
     <PackageReference Include="coverlet.collector" Version="10.0.1" />
-    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.10" />
-    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.10" />
+    <PackageReference Include="Microsoft.AspNetCore.Mvc.Testing" Version="10.0.11" />
+    <PackageReference Include="Microsoft.AspNetCore.SignalR.Client" Version="10.0.11" />
     <!--
       MetricCollector, for step 54's metrics tests: it listens to one instrument on one meter
       factory, which is what lets a test read this host's measurements while the rest of the suite
