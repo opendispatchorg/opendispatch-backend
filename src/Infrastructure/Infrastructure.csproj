@@ -54,7 +54,7 @@
       explicitly. Nothing here depends on a host: this package is the abstraction and the service,
       not the middleware.
     -->
-    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.10" />
+    <PackageReference Include="Microsoft.Extensions.Diagnostics.HealthChecks" Version="10.0.11" />
   </ItemGroup>
 
   <ItemGroup>
