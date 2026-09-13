@@ -34,7 +34,7 @@
       wants it on the startup project — the one that can build a host and hand it a configured
       connection string. It is a development dependency, so nothing flows into the published app.
     -->
-    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.3">
+    <PackageReference Include="Microsoft.EntityFrameworkCore.Design" Version="10.0.12">
       <PrivateAssets>all</PrivateAssets>
       <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
     </PackageReference>
